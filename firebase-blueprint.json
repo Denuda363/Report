@@ -1,0 +1,29 @@
+{
+  "description": "Master Data and Daily Reports schema",
+  "collections": {
+    "suppliers": {
+      "description": "Stores supplier information",
+      "fields": {
+        "userId": "string",
+        "name": "string"
+      }
+    },
+    "products": {
+      "description": "Stores product information",
+      "fields": {
+        "userId": "string",
+        "name": "string",
+        "supplierId": "string"
+      }
+    },
+    "reports": {
+      "description": "Stores daily report / sales data",
+      "fields": {
+        "userId": "string",
+        "date": "string",
+        "productId": "string",
+        "quantity": "number"
+      }
+    }
+  }
+}
