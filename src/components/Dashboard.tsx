@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { format, parseISO, subDays } from 'date-fns';
-import { TrendingUp, Package, Users, Activity } from 'lucide-react';
+import { TrendingUp, Package, Users, Activity, Archive } from 'lucide-react';
 
 export const Dashboard = () => {
   const { reports, products, suppliers } = useAppContext();
@@ -11,8 +11,10 @@ export const Dashboard = () => {
   const totalProductsSold = useMemo(() => reports.reduce((sum, r) => sum + r.quantity, 0), [reports]);
   const activeProducts = useMemo(() => new Set(reports.map(r => r.productId)).size, [reports]);
   const totalReports = reports.length;
+  const totalProducts = products.length;
 
   // Chart data: Volume over last 7 days
+
   const salesByDate = useMemo(() => {
     const last7Days = Array.from({ length: 7 }).map((_, i) => format(subDays(new Date(), i), 'yyyy-MM-dd')).reverse();
     
@@ -50,77 +52,72 @@ export const Dashboard = () => {
   const stats = [
     { label: 'Total Volume', value: totalProductsSold.toLocaleString('id-ID'), icon: Package, sub: 'Total units moved' },
     { label: 'Total Records', value: totalReports.toLocaleString('id-ID'), icon: Activity, sub: 'Report entries' },
+    { label: 'Total Products', value: totalProducts.toLocaleString('id-ID'), icon: Archive, sub: 'Registered items' },
     { label: 'Active Products', value: activeProducts, icon: TrendingUp, sub: 'SKUs with movement' },
     { label: 'Total Suppliers', value: suppliers.length, icon: Users, sub: 'Registered vendors' },
   ];
 
   return (
-    <div className="space-y-6 h-full flex flex-col">
+    <div className="space-y-4 h-full flex flex-col">
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
         {stats.map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-3xl border border-[#E2E4D8] shadow-sm">
-            <span className="text-xs font-bold text-[#8B9D77] uppercase tracking-wider">{stat.label}</span>
-            <div className="text-3xl font-bold text-[#2D3025] mt-1">{stat.value}</div>
-            <div className="flex items-center gap-1 text-xs text-[#7A7F6E] mt-2">
-               <stat.icon className="w-3.5 h-3.5" />
-               <span>{stat.sub}</span>
+          <div key={i} className="bg-white p-4 lg:p-5 rounded-2xl border border-theme-200 flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-1 text-theme-500">
+               <stat.icon className="w-4 h-4 shrink-0" />
+               <span className="text-[10px] lg:text-xs font-bold uppercase tracking-wider line-clamp-1">{stat.label}</span>
             </div>
+            <div className="text-xl lg:text-2xl font-bold text-theme-900">{stat.value}</div>
           </div>
         ))}
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1">
         {/* Revenue Trend Line Chart */}
-        <div className="bg-white p-6 rounded-3xl border border-[#E2E4D8] shadow-sm flex flex-col min-h-[350px]">
-          <h3 className="font-bold text-[#2D3025] mb-6">Movement Volume (Last 7 Days)</h3>
+        <div className="bg-white p-4 lg:p-5 rounded-2xl border border-theme-200 flex flex-col min-h-[220px] lg:min-h-[260px]">
+          <h3 className="font-bold text-theme-900 mb-3 text-sm">Movement Volume (Last 7 Days)</h3>
           <div className="flex-1">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={salesByDate} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E4D8" />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#7A7F6E', fontSize: 12, fontWeight: 500 }} dy={10} />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#7A7F6E', fontSize: 12, fontWeight: 500 }}
-                  tickFormatter={(val) => `${val}`}
-                />
+              <LineChart data={salesByDate} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#A3A899', fontSize: 11, fontWeight: 500 }} dy={15} />
                 <RechartsTooltip 
-                  cursor={{ stroke: '#D9DED0', strokeWidth: 1 }}
-                  contentStyle={{ borderRadius: '12px', border: '1px solid #E2E4D8', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)', fontWeight: 600, color: '#2D3025' }}
+                  cursor={false}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)', fontWeight: 600, color: 'var(--color-theme-900)', padding: '8px 12px' }}
+                  itemStyle={{ color: 'var(--color-theme-500)' }}
+                  labelStyle={{ color: '#A3A899', fontSize: '11px', marginBottom: '4px' }}
                   formatter={(val: number) => [`${val.toLocaleString('id-ID')} Units`, 'Volume']}
                 />
-                <Line type="monotone" dataKey="volume" stroke="#8B9D77" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#8B9D77' }} activeDot={{ r: 6, fill: '#8B9D77', stroke: '#fff' }} />
+                <Line type="monotone" dataKey="volume" stroke="var(--color-theme-500)" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: 'var(--color-theme-500)', stroke: '#fff', strokeWidth: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Top Suppliers Bar Chart */}
-        <div className="bg-white p-6 rounded-3xl border border-[#E2E4D8] shadow-sm flex flex-col min-h-[350px]">
-          <h3 className="font-bold text-[#2D3025] mb-6">Top Suppliers (By Volume)</h3>
+        <div className="bg-white p-4 lg:p-5 rounded-2xl border border-theme-200 flex flex-col min-h-[220px] lg:min-h-[260px]">
+          <h3 className="font-bold text-theme-900 mb-3 text-sm">Top Suppliers (By Volume)</h3>
           <div className="flex-1">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={salesBySupplier} layout="vertical" margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E4D8" />
+              <BarChart data={salesBySupplier} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                 <XAxis type="number" hide />
                 <YAxis 
                   dataKey="name" 
                   type="category" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#7A7F6E', fontSize: 12, fontWeight: 500 }}
+                  tick={{ fill: '#A3A899', fontSize: 11, fontWeight: 500 }}
                   width={110}
+                  dx={-10}
                 />
                 <RechartsTooltip 
-                  cursor={{ fill: '#F9FAF6' }}
-                  contentStyle={{ borderRadius: '12px', border: '1px solid #E2E4D8', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)', fontWeight: 600, color: '#2D3025' }}
+                  cursor={{ fill: 'var(--color-theme-50)', radius: 8 }}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)', fontWeight: 600, color: 'var(--color-theme-900)', padding: '8px 12px' }}
+                  itemStyle={{ color: 'var(--color-theme-500)' }}
+                  labelStyle={{ display: 'none' }}
                   formatter={(val: number) => [`${val.toLocaleString('id-ID')} Units`, 'Volume']}
                 />
-                <Bar dataKey="value" fill="#DCE2CD" radius={[0, 8, 8, 0]} barSize={28}>
-                  {/* Active effect could be done manually, but Recharts handles it. */}
-                </Bar>
+                <Bar dataKey="value" fill="var(--color-theme-300)" radius={[8, 8, 8, 8]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>

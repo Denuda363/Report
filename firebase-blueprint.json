@@ -1,29 +1,106 @@
 {
-  "description": "Master Data and Daily Reports schema",
-  "collections": {
-    "suppliers": {
-      "description": "Stores supplier information",
-      "fields": {
-        "userId": "string",
-        "name": "string"
-      }
+  "entities": {
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Supplier information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["name"]
     },
-    "products": {
-      "description": "Stores product information",
-      "fields": {
-        "userId": "string",
-        "name": "string",
-        "supplierId": "string"
-      }
+    "Product": {
+      "title": "Product",
+      "description": "Product catalog item",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "alternativeSupplierIds": { "type": "array" },
+        "unit": { "type": "string" },
+        "bottomStock": { "type": "number" },
+        "stock": { "type": "number" },
+        "location": { "type": "string" },
+        "category": { "type": "string" },
+        "isKosongPabrik": { "type": "boolean" },
+        "kosongPabrikDate": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["name", "unit"]
     },
-    "reports": {
-      "description": "Stores daily report / sales data",
-      "fields": {
-        "userId": "string",
-        "date": "string",
-        "productId": "string",
-        "quantity": "number"
+    "Report": {
+      "title": "Report",
+      "description": "Daily stock report and arrival records",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "productId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "isOrdered": { "type": "boolean" },
+        "isArrived": { "type": "boolean" },
+        "isKosongPabrik": { "type": "boolean" },
+        "isReorder": { "type": "boolean" },
+        "reorderQty": { "type": "number" },
+        "reorderReason": { "type": "string" },
+        "notes": { "type": "string" },
+        "isWarningStock": { "type": "boolean" },
+        "isArrivedOnly": { "type": "boolean" },
+        "arrivedAt": { "type": "string" },
+        "arrivedSupplierId": { "type": "string" },
+        "arrivedQty": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["date", "productId"]
+    },
+    "StockOut": {
+      "title": "StockOut",
+      "description": "Outbound stock records",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "productId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["date", "productId", "quantity"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "User preferences and system settings",
+      "type": "object",
+      "properties": {
+        "autoDeleteMode": { "type": "string" },
+        "navbarPosition": { "type": "string" },
+        "theme": { "type": "string" },
+        "useLocalDb": { "type": "boolean" },
+        "dbProvider": { "type": "string" }
       }
+    }
+  },
+  "firestore": {
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Supplier records"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Master products list"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Daily reports and stock movements"
+    },
+    "/stock_outs/{stockOutId}": {
+      "schema": "StockOut",
+      "description": "Stock out entries"
+    },
+    "/settings/{settingId}": {
+      "schema": "Settings",
+      "description": "App settings configuration"
     }
   }
 }
