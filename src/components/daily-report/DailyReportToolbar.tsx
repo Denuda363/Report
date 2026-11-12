@@ -1,12 +1,13 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { 
   Calendar as CalendarIcon, Search, Building2, ChevronDown, X, 
-  AlertTriangle, Trash2, Copy, Download, Upload, RefreshCw 
+  AlertTriangle, Trash2, Copy, Download, Upload, RefreshCw,
+  CheckCircle2, CheckSquare, Square
 } from 'lucide-react';
-import { Supplier } from '../../types';
-import { SearchHistoryChips } from '../SearchHistoryChips';
-import { clearSearchHistory, addSearchHistory } from '../../lib/searchHistory';
+import { Supplier, Product } from '../../types';
 import { cn } from '../../lib/utils';
+import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../../lib/searchHistory';
+import { PreviousSearchSection } from '../PreviousSearchSection';
 
 interface DailyReportToolbarProps {
   filterDate: string;
@@ -23,10 +24,16 @@ interface DailyReportToolbarProps {
   setSupplierSearchHistory: (val: string[]) => void;
   productFilterQuery: string;
   setProductFilterQuery: (val: string) => void;
+  products?: Product[];
   bottomStockFilter: 'all' | 'has' | 'none' | 'warning';
   setBottomStockFilter: (val: 'all' | 'has' | 'none' | 'warning') => void;
   arrivedFilter: 'all' | 'arrived' | 'not_arrived';
   setArrivedFilter: (val: 'all' | 'arrived' | 'not_arrived') => void;
+  checkedFilter: 'all' | 'checked' | 'unchecked';
+  setCheckedFilter: (val: 'all' | 'checked' | 'unchecked') => void;
+  onToggleCheckAllFiltered?: () => void;
+  allFilteredChecked?: boolean;
+  checkedCountInFilter?: number;
   showDuplicatesOnly: boolean;
   setShowDuplicatesOnly: (val: boolean) => void;
   onDeleteAllDuplicates: () => void;
@@ -60,10 +67,16 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
   setSupplierSearchHistory,
   productFilterQuery,
   setProductFilterQuery,
+  products = [],
   bottomStockFilter,
   setBottomStockFilter,
   arrivedFilter,
   setArrivedFilter,
+  checkedFilter,
+  setCheckedFilter,
+  onToggleCheckAllFiltered,
+  allFilteredChecked,
+  checkedCountInFilter,
   showDuplicatesOnly,
   setShowDuplicatesOnly,
   onDeleteAllDuplicates,
@@ -82,25 +95,178 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
   totalResults
 }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const supplierInputRef = useRef<HTMLInputElement>(null);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
+  const productInputRef = useRef<HTMLInputElement>(null);
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+  
+  // Product Search Memory
+  const [lastProductQuery, setLastProductQuery] = useState(() => getLastSearchQuery('toolbar_product'));
+  const [isTypingNewProduct, setIsTypingNewProduct] = useState(false);
+  const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
+  const [productSearchHistory, setProductSearchHistory] = useState<string[]>(() => getSearchHistory('toolbar_product'));
+
+  // Supplier Search Memory
+  const [lastSupplierQuery, setLastSupplierQuery] = useState(() => getLastSearchQuery('toolbar_supplier'));
+  const [isTypingNewSupplier, setIsTypingNewSupplier] = useState(false);
+  const [highlightedSupplierIndex, setHighlightedSupplierIndex] = useState(0);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsSupplierDropdownOpen(false);
       }
+      if (productDropdownRef.current && !productDropdownRef.current.contains(event.target as Node)) {
+        setIsProductDropdownOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [setIsSupplierDropdownOpen]);
 
+  // Autocomplete suggestions for typing product
+  const matchingProducts = useMemo(() => {
+    const q = productFilterQuery.trim().toLowerCase();
+    if (!q) return (products || []).slice(0, 100);
+    return (products || []).filter(p => (p.name || '').toLowerCase().includes(q)).slice(0, 100);
+  }, [productFilterQuery, products]);
+
+  // Previous search products
+  const previousProducts = useMemo(() => {
+    if (!lastProductQuery) return [];
+    const q = lastProductQuery.toLowerCase();
+    return (products || []).filter(p => (p.name || '').toLowerCase().includes(q)).slice(0, 50);
+  }, [products, lastProductQuery]);
+
+  // Previous search suppliers
+  const previousSuppliers = useMemo(() => {
+    if (!lastSupplierQuery) return [];
+    const q = lastSupplierQuery.toLowerCase();
+    return (suppliers || []).filter(s => (s.name || '').toLowerCase().includes(q)).slice(0, 50);
+  }, [suppliers, lastSupplierQuery]);
+
+  // Auto-scroll highlighted supplier item into view
+  useEffect(() => {
+    if (isSupplierDropdownOpen && dropdownRef.current) {
+      const activeEl = dropdownRef.current.querySelector('[data-highlighted="true"]') as HTMLElement | null;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedSupplierIndex, isSupplierDropdownOpen]);
+
+  // Auto-scroll highlighted product item into view
+  useEffect(() => {
+    if (isProductDropdownOpen && productDropdownRef.current) {
+      const activeEl = productDropdownRef.current.querySelector('[data-highlighted="true"]') as HTMLElement | null;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedProductIndex, isProductDropdownOpen]);
+
   const handleSupplierSelect = (id: string, name: string) => {
-    setFilterSupplier(id);
-    setSupplierFilterQuery(name);
-    if (name.trim()) {
-      const updated = addSearchHistory('supplier', name.trim());
+    const typed = supplierFilterQuery.trim();
+    const queryToSave = (isTypingNewSupplier && typed) ? typed : (lastSupplierQuery || name).trim();
+    if (queryToSave) {
+      setLastSearchQuery('toolbar_supplier', queryToSave);
+      setLastSupplierQuery(queryToSave);
+      const updated = addSearchHistory('toolbar_supplier', queryToSave);
       setSupplierSearchHistory(updated);
     }
+    setFilterSupplier(id);
+    setSupplierFilterQuery(name);
     setIsSupplierDropdownOpen(false);
+    setIsTypingNewSupplier(false);
+  };
+
+  const handleProductFilterSelect = (name: string) => {
+    const typed = productFilterQuery.trim();
+    const queryToSave = (isTypingNewProduct && typed) ? typed : (lastProductQuery || name).trim();
+    if (queryToSave) {
+      setLastSearchQuery('toolbar_product', queryToSave);
+      setLastProductQuery(queryToSave);
+      const updated = addSearchHistory('toolbar_product', queryToSave);
+      setProductSearchHistory(updated);
+    }
+    setProductFilterQuery(name);
+    setIsProductDropdownOpen(false);
+    setIsTypingNewProduct(false);
+  };
+
+  const handleSupplierKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const isShowingPrevious = (!isTypingNewSupplier || !supplierFilterQuery.trim()) && !!lastSupplierQuery && previousSuppliers.length > 0;
+    const activeList = isShowingPrevious ? previousSuppliers : filteredSuppliers;
+
+    if (!isSupplierDropdownOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setIsSupplierDropdownOpen(true);
+        setHighlightedSupplierIndex(0);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedSupplierIndex((prev) => Math.min(prev + 1, Math.max(0, activeList.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedSupplierIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeList.length > 0 && highlightedSupplierIndex >= 0 && highlightedSupplierIndex < activeList.length) {
+        const s = activeList[highlightedSupplierIndex];
+        handleSupplierSelect(s.id, s.name);
+      } else {
+        setIsSupplierDropdownOpen(false);
+      }
+    } else if (e.key === 'Escape') {
+      setIsSupplierDropdownOpen(false);
+      setIsTypingNewSupplier(false);
+    }
+  };
+
+  const handleProductKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const isShowingPrevious = (!isTypingNewProduct || !productFilterQuery.trim()) && !!lastProductQuery && previousProducts.length > 0;
+    const activeList = isShowingPrevious ? previousProducts : matchingProducts;
+
+    if (!isProductDropdownOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setIsProductDropdownOpen(true);
+        setHighlightedProductIndex(0);
+        if (!lastProductQuery) {
+          setIsTypingNewProduct(true);
+        }
+      } else if (e.key === 'Enter' && productFilterQuery.trim()) {
+        handleProductFilterSelect(productFilterQuery.trim());
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isShowingPrevious && !isTypingNewProduct) {
+        setIsTypingNewProduct(true);
+        setHighlightedProductIndex(0);
+        return;
+      }
+      setHighlightedProductIndex((prev) => Math.min(prev + 1, Math.max(0, activeList.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedProductIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeList.length > 0 && highlightedProductIndex >= 0 && highlightedProductIndex < activeList.length) {
+        handleProductFilterSelect(activeList[highlightedProductIndex].name);
+      } else if (productFilterQuery.trim()) {
+        handleProductFilterSelect(productFilterQuery.trim());
+      }
+    } else if (e.key === 'Escape') {
+      setIsProductDropdownOpen(false);
+      setIsTypingNewProduct(false);
+    }
   };
 
   return (
@@ -168,14 +334,29 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
           <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 focus-within:border-theme-500 focus-within:ring-1 focus-within:ring-theme-500 transition-all text-xs w-full">
             <Building2 className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
             <input
+              ref={supplierInputRef}
               type="text"
               value={supplierFilterQuery}
               onChange={(e) => {
                 setSupplierFilterQuery(e.target.value);
                 setFilterSupplier('');
+                setIsTypingNewSupplier(true);
+                setHighlightedSupplierIndex(0);
                 setIsSupplierDropdownOpen(true);
               }}
-              onFocus={() => setIsSupplierDropdownOpen(true)}
+              onClick={() => {
+                setIsSupplierDropdownOpen(true);
+                setIsTypingNewSupplier(false);
+                setHighlightedSupplierIndex(0);
+                supplierInputRef.current?.select();
+              }}
+              onFocus={() => {
+                setIsSupplierDropdownOpen(true);
+                setIsTypingNewSupplier(false);
+                setHighlightedSupplierIndex(0);
+                supplierInputRef.current?.select();
+              }}
+              onKeyDown={handleSupplierKeyDown}
               placeholder="Semua Supplier"
               className="outline-none bg-transparent text-neutral-700 text-xs w-full placeholder:text-neutral-400"
             />
@@ -185,6 +366,7 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
                 onClick={() => {
                   setSupplierFilterQuery('');
                   setFilterSupplier('');
+                  setIsTypingNewSupplier(false);
                 }}
                 className="text-neutral-400 hover:text-rose-500"
               >
@@ -193,29 +375,55 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
             )}
             <ChevronDown
               className="w-3.5 h-3.5 text-neutral-400 cursor-pointer shrink-0"
-              onClick={() => setIsSupplierDropdownOpen(!isSupplierDropdownOpen)}
+              onClick={() => {
+                setIsSupplierDropdownOpen(!isSupplierDropdownOpen);
+                setIsTypingNewSupplier(false);
+              }}
             />
           </div>
 
           {isSupplierDropdownOpen && (
-            <div className="absolute z-50 left-0 mt-1 w-64 bg-white border border-theme-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-              <SearchHistoryChips
-                history={supplierSearchHistory}
-                onSelect={(term) => {
-                  setSupplierFilterQuery(term);
-                  setFilterSupplier('');
-                  setIsSupplierDropdownOpen(true);
-                }}
-                onClear={() => {
-                  clearSearchHistory('supplier');
-                  setSupplierSearchHistory([]);
-                }}
-              />
+            <div className="absolute z-50 left-0 mt-1 w-64 bg-white border border-theme-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+              {/* Previous search suppliers when clicking bar without active typing */}
+              {(!isTypingNewSupplier || !supplierFilterQuery.trim()) && lastSupplierQuery && previousSuppliers.length > 0 && (
+                <div className="border-b border-theme-200 bg-theme-50/60 pb-1">
+                  <div className="px-2.5 py-1.5 text-[10px] font-bold text-theme-800 uppercase flex items-center justify-between">
+                    <span>Hasil Pencarian Sebelumnya ("{lastSupplierQuery}")</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearSearchHistory('toolbar_supplier');
+                        setLastSupplierQuery('');
+                      }}
+                      className="text-[9px] text-theme-600 hover:text-rose-600 font-medium"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                  {previousSuppliers.map((s, idx) => (
+                    <div
+                      key={`prev-sup-${s.id}`}
+                      data-highlighted={idx === highlightedSupplierIndex ? 'true' : undefined}
+                      onClick={() => handleSupplierSelect(s.id, s.name)}
+                      onMouseEnter={() => setHighlightedSupplierIndex(idx)}
+                      className={cn(
+                        "px-2.5 py-1.5 hover:bg-theme-100 cursor-pointer text-xs transition-colors flex items-center justify-between",
+                        filterSupplier === s.id || idx === highlightedSupplierIndex ? "bg-theme-100 font-bold text-theme-900" : "text-neutral-700"
+                      )}
+                    >
+                      <span>{s.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div
                 onClick={() => {
                   setFilterSupplier('');
                   setSupplierFilterQuery('');
                   setIsSupplierDropdownOpen(false);
+                  setIsTypingNewSupplier(false);
                 }}
                 className="p-2.5 hover:bg-theme-50 cursor-pointer text-xs font-semibold text-theme-600 border-b border-theme-100"
               >
@@ -224,38 +432,142 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
               {filteredSuppliers.length === 0 ? (
                 <div className="p-3 text-xs text-neutral-400 text-center">Tidak ditemukan supplier</div>
               ) : (
-                filteredSuppliers.map((s) => (
-                  <div
-                    key={s.id}
-                    onClick={() => handleSupplierSelect(s.id, s.name)}
-                    className={cn(
-                      "p-2.5 hover:bg-theme-50 cursor-pointer text-xs transition-colors border-b border-theme-50 last:border-0",
-                      filterSupplier === s.id ? "bg-theme-100 font-bold text-theme-900" : "text-neutral-700"
-                    )}
-                  >
-                    {s.name}
-                  </div>
-                ))
+                filteredSuppliers.map((s, idx) => {
+                  const isHighlighted = (isTypingNewSupplier || !lastSupplierQuery || previousSuppliers.length === 0) && idx === highlightedSupplierIndex;
+                  return (
+                    <div
+                      key={s.id}
+                      data-highlighted={isHighlighted ? 'true' : undefined}
+                      onClick={() => handleSupplierSelect(s.id, s.name)}
+                      onMouseEnter={() => setHighlightedSupplierIndex(idx)}
+                      className={cn(
+                        "p-2.5 hover:bg-theme-50 cursor-pointer text-xs transition-colors border-b border-theme-50 last:border-0",
+                        filterSupplier === s.id || isHighlighted
+                          ? "bg-theme-100 font-bold text-theme-900"
+                          : "text-neutral-700"
+                      )}
+                    >
+                      {s.name}
+                    </div>
+                  );
+                })
               )}
             </div>
           )}
         </div>
 
-        {/* Product Search */}
-        <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 focus-within:border-theme-500 focus-within:ring-1 focus-within:ring-theme-500 transition-all flex-1 min-w-[160px] text-xs">
-          <Search className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-          <input
-            type="text"
-            value={productFilterQuery}
-            onChange={(e) => setProductFilterQuery(e.target.value)}
-            placeholder="Cari nama produk..."
-            className="outline-none bg-transparent text-neutral-700 text-xs w-full placeholder:text-neutral-400"
-          />
-          {productFilterQuery && (
-            <X
-              className="w-3.5 h-3.5 text-neutral-400 hover:text-rose-500 cursor-pointer shrink-0"
-              onClick={() => setProductFilterQuery('')}
+        {/* Product Search with Dropdown */}
+        <div className="relative flex-1 min-w-[160px]" ref={productDropdownRef}>
+          <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 focus-within:border-theme-500 focus-within:ring-1 focus-within:ring-theme-500 transition-all text-xs w-full">
+            <Search className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+            <input
+              ref={productInputRef}
+              type="text"
+              value={productFilterQuery}
+              onChange={(e) => {
+                setProductFilterQuery(e.target.value);
+                setIsTypingNewProduct(true);
+                setHighlightedProductIndex(0);
+                setIsProductDropdownOpen(true);
+              }}
+              onClick={() => {
+                setIsProductDropdownOpen(true);
+                setIsTypingNewProduct(false);
+                setHighlightedProductIndex(0);
+                productInputRef.current?.select();
+              }}
+              onFocus={() => {
+                setIsProductDropdownOpen(true);
+                setIsTypingNewProduct(false);
+                setHighlightedProductIndex(0);
+                productInputRef.current?.select();
+              }}
+              onKeyDown={handleProductKeyDown}
+              placeholder="Cari nama produk..."
+              className="outline-none bg-transparent text-neutral-700 text-xs w-full placeholder:text-neutral-400"
             />
+            {productFilterQuery && (
+              <X
+                className="w-3.5 h-3.5 text-neutral-400 hover:text-rose-500 cursor-pointer shrink-0"
+                onClick={() => {
+                  setProductFilterQuery('');
+                  setIsTypingNewProduct(false);
+                }}
+              />
+            )}
+            <ChevronDown
+              className="w-3.5 h-3.5 text-neutral-400 cursor-pointer shrink-0"
+              onClick={() => {
+                setIsProductDropdownOpen(!isProductDropdownOpen);
+                setIsTypingNewProduct(false);
+              }}
+            />
+          </div>
+
+          {isProductDropdownOpen && (
+            <div className="absolute z-50 left-0 mt-1 w-72 bg-white border border-theme-200 rounded-xl shadow-xl max-h-72 overflow-y-auto p-1">
+              {/* Previous search results when clicking search bar without active new typing */}
+              {(!isTypingNewProduct || !productFilterQuery.trim()) && lastProductQuery && (
+                <PreviousSearchSection
+                  lastQuery={lastProductQuery}
+                  results={previousProducts}
+                  history={productSearchHistory}
+                  highlightedIndex={highlightedProductIndex}
+                  onHighlightIndex={setHighlightedProductIndex}
+                  onSelectResult={(p) => handleProductFilterSelect(p.name)}
+                  onSelectQuery={(term) => {
+                    setProductFilterQuery(term);
+                    setIsTypingNewProduct(false);
+                    setHighlightedProductIndex(0);
+                    setIsProductDropdownOpen(true);
+                  }}
+                  onClearHistory={() => {
+                    clearSearchHistory('toolbar_product');
+                    setLastProductQuery('');
+                    setProductSearchHistory([]);
+                  }}
+                  renderTitle={(p) => p.name}
+                  renderSubtitle={(p) => {
+                    const sup = suppliers.find((s) => s.id === p.supplierId);
+                    return sup?.name || 'Tanpa Supplier';
+                  }}
+                  keyExtractor={(p) => `prev-tb-${p.id}`}
+                />
+              )}
+
+              {isTypingNewProduct && (productFilterQuery.trim() || !lastProductQuery) && (
+                <div>
+                  <div className="px-2.5 py-1 text-[10px] font-bold text-neutral-400 uppercase">
+                    Hasil Pencarian Produk ({matchingProducts.length})
+                  </div>
+                  {matchingProducts.length === 0 ? (
+                    <div className="p-3 text-xs text-neutral-400 text-center">
+                      Tidak ada produk ditemukan
+                    </div>
+                  ) : (
+                    matchingProducts.map((p, idx) => (
+                      <div
+                        key={`match-pf-${p.id}`}
+                        data-highlighted={idx === highlightedProductIndex ? 'true' : undefined}
+                        onMouseEnter={() => setHighlightedProductIndex(idx)}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleProductFilterSelect(p.name);
+                        }}
+                        className={cn(
+                          "px-2.5 py-1.5 rounded-lg cursor-pointer text-xs font-semibold truncate",
+                          idx === highlightedProductIndex
+                            ? "bg-theme-100 text-theme-900 font-bold"
+                            : "hover:bg-theme-50 text-neutral-800"
+                        )}
+                      >
+                        {p.name}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -292,6 +604,25 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
             <ChevronDown className="w-3 h-3 text-neutral-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
+          {/* Checked / Crosscheck Filter */}
+          <div className="relative">
+            <select
+              value={checkedFilter}
+              onChange={(e) => setCheckedFilter(e.target.value as any)}
+              className={cn(
+                "pl-2.5 pr-7 py-1.5 border rounded-xl outline-none text-xs appearance-none font-medium transition-colors",
+                checkedFilter !== 'all'
+                  ? "border-emerald-400 bg-emerald-50/50 text-emerald-800 font-bold"
+                  : "border-neutral-200 bg-white text-neutral-700 focus:border-theme-500 focus:ring-1 focus:ring-theme-500"
+              )}
+            >
+              <option value="all">Semua Status Ceklis</option>
+              <option value="checked">✓ Sudah Dicek</option>
+              <option value="unchecked">⏳ Belum Dicek</option>
+            </select>
+            <ChevronDown className="w-3 h-3 text-neutral-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
           {/* Reset Filters */}
           {hasActiveFilters && (
             <button
@@ -307,6 +638,35 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
 
         {/* Action Buttons Group */}
         <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+          {/* Ceklis Semua / Batal Ceklis Semua */}
+          {onToggleCheckAllFiltered && (
+            <button
+              type="button"
+              onClick={onToggleCheckAllFiltered}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-semibold text-xs border transition-all active:scale-95 shadow-2xs",
+                allFilteredChecked
+                  ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
+                  : "bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+              )}
+              title={allFilteredChecked ? "Batal ceklis semua data yang tampil" : "Ceklis semua data yang tampil"}
+            >
+              {allFilteredChecked ? (
+                <CheckSquare className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <Square className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span>{allFilteredChecked ? 'Batal Ceklis Semua' : 'Ceklis Semua'}</span>
+              {typeof checkedCountInFilter === 'number' && (
+                <span className={cn(
+                  "ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none",
+                  allFilteredChecked ? "bg-emerald-700 text-white" : "bg-emerald-100 text-emerald-800"
+                )}>
+                  {checkedCountInFilter}
+                </span>
+              )}
+            </button>
+          )}
           {/* Cek Data Ganda */}
           <button
             type="button"

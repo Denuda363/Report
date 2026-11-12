@@ -30,26 +30,26 @@ export const Clock = () => {
   const { hours, minutes, seconds } = formatTime(time);
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3 bg-white pl-3 pr-1 py-1 rounded-2xl border border-theme-200 shadow-sm">
+    <div className="flex items-center gap-1.5 sm:gap-3 bg-white px-2 sm:pl-3 sm:pr-1 py-1 rounded-2xl border border-theme-200 shadow-sm shrink-0">
       {/* Date */}
-      <div className="text-[10px] sm:text-xs font-bold text-theme-600-text uppercase tracking-wide">
+      <div className="hidden sm:block text-[10px] sm:text-xs font-bold text-theme-600-text uppercase tracking-wide">
         {formatDate(time)}
       </div>
       
       {/* Separator */}
-      <div className="w-px h-4 sm:h-5 bg-theme-200"></div>
+      <div className="hidden sm:block w-px h-4 sm:h-5 bg-theme-200"></div>
 
       {/* Clock */}
       <div className="flex items-center gap-0.5">
-        <div className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 bg-theme-100 text-theme-900 font-mono text-sm md:text-base font-bold rounded-xl">
+        <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 bg-theme-100 text-theme-900 font-mono text-xs sm:text-sm md:text-base font-bold rounded-lg sm:rounded-xl">
           {hours}
         </div>
-        <span className="text-theme-500 font-bold animate-pulse px-0.5 -mt-0.5">:</span>
-        <div className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 bg-theme-100 text-theme-900 font-mono text-sm md:text-base font-bold rounded-xl">
+        <span className="text-theme-500 font-bold animate-pulse px-0.5 -mt-0.5 text-xs sm:text-sm">:</span>
+        <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 bg-theme-100 text-theme-900 font-mono text-xs sm:text-sm md:text-base font-bold rounded-lg sm:rounded-xl">
           {minutes}
         </div>
-        <span className="text-theme-500 font-bold animate-pulse px-0.5 -mt-0.5">:</span>
-        <div className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 bg-theme-500 text-white font-mono text-sm md:text-base font-bold rounded-xl shadow-[0_2px_8px_-2px_rgba(139,157,119,0.5)]">
+        <span className="text-theme-500 font-bold animate-pulse px-0.5 -mt-0.5 text-xs sm:text-sm hidden xs:inline">:</span>
+        <div className="hidden xs:flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 bg-theme-500 text-white font-mono text-xs sm:text-sm md:text-base font-bold rounded-lg sm:rounded-xl shadow-[0_2px_8px_-2px_rgba(139,157,119,0.5)]">
           {seconds}
         </div>
       </div>

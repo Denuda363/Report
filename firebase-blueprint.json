@@ -2,7 +2,7 @@
   "entities": {
     "Supplier": {
       "title": "Supplier",
-      "description": "Supplier information",
+      "description": "Supplier information and contact details",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
@@ -12,7 +12,7 @@
     },
     "Product": {
       "title": "Product",
-      "description": "Product catalog item",
+      "description": "Product catalog item with stock and supplier relations",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
@@ -20,18 +20,19 @@
         "alternativeSupplierIds": { "type": "array" },
         "unit": { "type": "string" },
         "bottomStock": { "type": "number" },
+        "minStock": { "type": "number" },
         "stock": { "type": "number" },
         "location": { "type": "string" },
         "category": { "type": "string" },
         "isKosongPabrik": { "type": "boolean" },
-        "kosongPabrikDate": { "type": "string" },
+        "kosongPabrikDate": { "type": "number" },
         "userId": { "type": "string" }
       },
       "required": ["name", "unit"]
     },
     "Report": {
       "title": "Report",
-      "description": "Daily stock report and arrival records",
+      "description": "Daily stock report, arrival tracking, and crosscheck status",
       "type": "object",
       "properties": {
         "date": { "type": "string" },
@@ -46,9 +47,12 @@
         "notes": { "type": "string" },
         "isWarningStock": { "type": "boolean" },
         "isArrivedOnly": { "type": "boolean" },
-        "arrivedAt": { "type": "string" },
+        "arrivedAt": { "type": "number" },
         "arrivedSupplierId": { "type": "string" },
         "arrivedQty": { "type": "number" },
+        "isChecked": { "type": "boolean" },
+        "checkedAt": { "type": "number" },
+        "checkedBy": { "type": "string" },
         "createdAt": { "type": "number" },
         "userId": { "type": "string" }
       },
@@ -56,7 +60,7 @@
     },
     "StockOut": {
       "title": "StockOut",
-      "description": "Outbound stock records",
+      "description": "Outbound stock records and inventory deductions",
       "type": "object",
       "properties": {
         "date": { "type": "string" },
@@ -68,39 +72,99 @@
       },
       "required": ["date", "productId", "quantity"]
     },
+    "NearExpired": {
+      "title": "NearExpired",
+      "description": "Near-expiration product batch records and tracking",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "batch": { "type": "string" },
+        "expiredDate": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unit": { "type": "string" },
+        "notes": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["productName", "batch", "expiredDate", "supplierName"]
+    },
     "Settings": {
       "title": "Settings",
-      "description": "User preferences and system settings",
+      "description": "Application preferences, auto-cleaner retention, and theme",
       "type": "object",
       "properties": {
         "autoDeleteMode": { "type": "string" },
+        "autoDeleteDays": { "type": "number" },
         "navbarPosition": { "type": "string" },
         "theme": { "type": "string" },
         "useLocalDb": { "type": "boolean" },
-        "dbProvider": { "type": "string" }
+        "dbProvider": { "type": "string" },
+        "supabaseUrl": { "type": "string" },
+        "supabaseKey": { "type": "string" },
+        "updatedAt": { "type": "number" }
       }
+    },
+    "ChatUser": {
+      "title": "ChatUser",
+      "description": "Live collaboration chat active presence user",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "isOnline": { "type": "boolean" },
+        "lastSeen": { "type": "number" }
+      },
+      "required": ["displayName"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Team chat message entries",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["senderId", "text", "createdAt"]
     }
   },
   "firestore": {
     "/suppliers/{supplierId}": {
       "schema": "Supplier",
-      "description": "Supplier records"
+      "description": "Master suppliers catalog"
     },
     "/products/{productId}": {
       "schema": "Product",
-      "description": "Master products list"
+      "description": "Master products and inventory definitions"
     },
     "/reports/{reportId}": {
       "schema": "Report",
-      "description": "Daily reports and stock movements"
+      "description": "Daily reports, stock records, and checklist status"
     },
     "/stock_outs/{stockOutId}": {
       "schema": "StockOut",
-      "description": "Stock out entries"
+      "description": "Stock out transactions and deductions"
+    },
+    "/near_expired/{nearExpiredId}": {
+      "schema": "NearExpired",
+      "description": "Near expired product tracking and batches"
     },
     "/settings/{settingId}": {
       "schema": "Settings",
-      "description": "App settings configuration"
+      "description": "Global and user application settings"
+    },
+    "/chat_users/{userId}": {
+      "schema": "ChatUser",
+      "description": "Online chat users list"
+    },
+    "/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Team collaboration chat messages"
     }
   }
 }

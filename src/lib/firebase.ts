@@ -16,22 +16,42 @@ import config from '../../firebase-applet-config.json';
 // and triggering automated error trackers since we handle them gracefully.
 const originalConsoleError = console.error;
 console.error = (...args: any[]) => {
-  const first = args[0];
-  const str = typeof first === 'string' ? first : (first?.message || String(first || ''));
-  if (
-    str.includes('Quota limit exceeded') || 
-    str.includes('Using maximum backoff delay') ||
-    str.includes('resource-exhausted') ||
-    str.includes('auth/network-request-failed') ||
-    (first as any)?.code === 'auth/network-request-failed'
-  ) {
-    return; // Ignore internal firebase quota or auth network error spam
-  }
+  const isIgnored = args.some((arg) => {
+    const str = typeof arg === 'string' ? arg : (arg?.message || String(arg || ''));
+    const code = (arg as any)?.code || '';
+    return (
+      code === 'auth/network-request-failed' ||
+      str.includes('Quota limit exceeded') || 
+      str.includes('Using maximum backoff delay') ||
+      str.includes('resource-exhausted') ||
+      str.includes('auth/network-request-failed') ||
+      str.includes('network-request-failed')
+    );
+  });
+  if (isIgnored) return;
   originalConsoleError(...args);
 };
 
-// Global unhandled rejection guard for Firebase Auth network glitches (e.g., iframe restrictions)
+// Global unhandled error & rejection guards for Firebase Auth network glitches (e.g., iframe restrictions)
 if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'error',
+    (event) => {
+      const msg = event?.message || event?.error?.message || String(event?.error || '');
+      const code = event?.error?.code || '';
+      if (
+        code === 'auth/network-request-failed' ||
+        msg.includes('auth/network-request-failed') ||
+        msg.includes('network-request-failed')
+      ) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return true;
+      }
+    },
+    true
+  );
+
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
     const msg = reason?.message || String(reason || '');
@@ -42,7 +62,7 @@ if (typeof window !== 'undefined') {
       msg.includes('network-request-failed')
     ) {
       event.preventDefault();
-      console.warn('Firebase Auth network notice handled gracefully.');
+      event.stopImmediatePropagation();
     }
   });
 }
@@ -67,20 +87,6 @@ enableNetwork(db).catch(() => {});
 
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
-
-// Immediately attach listener with error callback to consume background token-refresh or network-timeout rejections
-try {
-  onAuthStateChanged(
-    auth,
-    () => {},
-    (err) => {
-      // Absorb network-request-failed gracefully without throwing
-      console.warn('Firebase Auth background listener note:', err?.message || err);
-    }
-  );
-} catch {
-  // Safe fallback
-}
 
 export enum OperationType {
   CREATE = 'create',

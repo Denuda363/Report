@@ -116,3 +116,42 @@ body {
   --color-theme-800: #4338ca;
   --color-theme-900: #1e1b4b;
 }
+
+/* ========================================================
+   PRINT STYLES: Ensures exclusively printable reports are printed
+   ======================================================== */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  /* Hide app chrome, sidebars, navbars, floating buttons, forms */
+  header, nav, aside, footer, 
+  .no-print, 
+  #chat-bubble, 
+  [role="dialog"] > div:first-child {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Prevent page breaks inside table rows */
+  tr, td, th {
+    page-break-inside: avoid !important;
+  }
+
+  /* Expand print containers to full width */
+  .print-full-width {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

@@ -22,6 +22,7 @@ export const exportReportsToTxt = (
       BottomStock: product?.bottomStock,
       'Sudah Order': report.isOrdered ? '[✓ Sudah Order]' : '[- Sudah Order]',
       'Sudah Datang': report.isArrived ? '[✓ Sudah Datang]' : '[- Sudah Datang]',
+      'Sudah Dicek': report.isChecked ? '[✓ Sudah Dicek]' : '[- Belum Dicek]',
       KosongPabrik: isKosongPabrik,
       ReorderQty: report.isReorder ? report.reorderQty : undefined,
       ReorderReason: report.isReorder ? report.reorderReason : undefined,
@@ -66,6 +67,7 @@ export const exportReportsToTxt = (
         : '';
       const statuses = [
         item['Sudah Order'] === '[✓ Sudah Order]' ? '✓ Sudah Order' : '',
+        item['Sudah Dicek'] === '[✓ Sudah Dicek]' ? '✓ Sudah Dicek' : '',
       ].filter(Boolean).join(' | ');
       const statusStr = statuses ? ` [${statuses}]` : '';
       const notesStr = item.Notes ? ` (${item.Notes})` : '';
@@ -141,6 +143,34 @@ export const exportReportsToTxt = (
     textContent += `\n`;
   }
 
+  // Deduplicate products with qty 0: item yang sama terinput berulang tetap dihitung 1
+  // Jika pada report stok 0 namun masuk dalam barang datang (arrived), jangan dihitung stok 0
+  const arrivedProductNames = new Set<string>();
+  arrivedItems.forEach(item => {
+    const cleanName = (item.Product || '').trim().toLowerCase();
+    if (cleanName) arrivedProductNames.add(cleanName);
+  });
+  reports.forEach(r => {
+    if (r.isArrived || r.isArrivedOnly) {
+      const prod = products.find(p => p.id === r.productId);
+      const cleanName = (prod?.name || '').trim().toLowerCase();
+      if (cleanName) arrivedProductNames.add(cleanName);
+    }
+  });
+
+  const zeroQtyProductSet = new Set<string>();
+  normalItems.forEach(item => {
+    if (Number(item.Quantity) === 0) {
+      const cleanName = (item.Product || '').trim().toLowerCase();
+      const isArrived = item['Sudah Datang'] === '[✓ Sudah Datang]' || arrivedProductNames.has(cleanName);
+      if (cleanName && !isArrived) {
+        zeroQtyProductSet.add(cleanName);
+      }
+    }
+  });
+  const zeroQtyCount = zeroQtyProductSet.size;
+  textContent += `Produk Stok Kosong : ${zeroQtyCount} Item\n`;
+
   // Download as text file
   const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -173,6 +203,7 @@ export const exportReportsToExcel = (
       BottomStock: (product?.bottomStock !== undefined && product?.bottomStock !== null) ? product.bottomStock : '',
       'Sudah Order': report.isOrdered ? '✓' : '-',
       'Sudah Datang': report.isArrived ? '✓' : '-',
+      'Sudah Dicek': report.isChecked ? '✓' : '-',
       'Kosong Pabrik': isKosongPabrik ? '✓' : '-',
       'Order Ulang': report.isReorder ? '✓' : '-',
       'Qty Order Ulang': report.isReorder ? report.reorderQty : '',
@@ -195,6 +226,7 @@ export const exportReportsToExcel = (
       'Butom Stok': item.BottomStock,
       'Sudah Order': item['Sudah Order'],
       'Sudah Datang': item['Sudah Datang'],
+      'Sudah Dicek': item['Sudah Dicek'],
       'Order Ulang': item['Order Ulang'],
       'Qty Order Ulang': item['Qty Order Ulang'],
       'Alasan Order Ulang': item['Alasan Order Ulang'],

@@ -7,10 +7,10 @@ import {
 import { format, subDays, parseISO } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { Product, Supplier, ReportEntry } from '../../types';
-import { SearchHistoryChips } from '../SearchHistoryChips';
-import { addSearchHistory, clearSearchHistory } from '../../lib/searchHistory';
 import { formatExcelDate } from '../../lib/excel';
 import { cn } from '../../lib/utils';
+import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, clearSearchHistory } from '../../lib/searchHistory';
+import { PreviousSearchSection } from '../PreviousSearchSection';
 
 export interface PendingReportItem {
   id: string;
@@ -121,6 +121,8 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
   setProductSearchHistory,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isTypingNew, setIsTypingNew] = useState(false);
+  const [lastSearchQuery, setLastSearchQueryState] = useState(() => getLastSearchQuery('daily_report_product'));
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [selectedSupplierForNew, setSelectedSupplierForNew] = useState('');
   const [isCustomUnit, setIsCustomUnit] = useState(false);
@@ -167,7 +169,7 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
   // Filter products for dropdown
   const filteredProducts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return products.slice(0, 30);
+    if (!q) return products.slice(0, 100);
     return products
       .filter((p) => {
         const prodName = (p.name || '').toLowerCase();
@@ -175,8 +177,46 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
         const supName = (sup?.name || '').toLowerCase();
         return prodName.includes(q) || supName.includes(q);
       })
-      .slice(0, 30);
+      .slice(0, 100);
   }, [products, suppliers, searchQuery]);
+
+  // Previous search products for dropdown
+  const previousProducts = useMemo(() => {
+    if (!lastSearchQuery) return [];
+    const q = lastSearchQuery.toLowerCase();
+    return products
+      .filter((p) => {
+        const prodName = (p.name || '').toLowerCase();
+        const sup = suppliers.find((s) => s.id === p.supplierId);
+        const supName = (sup?.name || '').toLowerCase();
+        return prodName.includes(q) || supName.includes(q);
+      })
+      .slice(0, 50);
+  }, [products, suppliers, lastSearchQuery]);
+
+  // Auto-scroll highlighted product into view when navigating with arrow keys
+  useEffect(() => {
+    if (isDropdownOpen && dropdownRef.current) {
+      const activeEl = dropdownRef.current.querySelector('[data-highlighted="true"]') as HTMLElement | null;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedIndex, isDropdownOpen]);
+
+  // Ctrl + S shortcut to save pending items list
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (!isSavingAll && pendingItems.length > 0 && !editingReportId) {
+          onSaveAll();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isSavingAll, pendingItems.length, editingReportId, onSaveAll]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -191,10 +231,17 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
 
   // Handle product selection
   const handleSelectProduct = (prod: Product) => {
-    if (searchQuery.trim()) {
-      const updated = addSearchHistory('report_product', prod.name);
+    // If user was actively typing a search keyword, save that keyword!
+    // Otherwise keep the lastSearchQuery or prod.name
+    const typed = searchQuery.trim();
+    const queryToSave = (isTypingNew && typed) ? typed : (lastSearchQuery || prod.name).trim();
+    if (queryToSave) {
+      setLastSearchQuery('daily_report_product', queryToSave);
+      setLastSearchQueryState(queryToSave);
+      const updated = addSearchHistory('daily_report_product', queryToSave);
       setProductSearchHistory(updated);
     }
+
     setProductId(prod.id);
     setSearchQuery(prod.name);
     setUnit(prod.unit || 'pcs');
@@ -208,6 +255,7 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
     }
 
     setIsDropdownOpen(false);
+    setIsTypingNew(false);
     setErrorMsg(null);
 
     // Auto-focus quantity input after selection
@@ -219,32 +267,52 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
 
   // Keyboard navigation inside product search
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const isShowingPrevious = (!isTypingNew || !searchQuery.trim()) && !!lastSearchQuery && previousProducts.length > 0;
+    const activeList = isShowingPrevious ? previousProducts : filteredProducts;
+
     if (!isDropdownOpen) {
-      if (e.key === 'ArrowDown') {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
         setIsDropdownOpen(true);
+        setHighlightedIndex(0);
+        if (!lastSearchQuery) {
+          setIsTypingNew(true);
+        }
+      } else if (e.key === 'Enter' && (productId || searchQuery.trim())) {
+        e.preventDefault();
+        quantityInputRef.current?.focus();
+        quantityInputRef.current?.select();
       }
       return;
     }
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlightedIndex((prev) => Math.min(prev + 1, filteredProducts.length - 1));
+      if (!isShowingPrevious && !isTypingNew) {
+        setIsTypingNew(true);
+        setHighlightedIndex(0);
+        return;
+      }
+      setHighlightedIndex((prev) => Math.min(prev + 1, Math.max(0, activeList.length - 1)));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlightedIndex((prev) => Math.max(prev - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (filteredProducts.length > 0 && highlightedIndex >= 0 && highlightedIndex < filteredProducts.length) {
-        handleSelectProduct(filteredProducts[highlightedIndex]);
+      if (activeList.length > 0 && highlightedIndex >= 0 && highlightedIndex < activeList.length) {
+        handleSelectProduct(activeList[highlightedIndex]);
       } else if (searchQuery.trim()) {
         // User typed a custom new product name
         setIsDropdownOpen(false);
+        setIsTypingNew(false);
         setTimeout(() => {
           quantityInputRef.current?.focus();
+          quantityInputRef.current?.select();
         }, 50);
       }
     } else if (e.key === 'Escape') {
       setIsDropdownOpen(false);
+      setIsTypingNew(false);
     }
   };
 
@@ -479,178 +547,218 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
             )}
           </div>
 
-          {/* If a product is already selected, show an elegant product card */}
-          {selectedProduct ? (
-            <div className="p-3 bg-theme-50/70 border border-theme-300/80 rounded-2xl flex items-start justify-between gap-2 shadow-2xs">
-              <div className="flex items-start gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-theme-500 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                  <Package className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <h4 className="font-bold text-neutral-900 text-sm truncate leading-snug">
-                    {selectedProduct.name}
-                  </h4>
-                  <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-neutral-500">
-                    <span className="flex items-center gap-1 text-theme-700 font-medium">
-                      <Building2 className="w-3 h-3" />
-                      {selectedProductSupplier?.name || 'Tanpa Supplier'}
-                    </span>
-                    <span>•</span>
-                    <span className="bg-white border border-theme-200 px-1.5 py-0.2 rounded font-bold text-neutral-700">
-                      {selectedProduct.unit || 'pcs'}
-                    </span>
-                    {selectedProduct.bottomStock !== undefined && selectedProduct.bottomStock !== null && selectedProduct.bottomStock > 0 && (
-                      <span className="text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-semibold text-[10px]">
-                        Min: {selectedProduct.bottomStock}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setProductId('');
-                  setSearchQuery('');
-                  setShowBottomStockInput(false);
-                  setTimeout(() => searchInputRef.current?.focus(), 50);
+          {/* Search Input Field */}
+          <div className="relative">
+            <div className="relative flex items-center w-full px-3.5 py-2.5 border border-theme-200 rounded-xl bg-theme-50/50 hover:bg-white focus-within:bg-white focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500 transition-all shadow-2xs">
+              <Search className="w-4 h-4 text-theme-500 mr-2 shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                required={!productId}
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setIsTypingNew(true);
+                  setHighlightedIndex(0);
+                  setIsDropdownOpen(true);
+                  setErrorMsg(null);
                 }}
-                className="p-1 text-neutral-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
-                title="Batalkan pilihan produk"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            /* Search Input Field */
-            <div className="relative">
-              <div className="relative flex items-center w-full px-3.5 py-2.5 border border-theme-200 rounded-xl bg-theme-50/50 hover:bg-white focus-within:bg-white focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500 transition-all shadow-2xs">
-                <Search className="w-4 h-4 text-theme-500 mr-2 shrink-0" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  required={!productId}
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
+                onClick={() => {
+                  setIsDropdownOpen(true);
+                  setIsTypingNew(false);
+                  setHighlightedIndex(0);
+                  searchInputRef.current?.select();
+                }}
+                onFocus={() => {
+                  setIsDropdownOpen(true);
+                  setIsTypingNew(false);
+                  setHighlightedIndex(0);
+                  searchInputRef.current?.select();
+                }}
+                onKeyDown={handleSearchKeyDown}
+                className="w-full outline-none bg-transparent text-xs sm:text-sm font-medium text-neutral-800 placeholder:text-neutral-400"
+                placeholder="Ketik nama produk untuk mencari..."
+              />
+              {searchQuery && (
+                <X
+                  className="w-4 h-4 text-neutral-400 ml-1.5 shrink-0 cursor-pointer hover:text-rose-500 transition-colors"
+                  onClick={() => {
+                    setSearchQuery('');
                     setProductId('');
-                    setHighlightedIndex(0);
-                    setIsDropdownOpen(true);
+                    setIsTypingNew(false);
+                    setShowBottomStockInput(false);
                     setErrorMsg(null);
                   }}
-                  onFocus={() => setIsDropdownOpen(true)}
-                  onKeyDown={handleSearchKeyDown}
-                  className="w-full outline-none bg-transparent text-xs sm:text-sm font-medium text-neutral-800 placeholder:text-neutral-400"
-                  placeholder="Ketik nama produk..."
                 />
-                {searchQuery && (
-                  <X
-                    className="w-4 h-4 text-neutral-400 ml-1.5 shrink-0 cursor-pointer hover:text-rose-500 transition-colors"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setProductId('');
-                      setShowBottomStockInput(false);
-                      setErrorMsg(null);
-                    }}
-                  />
-                )}
-                <ChevronDown
-                  className="w-4 h-4 text-neutral-400 ml-1.5 shrink-0 cursor-pointer hover:text-neutral-700 transition-colors"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                />
-              </div>
+              )}
+              <ChevronDown
+                className="w-4 h-4 text-neutral-400 ml-1.5 shrink-0 cursor-pointer hover:text-neutral-700 transition-colors"
+                onClick={() => {
+                  setIsDropdownOpen(!isDropdownOpen);
+                  setIsTypingNew(false);
+                }}
+              />
+            </div>
 
-              {/* Dropdown Menu */}
-              {isDropdownOpen && (
-                <div className="absolute z-50 w-full mt-1.5 bg-white border border-theme-200 rounded-2xl shadow-xl max-h-64 overflow-y-auto overflow-x-hidden animate-in fade-in slide-in-from-top-1 duration-150">
-                  {/* Search History Chips */}
-                  <SearchHistoryChips
+            {/* Selected Product Badge below search bar */}
+            {selectedProduct && (
+              <div className="mt-2 p-2.5 bg-theme-50/80 border border-theme-300 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-theme-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                    <Package className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-theme-600 uppercase tracking-wider">Terpilih:</span>
+                      <span className="font-bold text-neutral-900 text-xs truncate">
+                        {selectedProduct.name}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-neutral-500">
+                      <span className="flex items-center gap-1 text-theme-700 font-medium">
+                        <Building2 className="w-3 h-3" />
+                        {selectedProductSupplier?.name || 'Tanpa Supplier'}
+                      </span>
+                      <span>•</span>
+                      <span className="bg-white border border-theme-200 px-1.5 py-0.2 rounded font-bold text-neutral-700">
+                        {selectedProduct.unit || 'pcs'}
+                      </span>
+                      {selectedProduct.bottomStock !== undefined && selectedProduct.bottomStock !== null && selectedProduct.bottomStock > 0 && (
+                        <span className="text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-semibold text-[10px]">
+                          Min: {selectedProduct.bottomStock}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductId('');
+                    setSearchQuery('');
+                    setIsTypingNew(false);
+                    setShowBottomStockInput(false);
+                    setTimeout(() => searchInputRef.current?.focus(), 50);
+                  }}
+                  className="p-1 text-neutral-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+                  title="Batalkan pilihan produk"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Dropdown Menu */}
+            {isDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1.5 bg-white border border-theme-200 rounded-2xl shadow-xl max-h-72 overflow-y-auto overflow-x-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                {/* Previous Search Results when clicking search bar without active new typing */}
+                {(!isTypingNew || !searchQuery.trim()) && lastSearchQuery && (
+                  <PreviousSearchSection
+                    lastQuery={lastSearchQuery}
+                    results={previousProducts}
                     history={productSearchHistory}
-                    onSelect={(term) => {
+                    highlightedIndex={highlightedIndex}
+                    onHighlightIndex={setHighlightedIndex}
+                    onSelectResult={(p) => handleSelectProduct(p)}
+                    onSelectQuery={(term) => {
                       setSearchQuery(term);
+                      setIsTypingNew(false);
+                      setHighlightedIndex(0);
                       setIsDropdownOpen(true);
-                      const exact = products.find((p) => p.name.toLowerCase() === term.toLowerCase());
-                      if (exact) {
-                        handleSelectProduct(exact);
-                      }
                     }}
-                    onClear={() => {
-                      clearSearchHistory('report_product');
+                    onClearHistory={() => {
+                      clearSearchHistory('daily_report_product');
+                      setLastSearchQueryState('');
                       setProductSearchHistory([]);
                     }}
+                    renderTitle={(p) => p.name}
+                    renderSubtitle={(p) => {
+                      const sup = suppliers.find((s) => s.id === p.supplierId);
+                      return `${sup?.name || 'Tanpa Supplier'}${p.bottomStock ? ` • Min: ${p.bottomStock}` : ''}`;
+                    }}
+                    keyExtractor={(p) => `prev-dr-${p.id}`}
                   />
+                )}
 
-                  {filteredProducts.length === 0 ? (
-                    <div className="p-4 text-center">
-                      <p className="text-xs font-semibold text-neutral-700">
-                        Produk &quot;{searchQuery}&quot; tidak ditemukan.
-                      </p>
-                      <p className="text-[11px] text-neutral-500 mt-1">
-                        Akan otomatis didaftarkan sebagai produk baru saat disimpan.
-                      </p>
-                      {/* Optional supplier selection for new product */}
-                      <div className="mt-3 pt-2 border-t border-theme-100 text-left">
-                        <label className="text-[10px] font-bold text-neutral-500 uppercase">
-                          Pilih Supplier (Opsional):
-                        </label>
-                        <select
-                          value={selectedSupplierForNew}
-                          onChange={(e) => setSelectedSupplierForNew(e.target.value)}
-                          className="mt-1 w-full text-xs p-1.5 border border-theme-200 rounded-lg outline-none bg-white font-medium text-neutral-800"
-                        >
-                          <option value="">Tanpa Supplier (Default)</option>
-                          {suppliers.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-1 space-y-0.5">
-                      <div className="px-3 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-                        Daftar Produk ({filteredProducts.length})
-                      </div>
-                      {filteredProducts.map((p, idx) => {
-                        const sup = suppliers.find((s) => s.id === p.supplierId);
-                        const isHighlighted = idx === highlightedIndex;
-                        return (
-                          <div
-                            key={p.id}
-                            onClick={() => handleSelectProduct(p)}
-                            onMouseEnter={() => setHighlightedIndex(idx)}
-                            className={cn(
-                              "px-3 py-2 rounded-xl cursor-pointer transition-colors flex items-center justify-between gap-2 text-xs",
-                              isHighlighted ? "bg-theme-100 text-theme-900 font-bold" : "hover:bg-theme-50 text-neutral-800"
-                            )}
+                {isTypingNew && (searchQuery.trim() || !lastSearchQuery) ? (
+                    filteredProducts.length === 0 ? (
+                      <div className="p-4 text-center">
+                        <p className="text-xs font-semibold text-neutral-700">
+                          Produk &quot;{searchQuery}&quot; tidak ditemukan.
+                        </p>
+                        <p className="text-[11px] text-neutral-500 mt-1">
+                          Akan otomatis didaftarkan sebagai produk baru saat disimpan.
+                        </p>
+                        {/* Optional supplier selection for new product */}
+                        <div className="mt-3 pt-2 border-t border-theme-100 text-left">
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase">
+                            Pilih Supplier (Opsional):
+                          </label>
+                          <select
+                            value={selectedSupplierForNew}
+                            onChange={(e) => setSelectedSupplierForNew(e.target.value)}
+                            className="mt-1 w-full text-xs p-1.5 border border-theme-200 rounded-lg outline-none bg-white font-medium text-neutral-800"
                           >
-                            <div className="min-w-0 flex-1">
-                              <div className="font-bold text-neutral-900 truncate">
-                                {p.name}
+                            <option value="">Tanpa Supplier (Default)</option>
+                            {suppliers.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-1 space-y-0.5">
+                        <div className="px-3 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                          Hasil Pencarian ({filteredProducts.length})
+                        </div>
+                        {filteredProducts.map((p, idx) => {
+                          const sup = suppliers.find((s) => s.id === p.supplierId);
+                          const isHighlighted = idx === highlightedIndex;
+                          return (
+                            <div
+                              key={p.id}
+                              data-highlighted={isHighlighted ? 'true' : undefined}
+                              onClick={() => handleSelectProduct(p)}
+                              onMouseEnter={() => setHighlightedIndex(idx)}
+                              className={cn(
+                                "px-3 py-2 rounded-xl cursor-pointer transition-colors flex items-center justify-between gap-2 text-xs",
+                                isHighlighted ? "bg-theme-100 text-theme-900 font-bold" : "hover:bg-theme-50 text-neutral-800"
+                              )}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="font-bold text-neutral-900 truncate">
+                                  {p.name}
+                                </div>
+                                <div className="text-[10px] text-neutral-500 flex items-center gap-1.5 mt-0.5">
+                                  <span className="truncate">{sup?.name || 'Tanpa Supplier'}</span>
+                                  {p.bottomStock !== undefined && p.bottomStock !== null && p.bottomStock > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-amber-600 font-semibold">Min: {p.bottomStock}</span>
+                                    </>
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-[10px] text-neutral-500 flex items-center gap-1.5 mt-0.5">
-                                <span className="truncate">{sup?.name || 'Tanpa Supplier'}</span>
-                                {p.bottomStock !== undefined && p.bottomStock !== null && p.bottomStock > 0 && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="text-amber-600 font-semibold">Min: {p.bottomStock}</span>
-                                  </>
-                                )}
-                              </div>
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-neutral-100 rounded text-neutral-600 shrink-0">
+                                {p.unit || 'pcs'}
+                              </span>
                             </div>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-neutral-100 rounded text-neutral-600 shrink-0">
-                              {p.unit || 'pcs'}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  ) : (
+                    !lastSearchQuery && (
+                      <div className="p-4 text-center text-xs text-neutral-500">
+                        Ketik nama produk atau tekan panah bawah untuk memilih...
+                      </div>
+                    )
                   )}
                 </div>
               )}
             </div>
-          )}
         </div>
 
         {/* 3. Quantity & Unit */}
@@ -701,6 +809,7 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
                     type="text"
                     value={unit}
                     onChange={(e) => setUnit(e.target.value)}
+                    onKeyDown={handleQuantityKeyDown}
                     placeholder="Satuan"
                     className="w-full px-2.5 py-2.5 border border-theme-200 rounded-xl bg-theme-50/50 focus:bg-white focus:ring-2 focus:ring-theme-500 outline-none text-xs font-semibold text-neutral-800 shadow-2xs"
                   />
@@ -755,6 +864,7 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
               min="0"
               value={bottomStock}
               onChange={(e) => setBottomStock(e.target.value ? Number(e.target.value) : '')}
+              onKeyDown={handleQuantityKeyDown}
               className="w-full px-3 py-2 border border-amber-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all text-xs font-semibold text-amber-900 placeholder:text-amber-400"
               placeholder="Masukkan batas minimum stok produk..."
             />
@@ -775,6 +885,7 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            onKeyDown={handleQuantityKeyDown}
             className="w-full px-3.5 py-2.5 border border-theme-200 rounded-xl bg-theme-50/50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-xs sm:text-sm font-medium text-neutral-800 shadow-2xs placeholder:text-neutral-400"
             placeholder="Tambahkan catatan khusus..."
           />
@@ -994,6 +1105,7 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
               <>
                 <Check className="w-4 h-4" />
                 <span>Simpan Semua ({pendingItems.length} Item)</span>
+                <span className="text-[10px] bg-white/15 px-1.5 py-0.5 rounded font-medium ml-1">Ctrl+S</span>
               </>
             )}
           </button>

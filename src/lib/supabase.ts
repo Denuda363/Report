@@ -93,9 +93,16 @@ CREATE TABLE IF NOT EXISTS public.reports (
   "arrivedAt" BIGINT,
   "arrivedSupplierId" TEXT,
   "arrivedQty" NUMERIC,
+  "isChecked" BOOLEAN DEFAULT FALSE,
+  "checkedAt" BIGINT,
+  "checkedBy" TEXT,
   "userId" TEXT DEFAULT 'public',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "minStock" NUMERIC DEFAULT 5;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "isChecked" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "checkedAt" BIGINT;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "checkedBy" TEXT;
 
 -- 4. Tabel Stock Outs (Barang Keluar)
 CREATE TABLE IF NOT EXISTS public.stock_outs (
@@ -113,10 +120,50 @@ CREATE TABLE IF NOT EXISTS public.stock_outs (
 CREATE TABLE IF NOT EXISTS public.settings (
   id TEXT PRIMARY KEY DEFAULT 'public',
   "autoDeleteMode" TEXT DEFAULT 'none',
+  "autoDeleteDays" INTEGER DEFAULT 3,
   "navbarPosition" TEXT DEFAULT 'bottom',
   theme TEXT DEFAULT 'default',
   "useLocalDb" BOOLEAN DEFAULT FALSE,
   "dbProvider" TEXT DEFAULT 'supabase',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "autoDeleteDays" INTEGER DEFAULT 3;
+
+-- 6. Tabel Near Expired (Rekap Produk Expired Dekat)
+CREATE TABLE IF NOT EXISTS public.near_expired (
+  id TEXT PRIMARY KEY,
+  "productId" TEXT,
+  "productName" TEXT NOT NULL,
+  batch TEXT NOT NULL,
+  "expiredDate" TEXT NOT NULL,
+  "supplierId" TEXT,
+  "supplierName" TEXT NOT NULL,
+  quantity NUMERIC,
+  unit TEXT DEFAULT 'Pcs',
+  notes TEXT,
+  "createdAt" BIGINT,
+  status TEXT DEFAULT 'pending',
+  "userId" TEXT DEFAULT 'public',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Tabel Chat Users (Pengguna Chat Realtime)
+CREATE TABLE IF NOT EXISTS public.chat_users (
+  id TEXT PRIMARY KEY,
+  "displayName" TEXT NOT NULL,
+  "isOnline" BOOLEAN DEFAULT FALSE,
+  "lastSeen" BIGINT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Tabel Messages (Pesan Kolaborasi)
+CREATE TABLE IF NOT EXISTS public.messages (
+  id TEXT PRIMARY KEY,
+  "senderId" TEXT NOT NULL,
+  "receiverId" TEXT NOT NULL,
+  text TEXT NOT NULL,
+  "createdAt" BIGINT,
+  read BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -126,6 +173,9 @@ ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stock_outs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.near_expired ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
 -- IZINKAN AKSES PENUH (BACA, TULIS, UPDATE, HAPUS) UNTUK API KEY PUBLIK
 DROP POLICY IF EXISTS "Public full access suppliers" ON public.suppliers;
@@ -142,6 +192,15 @@ CREATE POLICY "Public full access stock_outs" ON public.stock_outs FOR ALL USING
 
 DROP POLICY IF EXISTS "Public full access settings" ON public.settings;
 CREATE POLICY "Public full access settings" ON public.settings FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public full access near_expired" ON public.near_expired;
+CREATE POLICY "Public full access near_expired" ON public.near_expired FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public full access chat_users" ON public.chat_users;
+CREATE POLICY "Public full access chat_users" ON public.chat_users FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public full access messages" ON public.messages;
+CREATE POLICY "Public full access messages" ON public.messages FOR ALL USING (true) WITH CHECK (true);
 
 -- PUBLIKASI REALTIME UNTUK SEMUA TABEL
 DO $$
@@ -173,6 +232,24 @@ BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE public.settings;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.near_expired;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_users;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 `;
 
 export interface TableStatus {
@@ -181,6 +258,9 @@ export interface TableStatus {
   reports: boolean | null;
   stock_outs: boolean | null;
   settings: boolean | null;
+  near_expired: boolean | null;
+  chat_users: boolean | null;
+  messages: boolean | null;
 }
 
 export const checkSupabaseTableStatus = async (): Promise<{
@@ -194,7 +274,10 @@ export const checkSupabaseTableStatus = async (): Promise<{
     products: null,
     reports: null,
     stock_outs: null,
-    settings: null
+    settings: null,
+    near_expired: null,
+    chat_users: null,
+    messages: null
   };
 
   try {
@@ -210,12 +293,15 @@ export const checkSupabaseTableStatus = async (): Promise<{
       return true;
     };
 
-    const [sup, prod, rep, so, set] = await Promise.all([
+    const [sup, prod, rep, so, set, ne, cu, msg] = await Promise.all([
       checkTable('suppliers'),
       checkTable('products'),
       checkTable('reports'),
       checkTable('stock_outs'),
-      checkTable('settings')
+      checkTable('settings'),
+      checkTable('near_expired'),
+      checkTable('chat_users'),
+      checkTable('messages')
     ]);
 
     tables.suppliers = sup;
@@ -223,6 +309,9 @@ export const checkSupabaseTableStatus = async (): Promise<{
     tables.reports = rep;
     tables.stock_outs = so;
     tables.settings = set;
+    tables.near_expired = ne;
+    tables.chat_users = cu;
+    tables.messages = msg;
 
     return {
       connected: true,

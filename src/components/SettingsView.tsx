@@ -3,7 +3,9 @@ import { useAppContext } from '../store/AppContext';
 import { 
   Settings, Trash2, CheckCircle2, LayoutPanelLeft, Palette, ShieldAlert,
   Database, Download, Upload, Server, Copy, Check, ExternalLink, 
-  RefreshCw, AlertTriangle, ChevronDown, ChevronUp, Layers, CheckCircle, Flame
+  RefreshCw, AlertTriangle, ChevronDown, ChevronUp, Layers, CheckCircle, Flame,
+  BookOpen, Sparkles, Play, Calendar, Clock, Minus, Plus, Info, ShieldCheck,
+  Code2, Copyright, Award, Heart, BadgeCheck, Laptop, Cpu
 } from 'lucide-react';
 import { AutoDeleteMode, NavbarPosition, DbProvider } from '../types';
 import { 
@@ -12,16 +14,45 @@ import {
 } from '../lib/supabase';
 import { getDbProvider, AllTablesStatusResult, TABLE_METADATA } from '../lib/dbAdapter';
 import { testFirebaseConnection, resetFirebaseQuotaStatus } from '../lib/firebase';
+import { getCleanupCutoffDate, formatDateIndo, AUTO_DELETE_PRESETS, getRetentionDays } from '../lib/cleanupUtils';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { UserGuide } from './UserGuide';
 
-export const SettingsView = () => {
+export interface SettingsViewProps {
+  onNavigateTab?: (tab: 'dashboard' | 'master' | 'report' | 'arrived' | 'stockout' | 'kosong' | 'lowstock' | 'settings') => void;
+  defaultSubTab?: 'config' | 'guide';
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defaultSubTab = 'config' }) => {
   const { 
     settings, updateSettings, resetAllData, exportData, importData, 
     migrateCurrentDataToSupabase, dbProvider,
-    autoCreateMissingTables, getTablesStatus
+    autoCreateMissingTables, getTablesStatus,
+    reports, cleanOldReportsNow
   } = useAppContext();
   
+  const [activeSubTab, setActiveSubTab] = useState<'config' | 'guide'>(defaultSubTab);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Copyright & Developer states
+  const [isCopiedCopyright, setIsCopiedCopyright] = useState(false);
+  const handleCopyCopyright = () => {
+    const text = `Daily Report Pro v3.2.0\nDeveloper: Denuda\nHak Cipta © 2024 - 2026 Denuda. Seluruh Hak Cipta Dilindungi Undang-Undang.`;
+    navigator.clipboard.writeText(text);
+    setIsCopiedCopyright(true);
+    setTimeout(() => setIsCopiedCopyright(false), 3000);
+  };
+
+  // Auto-Delete / Data Cleaner states
+  const [customDays, setCustomDays] = useState<number>(settings.autoDeleteDays || 3);
+  const [isCleaningNow, setIsCleaningNow] = useState(false);
+  const [cleanNotification, setCleanNotification] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (settings.autoDeleteDays) {
+      setCustomDays(settings.autoDeleteDays);
+    }
+  }, [settings.autoDeleteDays]);
 
   // Table Auto-Creation states
   const [allTablesStatus, setAllTablesStatus] = useState<AllTablesStatusResult | null>(null);
@@ -202,8 +233,65 @@ export const SettingsView = () => {
     }
   };
 
-  const handleModeChange = (mode: AutoDeleteMode) => {
-    updateSettings({ ...settings, autoDeleteMode: mode });
+  const currentCutoff = getCleanupCutoffDate(settings.autoDeleteMode, settings.autoDeleteDays || customDays);
+  const affectedReportsCount = currentCutoff 
+    ? reports.filter(r => r.date < currentCutoff.cutoffDateStr).length 
+    : 0;
+
+  const handleModeChange = (mode: AutoDeleteMode, days?: number) => {
+    const targetDays = days !== undefined ? days : (settings.autoDeleteDays || customDays || 3);
+    updateSettings({ ...settings, autoDeleteMode: mode, autoDeleteDays: targetDays });
+  };
+
+  const handleCustomDaysChange = (newDays: number) => {
+    const validDays = Math.max(1, Math.min(365, newDays));
+    setCustomDays(validDays);
+    updateSettings({
+      ...settings,
+      autoDeleteMode: 'custom',
+      autoDeleteDays: validDays
+    });
+  };
+
+  const handleCleanNow = async () => {
+    if (settings.autoDeleteMode === 'none') {
+      alert("Mode pembersihan saat ini adalah 'Nonaktif'. Silakan pilih salah satu durasi retensi data (misal: Hari Ini, 2 Hari, 3 Hari, dst.) terlebih dahulu.");
+      return;
+    }
+    if (!currentCutoff) return;
+
+    if (!window.confirm(
+      `Pembersihan Data Manual Sekarang:\n\n` +
+      `Data laporan sebelum tanggal ${currentCutoff.formattedCutoffDate} akan dibersihkan (${affectedReportsCount} data laporan terdeteksi).\n` +
+      `Data laporan mulai ${currentCutoff.formattedCutoffDate} s/d Hari Ini serta riwayat barang datang tetap aman tersimpan.\n\n` +
+      `Lanjutkan pembersihan sekarang?`
+    )) {
+      return;
+    }
+
+    setIsCleaningNow(true);
+    setCleanNotification(null);
+    try {
+      const res = await cleanOldReportsNow(settings.autoDeleteMode, settings.autoDeleteDays || customDays);
+      if (res.count > 0) {
+        setCleanNotification({
+          type: 'success',
+          text: `Berhasil membersihkan ${res.count} laporan lama sebelum tanggal ${currentCutoff.formattedCutoffDate}!`
+        });
+      } else {
+        setCleanNotification({
+          type: 'info',
+          text: `Semua data laporan masih dalam masa retensi aktif (${currentCutoff.formattedCutoffDate} s/d Hari ini). Tidak ada data lama yang perlu dihapus.`
+        });
+      }
+    } catch (e: any) {
+      setCleanNotification({
+        type: 'error',
+        text: `Gagal menjalankan pembersihan data: ${e?.message || e}`
+      });
+    } finally {
+      setIsCleaningNow(false);
+    }
   };
 
   const handleThemeChange = (theme: string) => {
@@ -234,19 +322,86 @@ export const SettingsView = () => {
   const activeProvider = dbProvider || getDbProvider();
 
   return (
-    <div className="h-full flex flex-col gap-8 pb-12 max-w-5xl mx-auto w-full">
-      <div className="flex flex-col gap-2 px-2">
-        <h2 className="text-3xl font-black text-theme-900 tracking-tight">Pengaturan</h2>
-        <p className="text-theme-600-text font-medium">Sesuaikan database, integrasi Supabase, dan preferensi aplikasi Anda.</p>
+    <div className="h-full flex flex-col gap-6 pb-12 max-w-5xl mx-auto w-full">
+      {/* Settings Top Header with Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-3xl font-black text-theme-900 tracking-tight">Pengaturan & Panduan</h2>
+          <p className="text-theme-600-text text-sm font-medium">Sesuaikan database, integrasi sistem, dan pelajari panduan lengkap penggunaan aplikasi.</p>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex items-center p-1.5 bg-neutral-100 rounded-2xl border border-neutral-200/80 shrink-0 self-start sm:self-auto">
+          <button
+            onClick={() => setActiveSubTab('config')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeSubTab === 'config'
+                ? 'bg-white text-theme-900 shadow-sm'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Konfigurasi Sistem</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('guide')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all relative ${
+              activeSubTab === 'guide'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Panduan Lengkap</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+              activeSubTab === 'guide' ? 'bg-white text-emerald-800' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              Animasi
+            </span>
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Left Column */}
-        <div className="lg:col-span-8 flex flex-col gap-8">
-          
-          {/* DATABASE PROVIDER SELECTION */}
-          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8">
+      {/* View Content: Guide vs Config */}
+      {activeSubTab === 'guide' ? (
+        <UserGuide onNavigateTab={onNavigateTab} isEmbedded />
+      ) : (
+        <div className="space-y-8">
+          {/* Animated User Guide Launcher Banner */}
+          <div className="relative bg-gradient-to-r from-theme-800 via-theme-900 to-neutral-900 rounded-[2rem] p-6 text-white shadow-lg overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 border border-theme-700/50">
+            <div className="flex items-center gap-4 relative z-10">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shrink-0 shadow-inner">
+                <BookOpen className="w-7 h-7" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 animate-pulse" /> Panduan Interaktif & Animasi
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-white">Panduan Lengkap Cara Penggunaan</h3>
+                <p className="text-xs text-neutral-300 mt-0.5 max-w-xl">
+                  Pelajari alur input antrean kilat, otomatisasi checklist barang datang, ekspor rekap, hingga simulasi fitur hidup dengan animasi interaktif.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveSubTab('guide')}
+              className="relative z-10 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 shrink-0"
+            >
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>Buka Panduan Lengkap</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            {/* Left Column */}
+            <div className="lg:col-span-8 flex flex-col gap-8">
+              
+              {/* DATABASE PROVIDER SELECTION */}
+              <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8">
             <div className="flex items-start gap-5 mb-6">
               <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm">
                 <Database className="w-7 h-7 text-emerald-600" />
@@ -445,13 +600,16 @@ export const SettingsView = () => {
             )}
 
             {/* Tables Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mb-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">
               {[
                 { name: 'suppliers', label: '1. Master Supplier', desc: 'Vendor & pemasok barang' },
                 { name: 'products', label: '2. Master Produk', desc: 'Katalog barang & butom stok' },
-                { name: 'reports', label: '3. Laporan & Order', desc: 'Laporan harian & status barang datang' },
+                { name: 'reports', label: '3. Laporan & Order', desc: 'Laporan harian, status datang, & ceklis' },
                 { name: 'stock_outs', label: '4. Pengeluaran (Keluar)', desc: 'Riwayat pengeluaran barang' },
-                { name: 'settings', label: '5. Pengaturan Sistem', desc: 'Konfigurasi tema & auto-delete' },
+                { name: 'near_expired', label: '5. Expired Dekat', desc: 'Rekap produk mendekati kadaluwarsa & batch' },
+                { name: 'settings', label: '6. Pengaturan Sistem', desc: 'Konfigurasi tema, auto-cleaner, & sync' },
+                { name: 'chat_users', label: '7. Pengguna Chat', desc: 'Kehadiran staf & koordinasi online' },
+                { name: 'messages', label: '8. Pesan Chat Tim', desc: 'Riwayat percakapan & chat real-time' },
               ].map((t) => {
                 const tableInfo = allTablesStatus?.tables.find(tbl => tbl.name === t.name);
                 // In Firebase and Local, tables are automatically initialized or marked ready
@@ -620,13 +778,16 @@ export const SettingsView = () => {
               )}
 
               {tableStatus ? (
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
                   {[
                     { key: 'suppliers', name: 'suppliers' },
                     { key: 'products', name: 'products' },
                     { key: 'reports', name: 'reports' },
                     { key: 'stock_outs', name: 'stock_outs' },
-                    { key: 'settings', name: 'settings' }
+                    { key: 'near_expired', name: 'near_expired' },
+                    { key: 'settings', name: 'settings' },
+                    { key: 'chat_users', name: 'chat_users' },
+                    { key: 'messages', name: 'messages' }
                   ].map((tbl) => {
                     const exists = tableStatus[tbl.key as keyof TableStatus];
                     return (
@@ -654,7 +815,7 @@ export const SettingsView = () => {
                 </div>
               ) : (
                 <p className="text-xs text-neutral-500 italic">
-                  Klik tombol &quot;Cek Status Tabel&quot; untuk memverifikasi apakah 5 tabel sudah siap di database Supabase.
+                  Klik tombol &quot;Cek Status Tabel&quot; untuk memverifikasi apakah seluruh tabel sudah siap di database Supabase.
                 </p>
               )}
             </div>
@@ -864,43 +1025,247 @@ export const SettingsView = () => {
         {/* Right Column - Data & Danger */}
         <div className="lg:col-span-4 flex flex-col gap-8">
           
-          {/* Auto-Delete Settings */}
+          {/* Auto-Delete & Data Retention Settings */}
           <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="p-3 bg-theme-50 rounded-xl border border-theme-100">
-                <Settings className="w-6 h-6 text-theme-500" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-theme-900">Pembersihan Data</h3>
-                <p className="text-xs text-theme-600-text mt-1 font-medium">Hapus laporan lama otomatis.</p>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex items-start gap-3.5">
+                <div className="p-3 bg-theme-50 rounded-2xl border border-theme-100 text-theme-600 shadow-sm shrink-0">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-lg font-bold text-theme-900">Pembersihan Data</h3>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-theme-100 text-theme-800">
+                      {settings.autoDeleteMode === 'none' 
+                        ? 'Nonaktif' 
+                        : settings.autoDeleteMode === 'custom'
+                          ? `Kustom (${settings.autoDeleteDays || customDays} Hari)`
+                          : AUTO_DELETE_PRESETS.find(p => p.id === settings.autoDeleteMode)?.badge || 'Aktif'}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 inline-flex items-center gap-1">
+                      <RefreshCw className="w-2.5 h-2.5 text-emerald-600" />
+                      Sinkron Antar-Perangkat
+                    </span>
+                  </div>
+                  <p className="text-xs text-theme-600-text mt-0.5 font-medium">
+                    Atur durasi data laporan yang dipertahankan. Jika diubah di satu perangkat, perangkat lain otomatis mengikuti secara real-time.
+                  </p>
+                </div>
               </div>
             </div>
-            
-            <div className="flex flex-col gap-3">
-              {[
-                { id: 'none', title: 'Nonaktif', desc: 'Simpan semua data selamanya (Default).' },
-                { id: 'keep_today', title: 'Hanya Hari Ini', desc: 'Hapus data kemarin dan sebelumnya.' },
-                { id: 'keep_2_days', title: 'Simpan 2 Hari', desc: 'Simpan data hari ini dan kemarin.' }
-              ].map((opt) => {
+
+            {/* Notification alert */}
+            {cleanNotification && (
+              <div className={`mb-4 p-3 rounded-2xl text-xs font-semibold flex items-center justify-between gap-2.5 transition-all ${
+                cleanNotification.type === 'success' 
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                  : cleanNotification.type === 'info'
+                    ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {cleanNotification.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : cleanNotification.type === 'info' ? (
+                    <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{cleanNotification.text}</span>
+                </div>
+                <button 
+                  onClick={() => setCleanNotification(null)}
+                  className="text-xs font-bold hover:underline opacity-70 shrink-0"
+                >
+                  Tutup
+                </button>
+              </div>
+            )}
+
+            {/* Live Cutoff Status Box */}
+            <div className={`mb-4 p-4 rounded-2xl border text-xs leading-relaxed ${
+              settings.autoDeleteMode !== 'none' && currentCutoff
+                ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                : 'bg-neutral-50 border-neutral-200 text-neutral-700'
+            }`}>
+              {settings.autoDeleteMode !== 'none' && currentCutoff ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between font-bold text-[13px] text-emerald-900 border-b border-emerald-200/60 pb-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-emerald-600" />
+                      Masa Retensi: {currentCutoff.retentionDays} Hari
+                    </span>
+                    <span className="text-[11px] font-semibold px-2 py-0.5 bg-emerald-100 rounded-full text-emerald-800">
+                      Otomatis Aktif
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] space-y-1">
+                    <div className="flex items-start gap-1.5 text-emerald-900">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                      <span><strong>Dipertahankan:</strong> Mulai <span className="underline font-semibold">{currentCutoff.formattedCutoffDate}</span> s/d Hari ini.</span>
+                    </div>
+                    <div className="flex items-start gap-1.5 text-emerald-800">
+                      <Trash2 className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                      <span><strong>Dibersihkan:</strong> Laporan sebelum tanggal {currentCutoff.formattedCutoffDate}.</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-1.5 border-t border-emerald-200/60 flex items-center justify-between text-[11px] font-semibold">
+                    <span>Laporan lama siap dibersihkan:</span>
+                    <span className={`px-2 py-0.5 rounded-full ${affectedReportsCount > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                      {affectedReportsCount} data
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2.5">
+                  <Info className="w-4 h-4 text-neutral-500 shrink-0" />
+                  <p className="text-xs text-neutral-600 font-medium">
+                    Semua riwayat laporan disimpan selamanya tanpa pembersihan otomatis.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Presets List */}
+            <div className="flex flex-col gap-2 mb-4 max-h-[340px] overflow-y-auto pr-1">
+              {AUTO_DELETE_PRESETS.map((opt) => {
                 const isSelected = settings.autoDeleteMode === opt.id;
                 return (
                   <div 
                     key={opt.id}
-                    onClick={() => handleModeChange(opt.id as AutoDeleteMode)}
-                    className={`p-4 rounded-2xl border-2 cursor-pointer transition-all duration-300 ${
+                    onClick={() => handleModeChange(opt.id, opt.days || undefined)}
+                    className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${
                       isSelected 
-                        ? 'border-theme-500 bg-theme-50 shadow-sm' 
-                        : 'border-theme-100 hover:border-theme-300 bg-white'
+                        ? 'border-theme-500 bg-theme-50 shadow-xs ring-1 ring-theme-500/30' 
+                        : 'border-theme-100 hover:border-theme-300 bg-white hover:bg-neutral-50/60'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-bold text-theme-900 text-sm">{opt.title}</span>
-                      {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-theme-500" />}
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-theme-900 text-xs sm:text-sm">{opt.label}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${
+                          isSelected ? 'bg-theme-200 text-theme-900' : 'bg-neutral-100 text-neutral-600'
+                        }`}>
+                          {opt.id === 'custom' && isSelected ? `${settings.autoDeleteDays || customDays} Hari` : opt.badge}
+                        </span>
+                      </div>
+                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border ${
+                        isSelected ? 'border-theme-600 bg-theme-600' : 'border-neutral-300'
+                      }`}>
+                        {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
                     </div>
-                    <p className="text-xs font-medium text-theme-600-text">{opt.desc}</p>
+                    <p className="text-[11px] font-medium text-theme-600-text leading-snug">
+                      {opt.id === 'custom' && isSelected
+                        ? `Mempertahankan data ${settings.autoDeleteDays || customDays} hari terakhir.`
+                        : opt.description}
+                    </p>
                   </div>
                 );
               })}
+            </div>
+
+            {/* Custom Days Input Section */}
+            {settings.autoDeleteMode === 'custom' && (
+              <div className="p-4 rounded-2xl bg-theme-50/80 border border-theme-200 mb-4 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-theme-900 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-theme-600" />
+                    Kustom Jumlah Hari yang Dipertahankan:
+                  </label>
+                  <span className="text-xs font-bold text-theme-800 bg-white px-2 py-0.5 rounded-lg border border-theme-200">
+                    {customDays} Hari
+                  </span>
+                </div>
+
+                {/* Interactive Stepper */}
+                <div className="flex items-center gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => handleCustomDaysChange(Math.max(1, customDays - 1))}
+                    disabled={customDays <= 1}
+                    className="w-10 h-10 rounded-xl bg-white border border-theme-200 hover:bg-theme-100 text-theme-800 font-black flex items-center justify-center transition-all disabled:opacity-40 shadow-xs"
+                    title="Kurangi 1 Hari"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+
+                  <div className="flex-1 relative">
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={customDays}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val)) {
+                          handleCustomDaysChange(val);
+                        }
+                      }}
+                      className="w-full text-center py-2 px-3 text-sm font-black text-theme-900 bg-white border border-theme-300 rounded-xl focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none shadow-xs"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-neutral-400 pointer-events-none">
+                      Hari
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCustomDaysChange(Math.min(365, customDays + 1))}
+                    disabled={customDays >= 365}
+                    className="w-10 h-10 rounded-xl bg-white border border-theme-200 hover:bg-theme-100 text-theme-800 font-black flex items-center justify-center transition-all disabled:opacity-40 shadow-xs"
+                    title="Tambah 1 Hari"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Quick chip presets */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-bold text-theme-600 uppercase tracking-wide mr-1">Pilihan Cepat:</span>
+                  {[
+                    { label: '4 Hari', days: 4 },
+                    { label: '5 Hari', days: 5 },
+                    { label: '10 Hari', days: 10 },
+                    { label: '21 Hari', days: 21 },
+                    { label: '60 Hari', days: 60 },
+                    { label: '90 Hari', days: 90 },
+                  ].map((chip) => (
+                    <button
+                      key={chip.days}
+                      type="button"
+                      onClick={() => handleCustomDaysChange(chip.days)}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                        customDays === chip.days 
+                          ? 'bg-theme-600 text-white shadow-xs' 
+                          : 'bg-white text-theme-800 border border-theme-200 hover:bg-theme-100/70'
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Manual Action Button */}
+            <div className="pt-2 border-t border-neutral-100 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleCleanNow}
+                disabled={isCleaningNow || settings.autoDeleteMode === 'none'}
+                className="w-full py-2.5 px-4 bg-theme-600 hover:bg-theme-700 active:scale-98 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-xs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isCleaningNow ? 'animate-spin' : ''}`} />
+                <span>{isCleaningNow ? 'Sedang Membersihkan...' : 'Jalankan Pembersihan Sekarang'}</span>
+              </button>
+
+              <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 font-medium px-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Riwayat Barang Datang tetap aman disimpan untuk arsip audit.</span>
+              </div>
             </div>
           </div>
 
@@ -961,6 +1326,228 @@ export const SettingsView = () => {
 
         </div>
       </div>
+
+      {/* TENTANG APLIKASI, DEVELOPER & HAK CIPTA */}
+      <div className="bg-white rounded-[2.5rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8 relative">
+        {/* Background ambient accents */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-100/40 via-theme-100/30 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-theme-100/40 to-transparent rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
+
+        <div className="relative z-10">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-neutral-100 mb-8">
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
+                <Award className="w-7 h-7" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-xl md:text-2xl font-black text-theme-900 tracking-tight">
+                    Tentang Aplikasi & Hak Cipta
+                  </h3>
+                  <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                    <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    Versi Resmi Terverifikasi
+                  </span>
+                </div>
+                <p className="text-xs md:text-sm text-theme-600-text mt-1 font-medium">
+                  Informasi resmi profil pengembang (Developer), sertifikat hak cipta, dan spesifikasi arsitektur aplikasi.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleCopyCopyright}
+                className="px-3.5 py-2 text-xs font-bold rounded-xl border border-neutral-200 hover:border-emerald-300 bg-white hover:bg-emerald-50 text-neutral-700 hover:text-emerald-800 transition-all shadow-xs flex items-center gap-2 active:scale-95"
+                title="Salin ringkasan hak cipta & developer"
+              >
+                {isCopiedCopyright ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-neutral-500" />}
+                <span>{isCopiedCopyright ? 'Info Berhasil Disalin!' : 'Salin Info Pengembang'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 3 Main Grid Columns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+            {/* CARD 1: DEVELOPER APLIKASI (DENUDA) */}
+            <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border-2 border-emerald-500/30 p-6 flex flex-col justify-between shadow-xs hover:border-emerald-500/60 transition-all relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
+              
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-emerald-600" />
+                    Developer Aplikasi
+                  </span>
+                  <span className="text-xs font-semibold text-neutral-400">Pencipta Resmi</span>
+                </div>
+
+                <div className="flex items-center gap-3.5 mb-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-neutral-900 via-emerald-950 to-neutral-900 text-emerald-400 border-2 border-emerald-400/40 font-black text-xl flex items-center justify-center shadow-md shadow-emerald-900/10 shrink-0">
+                    DN
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-xl font-black text-neutral-950 tracking-tight">Denuda</h4>
+                      <BadgeCheck className="w-5 h-5 text-emerald-600 fill-emerald-100 shrink-0" />
+                    </div>
+                    <p className="text-xs font-bold text-emerald-700">Lead Developer & Software Creator</p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-neutral-600 font-medium leading-relaxed mb-4">
+                  Aplikasi ini dirancang, diprogram, dan dikembangkan secara penuh oleh <strong className="text-neutral-900 font-bold">Denuda</strong> sebagai solusi manajemen operasional toko dan gudang yang cepat, presisi, serta terhubung antarperangkat secara real-time.
+                </p>
+
+                <div className="space-y-1.5 pt-3 border-t border-neutral-200/60 text-xs">
+                  <div className="flex items-center gap-2 text-neutral-700 font-medium">
+                    <Code2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Arsitek Kode & Desain Sistem</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-neutral-700 font-medium">
+                    <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Spesialis Database Real-Time & Cloud</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-neutral-700 font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Dedikasi Optimalisasi Operasional</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] font-semibold text-emerald-800">
+                <span>Pengembang: <strong>Denuda</strong></span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] uppercase font-bold">Original Author</span>
+              </div>
+            </div>
+
+            {/* CARD 2: HAK CIPTA APLIKASI */}
+            <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border border-neutral-200 p-6 flex flex-col justify-between shadow-xs hover:border-theme-300 transition-all relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-28 h-28 bg-theme-400/10 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
+
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-theme-100 text-theme-900 border border-theme-200 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-theme-600" />
+                    Hak Cipta Aplikasi
+                  </span>
+                  <span className="text-xs font-semibold text-neutral-400">Legal Notice</span>
+                </div>
+
+                <div className="flex items-center gap-3.5 mb-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-theme-800 to-neutral-900 text-white flex items-center justify-center shadow-md shadow-neutral-900/10 shrink-0">
+                    <Copyright className="w-7 h-7 text-theme-200" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-black text-neutral-950 tracking-tight leading-snug">
+                      © 2024 - 2026 Denuda
+                    </h4>
+                    <p className="text-xs font-bold text-theme-700">Seluruh Hak Cipta Dilindungi</p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-neutral-600 font-medium leading-relaxed mb-4">
+                  Seluruh arsitektur kode sumber, modul antarmuka pengguna (UI/UX), tata kelola basis data, dan fitur inovatif aplikasi ini merupakan karya cipta intelektual yang dilindungi undang-undang atas nama <strong className="text-neutral-900 font-bold">Denuda</strong>.
+                </p>
+
+                <div className="p-3 rounded-xl bg-theme-50/70 border border-theme-100 text-xs text-theme-900 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <ShieldCheck className="w-3.5 h-3.5 text-theme-600 shrink-0" />
+                    <span>Lisensi Perangkat Lunak:</span>
+                  </div>
+                  <p className="text-[11px] text-theme-700 font-medium">
+                    Hak kepemilikan penuh dan lisensi eksklusif terdaftar resmi pada pengembang <strong>Denuda</strong> (All Rights Reserved).
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] font-semibold text-neutral-600">
+                <span>Status: <strong>Resmi & Dilindungi</strong></span>
+                <span className="text-[10px] text-theme-600 font-mono">ID: DRP-DENUDA-2026</span>
+              </div>
+            </div>
+
+            {/* CARD 3: TENTANG APLIKASI & SPESIFIKASI */}
+            <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border border-neutral-200 p-6 flex flex-col justify-between shadow-xs hover:border-neutral-300 transition-all md:col-span-2 lg:col-span-1">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-neutral-200/80 text-neutral-800 flex items-center gap-1">
+                    <Info className="w-3 h-3 text-neutral-600" />
+                    Spesifikasi Aplikasi
+                  </span>
+                  <span className="text-xs font-mono font-bold text-neutral-500">v3.2.0 Pro</span>
+                </div>
+
+                <div className="mb-4">
+                  <h4 className="text-lg font-black text-neutral-950 tracking-tight">Daily Report Pro</h4>
+                  <p className="text-xs text-neutral-500 font-medium mt-0.5">
+                    Sistem Rekap Laporan Stok, Barang Datang & Expired
+                  </p>
+                </div>
+
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
+                    <span className="text-neutral-500 font-medium">Pengembang (Developer)</span>
+                    <span className="font-black text-neutral-900 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200">
+                      Denuda
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
+                    <span className="text-neutral-500 font-medium">Arsitektur Aplikasi</span>
+                    <span className="font-bold text-neutral-800">Progressive Web App (PWA)</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
+                    <span className="text-neutral-500 font-medium">Database Aktif</span>
+                    <span className="font-bold text-neutral-800">
+                      {activeProvider === 'supabase' ? 'Supabase PostgreSQL' : activeProvider === 'firebase' ? 'Google Cloud Firestore' : 'IndexedDB Lokal'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
+                    <span className="text-neutral-500 font-medium">Dukungan Multi-Perangkat</span>
+                    <span className="font-bold text-emerald-700 flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Real-time Sinkron
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1.5">
+                    <span className="text-neutral-500 font-medium">Teknologi</span>
+                    <span className="font-mono text-[11px] text-neutral-700">React 19 + TypeScript + Tailwind</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] text-neutral-500 font-medium">
+                <span>Kesiapan Offline</span>
+                <span className="font-bold text-emerald-700">Aktif (IndexedDB Failover)</span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Bottom Dedicated Credit Banner */}
+          <div className="mt-8 pt-6 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-500 font-medium">
+            <div className="flex items-center gap-2">
+              <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
+              <span>
+                Dibuat dan dipersembahkan dengan dedikasi tinggi oleh <strong className="text-neutral-900 font-bold">Denuda</strong> untuk kemudahan operasional harian Anda.
+              </span>
+            </div>
+            <div className="flex items-center gap-3 shrink-0 text-[11px]">
+              <span>Hak Cipta © 2024 - 2026 <strong>Denuda</strong></span>
+              <span className="text-neutral-300">•</span>
+              <span>All Rights Reserved</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  )}
+</div>
   );
 };

@@ -11,7 +11,12 @@ export const localDb = {
   products: localforage.createInstance({ name: 'DailyReportPro', storeName: 'products' }),
   reports: localforage.createInstance({ name: 'DailyReportPro', storeName: 'reports' }),
   stockOuts: localforage.createInstance({ name: 'DailyReportPro', storeName: 'stock_outs' }),
-  settings: localforage.createInstance({ name: 'DailyReportPro', storeName: 'settings' })
+  stock_outs: localforage.createInstance({ name: 'DailyReportPro', storeName: 'stock_outs' }),
+  settings: localforage.createInstance({ name: 'DailyReportPro', storeName: 'settings' }),
+  nearExpired: localforage.createInstance({ name: 'DailyReportPro', storeName: 'near_expired' }),
+  near_expired: localforage.createInstance({ name: 'DailyReportPro', storeName: 'near_expired' }),
+  chat_users: localforage.createInstance({ name: 'DailyReportPro', storeName: 'chat_users' }),
+  messages: localforage.createInstance({ name: 'DailyReportPro', storeName: 'messages' })
 };
 
 export const generateId = () => uuidv4();

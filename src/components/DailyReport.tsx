@@ -11,8 +11,6 @@ import { format, subDays } from 'date-fns';
 import { exportReportsToExcel, exportReportsToTxt, downloadDailyReportTemplate, parseDailyReportImport, formatExcelDate } from '../lib/excel';
 import { exportReportsToPdf } from '../lib/pdf';
 import { motion, AnimatePresence } from 'motion/react';
-import { getSearchHistory, addSearchHistory, clearSearchHistory } from '../lib/searchHistory';
-import { SearchHistoryChips } from './SearchHistoryChips';
 import { cn } from '../lib/utils';
 import { DailyReportStats } from './daily-report/DailyReportStats';
 import { DailyReportCards } from './daily-report/DailyReportCards';
@@ -20,9 +18,10 @@ import { DailyReportTable } from './daily-report/DailyReportTable';
 import { DailyReportToolbar } from './daily-report/DailyReportToolbar';
 import { DailyReportForm, PendingReportItem } from './daily-report/DailyReportForm';
 import { OperationProgressModal } from './common/OperationProgressModal';
+import { Product, ReportEntry } from '../types';
 
 export const DailyReport = () => {
-  const { reports, products, suppliers, addReport, updateReport, deleteReport, deleteMultipleReports, deleteReportsByDateRange, updateProduct, addSupplier, addProduct } = useAppContext();
+  const { reports, products, suppliers, addReport, addReportsBatch, updateReport, updateReportsBatch, deleteReport, deleteMultipleReports, deleteReportsByDateRange, updateProduct, updateProductsBatch, addSupplier, addProduct } = useAppContext();
 
   // Mobile and responsive view mode
   const [mobileTab, setMobileTab] = useState<'list' | 'form'>('list');
@@ -40,7 +39,22 @@ export const DailyReport = () => {
   const [notes, setNotes] = useState('');
   const [isWarningStock, setIsWarningStock] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [pendingItems, setPendingItems] = useState<PendingReportItem[]>([]);
+  const [pendingItems, setPendingItems] = useState<PendingReportItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('daily_report_pending_items');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('daily_report_pending_items', JSON.stringify(pendingItems));
+    } catch (e) {
+      console.error("Error saving pendingItems to localStorage:", e);
+    }
+  }, [pendingItems]);
   const [saveSummary, setSaveSummary] = useState<{ isOpen: boolean; saved: any[]; failed: { item: any, reason: string }[]; }>({ isOpen: false, saved: [], failed: [] });
   const [isSavingAll, setIsSavingAll] = useState(false);
   const [saveProgress, setSaveProgress] = useState<{
@@ -95,8 +109,8 @@ export const DailyReport = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inlineDropdownRef = useRef<HTMLDivElement>(null);
   const lastSearchQueryRef = useRef('');
-  const [productSearchHistory, setProductSearchHistory] = useState<string[]>(() => getSearchHistory('report_product'));
-  const [supplierSearchHistory, setSupplierSearchHistory] = useState<string[]>(() => getSearchHistory('supplier'));
+  const [productSearchHistory, setProductSearchHistory] = useState<string[]>([]);
+  const [supplierSearchHistory, setSupplierSearchHistory] = useState<string[]>([]);
 
   // Filter State
   const [filterDate, setFilterDate] = useState('');
@@ -105,7 +119,9 @@ export const DailyReport = () => {
   const [productFilterQuery, setProductFilterQuery] = useState('');
   const [bottomStockFilter, setBottomStockFilter] = useState<'all' | 'has' | 'none' | 'warning'>('all');
   const [arrivedFilter, setArrivedFilter] = useState<'all' | 'arrived' | 'not_arrived'>('all');
+  const [checkedFilter, setCheckedFilter] = useState<'all' | 'checked' | 'unchecked'>('all');
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
+  const [showZeroStockOnly, setShowZeroStockOnly] = useState(false);
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
   const supplierDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -136,47 +152,48 @@ export const DailyReport = () => {
       setImportProgress({
         current: 0,
         total: totalRows,
-        currentItemName: 'Memulai proses impor...',
+        currentItemName: 'Memulai proses impor super cepat...',
         startTime
       });
 
+      const supplierCache = new Map<string, string>();
+      suppliers.forEach(s => supplierCache.set(s.name.toLowerCase(), s.id));
+
+      const productCache = new Map<string, string>();
+      products.forEach(p => productCache.set(p.name.toLowerCase(), p.id));
+
+      const reportsToAdd: Omit<ReportEntry, 'id'>[] = [];
+      const reportsToUpdate: ReportEntry[] = [];
       let importCount = 0;
+
       for (let i = 0; i < result.reports.length; i++) {
         const row = result.reports[i];
-        setImportProgress({
-          current: i + 1,
-          total: totalRows,
-          currentItemName: row.productName,
-          startTime
-        });
-
+        
         // Find or create supplier
         let supplierId = '';
         if (row.supplierName) {
-          let supplier = suppliers.find(s => s.name.toLowerCase() === row.supplierName.toLowerCase());
-          if (!supplier) {
-            supplierId = await addSupplier({ name: row.supplierName });
+          const lowerSup = row.supplierName.trim().toLowerCase();
+          if (supplierCache.has(lowerSup)) {
+            supplierId = supplierCache.get(lowerSup)!;
           } else {
-            supplierId = supplier.id;
+            supplierId = await addSupplier({ name: row.supplierName.trim() });
+            supplierCache.set(lowerSup, supplierId);
           }
         }
 
         // Find or create product
-        let prod = products.find(p => p.name.toLowerCase() === row.productName.toLowerCase());
+        const lowerProd = row.productName.trim().toLowerCase();
         let finalProductId = '';
-        if (!prod) {
+        if (productCache.has(lowerProd)) {
+          finalProductId = productCache.get(lowerProd)!;
+        } else {
           finalProductId = await addProduct({
-            name: row.productName,
+            name: row.productName.trim(),
             supplierId: supplierId || '',
             unit: 'pcs',
             bottomStock: undefined
           });
-        } else {
-          finalProductId = prod.id;
-          // Update product supplier if not set
-          if (!prod.supplierId && supplierId) {
-            await updateProduct({ ...prod, supplierId });
-          }
+          productCache.set(lowerProd, finalProductId);
         }
 
         // Check if report already exists or arrived on this date
@@ -191,7 +208,7 @@ export const DailyReport = () => {
         );
 
         if (existingReport && existingReport.isArrived && (existingReport.quantity === 0 || existingReport.isArrivedOnly)) {
-          await updateReport({
+          reportsToUpdate.push({
             ...existingReport,
             quantity: row.qty,
             notes: row.notes 
@@ -202,7 +219,7 @@ export const DailyReport = () => {
           });
         } else {
           // Create report
-          await addReport({
+          reportsToAdd.push({
             date: row.date,
             productId: finalProductId,
             quantity: row.qty,
@@ -216,15 +233,21 @@ export const DailyReport = () => {
           });
         }
         importCount++;
-
-        // Pacing delay for smooth visual animation
-        if (totalRows <= 100) {
-          await new Promise(resolve => setTimeout(resolve, 30));
-        }
       }
 
-      await new Promise(resolve => setTimeout(resolve, 350));
-      alert(`Berhasil mengimpor ${importCount} laporan data harian.`);
+      // High-speed batch commit to database!
+      if (reportsToAdd.length > 0 || reportsToUpdate.length > 0) {
+        await addReportsBatch(reportsToAdd, reportsToUpdate);
+      }
+
+      setImportProgress({
+        current: totalRows,
+        total: totalRows,
+        currentItemName: 'Selesai!',
+        startTime
+      });
+
+      alert(`Berhasil mengimpor ${importCount} laporan data harian secara instan.`);
     } catch (err: any) {
       alert("Gagal mengimpor file: " + err.message);
     } finally {
@@ -236,7 +259,7 @@ export const DailyReport = () => {
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterDate, filterSupplier, productFilterQuery, bottomStockFilter, arrivedFilter, showDuplicatesOnly]);
+  }, [filterDate, filterSupplier, productFilterQuery, bottomStockFilter, arrivedFilter, showDuplicatesOnly, showZeroStockOnly]);
 
   const selectedProduct = useMemo(() => products.find(p => p.id === productId), [products, productId]);
 
@@ -270,11 +293,6 @@ export const DailyReport = () => {
   }, [products, searchQuery]);
 
   const handleProductSelect = (id: string, name: string) => {
-    if (searchQuery.trim()) {
-      lastSearchQueryRef.current = searchQuery.trim();
-      const updated = addSearchHistory('report_product', searchQuery.trim());
-      setProductSearchHistory(updated);
-    }
     setProductId(id);
     setSearchQuery(name);
     const prod = products.find(p => p.id === id);
@@ -341,66 +359,103 @@ export const DailyReport = () => {
     setSaveProgress({
       current: 0,
       total: pendingItems.length,
-      currentItemName: pendingItems[0]?.productName || 'Mempersiapkan data...',
+      currentItemName: 'Memproses penyimpanan super cepat...',
       startTime
     });
     
-    const saved = [];
-    const failed = [];
-    const processedProductIds = new Set();
+    const saved: any[] = [];
+    const failed: any[] = [];
+    const processedProductIds = new Set<string>();
     
-    for (let i = 0; i < pendingItems.length; i++) {
-      const item = pendingItems[i];
-      setSaveProgress({
-        current: i + 1,
-        total: pendingItems.length,
-        currentItemName: item.productName,
-        startTime
-      });
-      let finalProductId = item.productId;
-      
-      try {
-        if (!finalProductId && item.productName) {
-          let defaultSupplier = suppliers.find(s => s.name.toLowerCase() === 'tanpa supplier' || s.name.toLowerCase() === 'unknown supplier');
-          let supplierId = defaultSupplier?.id;
-          if (!supplierId) {
-            supplierId = await addSupplier({ name: 'Tanpa Supplier' });
+    try {
+      // 1. Resolve products and suppliers for items without a productId
+      const missingProductItems = pendingItems.filter(item => !item.productId && item.productName);
+      const newProductMap = new Map<string, string>();
+
+      if (missingProductItems.length > 0) {
+        let defaultSupplier = suppliers.find(s => s.name.toLowerCase() === 'tanpa supplier' || s.name.toLowerCase() === 'unknown supplier');
+        let defaultSupplierId = defaultSupplier?.id;
+        if (!defaultSupplierId) {
+          defaultSupplierId = await addSupplier({ name: 'Tanpa Supplier' });
+        }
+
+        for (const item of missingProductItems) {
+          const lowerName = item.productName.trim().toLowerCase();
+          const existingP = products.find(p => p.name.trim().toLowerCase() === lowerName);
+          if (existingP) {
+            newProductMap.set(lowerName, existingP.id);
+            continue;
           }
-          
-          finalProductId = await addProduct({
-            name: item.productName,
-            supplierId,
+          if (newProductMap.has(lowerName)) {
+            continue;
+          }
+          const newId = await addProduct({
+            name: item.productName.trim(),
+            supplierId: defaultSupplierId,
             unit: item.unit || 'pcs',
             ...(item.showBottomStockInput && item.bottomStock !== '' ? { bottomStock: Number(item.bottomStock) } : {})
           });
-        } else if (finalProductId) {
-          const selectedProd = products.find(p => p.id === finalProductId);
+          newProductMap.set(lowerName, newId);
+        }
+      }
+
+      // 2. Collect product property updates (unit, bottomStock) if changed
+      const productsToUpdate: Product[] = [];
+      for (const item of pendingItems) {
+        const prodId = item.productId || (item.productName ? newProductMap.get(item.productName.trim().toLowerCase()) : undefined);
+        if (prodId) {
+          const selectedProd = products.find(p => p.id === prodId);
           if (selectedProd) {
             let hasChanges = false;
             let updatedProd = { ...selectedProd };
-            if (selectedProd.unit !== item.unit) {
-              updatedProd.unit = item.unit || 'pcs';
+            if (item.unit && selectedProd.unit !== item.unit) {
+              updatedProd.unit = item.unit;
               hasChanges = true;
             }
             if (item.showBottomStockInput && item.bottomStock !== '') {
-              updatedProd.bottomStock = Number(item.bottomStock);
-              hasChanges = true;
+              const bStock = Number(item.bottomStock);
+              if (selectedProd.bottomStock !== bStock) {
+                updatedProd.bottomStock = bStock;
+                hasChanges = true;
+              }
             }
-            if (hasChanges) {
-              await updateProduct(updatedProd);
+            if (hasChanges && !productsToUpdate.some(p => p.id === updatedProd.id)) {
+              productsToUpdate.push(updatedProd);
             }
           }
         }
-        
-        
+      }
+
+      if (productsToUpdate.length > 0) {
+        await updateProductsBatch(productsToUpdate);
+      }
+
+      // 3. Prepare reports to add and update
+      const reportsToAdd: Omit<ReportEntry, 'id'>[] = [];
+      const reportsToUpdate: ReportEntry[] = [];
+      const normalizedDate = formatExcelDate(date) || date;
+
+      for (let i = 0; i < pendingItems.length; i++) {
+        const item = pendingItems[i];
+        const finalProductId = item.productId || (item.productName ? newProductMap.get(item.productName.trim().toLowerCase()) : undefined);
+
+        if (!finalProductId) {
+          failed.push({ item, reason: "Produk tidak valid." });
+          continue;
+        }
+
         if (processedProductIds.has(finalProductId)) {
-          failed.push({ item, reason: "Data ganda (duplikat di dalam list input)." });
+          failed.push({ item, reason: "Data ganda (duplikat di dalam antrean input)." });
+          continue;
+        }
+
+        const qty = item.quantity === '' ? 0 : Number(item.quantity);
+        if (qty < 0) {
+          failed.push({ item, reason: "Quantity minus tidak diizinkan." });
           continue;
         }
 
         const p = products.find(prod => prod.id === finalProductId);
-        const normalizedDate = formatExcelDate(date) || date;
-
         const duplicateReport = reports.find(
           r => (formatExcelDate(r.date) || r.date) === normalizedDate && r.productId === finalProductId
         );
@@ -409,16 +464,10 @@ export const DailyReport = () => {
                r.productId === finalProductId && 
                r.isArrived
         );
-        
+
         if (duplicateReport) {
           if (duplicateReport.isArrived || duplicateReport.quantity === 0 || duplicateReport.isArrivedOnly) {
-            // Sudah tercatat datang di Barang Datang atau placeholder, update dengan kuantitas harian dan pertahankan status datang
-            const qty = item.quantity === '' ? 0 : Number(item.quantity);
-            if (qty < 0) {
-              failed.push({ item, reason: "Quantity minus tidak diizinkan." });
-              continue;
-            }
-            await updateReport({
+            reportsToUpdate.push({
               ...duplicateReport,
               quantity: qty,
               notes: item.notes 
@@ -435,18 +484,13 @@ export const DailyReport = () => {
             processedProductIds.add(finalProductId);
             continue;
           }
-          failed.push({ item, reason: "Data ganda (sudah ada di laporan sebelumnya)." });
+          failed.push({ item, reason: "Data ganda (sudah ada di laporan tanggal ini)." });
           continue;
         }
+
         processedProductIds.add(finalProductId);
-        
-        const qty = item.quantity === '' ? 0 : Number(item.quantity);
-        if (qty < 0) {
-          failed.push({ item, reason: "Quantity minus tidak diizinkan." });
-          continue;
-        }
-        
-        await addReport({
+
+        reportsToAdd.push({
           date,
           productId: finalProductId,
           quantity: qty,
@@ -456,23 +500,35 @@ export const DailyReport = () => {
           isArrived: hasArrivedOnDate,
           arrivedAt: hasArrivedOnDate ? Date.now() : undefined
         });
-        
+
         saved.push(item);
-      } catch (e: any) {
-        failed.push({ item, reason: e.message || "Gagal menyimpan data." });
       }
 
-      // Smooth animation pacing so user can see progress and time estimate
-      await new Promise(resolve => setTimeout(resolve, 150));
-    }
-    
-    // Short pause for 100% completion feel
-    await new Promise(resolve => setTimeout(resolve, 350));
-    setSaveSummary({ isOpen: true, saved, failed });
-    setPendingItems([]);
-    setIsSavingAll(false);
-    if (saved.length > 0) {
-      setMobileTab('list');
+      // 4. High-speed atomic batch write to database!
+      if (reportsToAdd.length > 0 || reportsToUpdate.length > 0) {
+        await addReportsBatch(reportsToAdd, reportsToUpdate);
+      }
+
+      setSaveProgress({
+        current: pendingItems.length,
+        total: pendingItems.length,
+        currentItemName: 'Selesai!',
+        startTime
+      });
+
+      // Brief micro-delay so the user perceives the successful completion
+      await new Promise(resolve => setTimeout(resolve, 60));
+
+      setSaveSummary({ isOpen: true, saved, failed });
+      setPendingItems([]);
+      if (saved.length > 0) {
+        setMobileTab('list');
+      }
+    } catch (e: any) {
+      console.error("Error saving pending items:", e);
+      alert("Gagal menyimpan data antrean: " + (e?.message || e));
+    } finally {
+      setIsSavingAll(false);
     }
   };
 
@@ -611,7 +667,9 @@ export const DailyReport = () => {
         productId: finalProductId,
         quantity: qty,
         notes: combinedNotes || undefined,
-        isWarningStock
+        isWarningStock,
+        isChecked: existingReport?.isChecked ?? false,
+        checkedAt: existingReport?.checkedAt ?? null
       });
       setEditingReportId(null);
       setMobileTab('list');
@@ -769,7 +827,22 @@ export const DailyReport = () => {
       alert("Tidak ada data report kemarin.");
       return;
     }
-    const validReports = yesterdayReports.filter(r => !(r.isArrived && !r.isReorder));
+    const normalizedToday = formatExcelDate(todayDate) || todayDate;
+    const hasArrivedTodaySet = new Set(
+      reports
+        .filter(tr => (formatExcelDate(tr.date) || tr.date) === normalizedToday && tr.isArrived)
+        .map(tr => tr.productId)
+    );
+
+    // Filter valid reports: jangan disalin jika sudah datang (r.isArrived && !r.isReorder),
+    // atau jika pada report stok 0 namun masuk dalam barang datang (r.isArrived atau sudah datang hari ini)
+    const validReports = yesterdayReports.filter(r => {
+      if (r.isArrived && !r.isReorder) return false;
+      if (Number(r.quantity) === 0 && (r.isArrived || hasArrivedTodaySet.has(r.productId))) {
+        return false;
+      }
+      return true;
+    });
     setSelectedCopyIds(validReports.map(r => r.id));
     setCopySearchQuery('');
     setIsCopyModalOpen(true);
@@ -786,80 +859,82 @@ export const DailyReport = () => {
     setCopyProgress({
       current: 0,
       total: reportsToCopy.length,
-      currentItemName: 'Memulai penyalinan data...',
+      currentItemName: 'Memproses penyalinan super cepat...',
       startTime
     });
 
     const copied: { productName: string }[] = [];
     const skipped: { productName: string, reason: string }[] = [];
+    const reportsToAdd: Omit<ReportEntry, 'id'>[] = [];
+    const reportsToUpdate: ReportEntry[] = [];
+    const normalizedToday = formatExcelDate(todayDate) || todayDate;
 
     for (let i = 0; i < reportsToCopy.length; i++) {
       const r = reportsToCopy[i];
       const product = products.find(p => p.id === r.productId);
       const productName = product?.name || 'Unknown Product';
 
-      setCopyProgress({
-        current: i + 1,
-        total: reportsToCopy.length,
-        currentItemName: productName,
-        startTime
-      });
+      const existingToday = reports.find(
+        tr => (formatExcelDate(tr.date) || tr.date) === normalizedToday && tr.productId === r.productId
+      );
+      const hasArrivedToday = reports.some(
+        tr => (formatExcelDate(tr.date) || tr.date) === normalizedToday && tr.productId === r.productId && tr.isArrived
+      );
+
+      // Jika pada report stok 0 namun masuk dalam barang datang, jangan disalin!
+      if (Number(r.quantity) === 0 && (r.isArrived || hasArrivedToday)) {
+        skipped.push({ productName, reason: 'Stok 0 & sudah masuk barang datang' });
+        continue;
+      }
 
       if (r.isArrived && !r.isReorder) {
         skipped.push({ productName, reason: 'Barang sudah datang' });
       } else {
-        const normalizedToday = formatExcelDate(todayDate) || todayDate;
-        const existingToday = reports.find(
-          tr => (formatExcelDate(tr.date) || tr.date) === normalizedToday && tr.productId === r.productId
-        );
-        const hasArrivedToday = reports.some(
-          tr => (formatExcelDate(tr.date) || tr.date) === normalizedToday && tr.productId === r.productId && tr.isArrived
-        );
-        
         if (existingToday && existingToday.isArrived && (existingToday.quantity === 0 || existingToday.isArrivedOnly)) {
-          try {
-            await updateReport({
-              ...existingToday,
-              quantity: r.quantity,
-              isOrdered: r.isOrdered,
-              isArrived: true,
-              isArrivedOnly: false,
-              isKosongPabrik: r.isKosongPabrik,
-              isReorder: (existingToday.isReorder || r.isReorder) || false,
-              reorderQty: existingToday.reorderQty || r.reorderQty,
-              reorderReason: existingToday.reorderReason || r.reorderReason
-            });
-            copied.push({ productName });
-          } catch (error) {
-            skipped.push({ productName, reason: 'Gagal memperbarui ke database' });
-          }
+          reportsToUpdate.push({
+            ...existingToday,
+            quantity: r.quantity,
+            isOrdered: r.isOrdered,
+            isArrived: true,
+            isArrivedOnly: false,
+            isKosongPabrik: r.isKosongPabrik,
+            isReorder: (existingToday.isReorder || r.isReorder) || false,
+            reorderQty: existingToday.reorderQty || r.reorderQty,
+            reorderReason: existingToday.reorderReason || r.reorderReason
+          });
+          copied.push({ productName });
         } else if (!existingToday) {
-          try {
-            await addReport({
-              date: todayDate,
-              productId: r.productId,
-              quantity: r.quantity,
-              isOrdered: r.isOrdered,
-              isArrived: hasArrivedToday || ((r.isArrived && r.isReorder) ? true : false),
-              isKosongPabrik: r.isKosongPabrik,
-              isReorder: (r.isArrived && r.isReorder) ? true : r.isReorder,
-              reorderQty: r.reorderQty,
-              reorderReason: r.reorderReason,
-            });
-            copied.push({ productName });
-          } catch (error) {
-            skipped.push({ productName, reason: 'Gagal menyimpan ke database' });
-          }
+          reportsToAdd.push({
+            date: todayDate,
+            productId: r.productId,
+            quantity: r.quantity,
+            isOrdered: r.isOrdered,
+            isArrived: hasArrivedToday || ((r.isArrived && r.isReorder) ? true : false),
+            isKosongPabrik: r.isKosongPabrik,
+            isReorder: (r.isArrived && r.isReorder) ? true : r.isReorder,
+            reorderQty: r.reorderQty,
+            reorderReason: r.reorderReason,
+          });
+          copied.push({ productName });
         } else {
           skipped.push({ productName, reason: 'Sudah ada di laporan hari ini' });
         }
       }
-      // Artificial delay for cool animation
-      await new Promise(resolve => setTimeout(resolve, 250));
     }
-    
-    // Slight pause at 100%
-    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // High-speed batch commit!
+    if (reportsToAdd.length > 0 || reportsToUpdate.length > 0) {
+      await addReportsBatch(reportsToAdd, reportsToUpdate);
+    }
+
+    setCopyProgress({
+      current: reportsToCopy.length,
+      total: reportsToCopy.length,
+      currentItemName: 'Selesai!',
+      startTime
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 60));
     
     setIsCopying(false);
     setCopySummary({
@@ -968,7 +1043,14 @@ export const DailyReport = () => {
         matchArrived = !r.isArrived;
       }
 
-      return matchDate && matchSupplier && matchProduct && matchBottomStock && matchArrived;
+      let matchChecked = true;
+      if (checkedFilter === 'checked') {
+        matchChecked = !!r.isChecked;
+      } else if (checkedFilter === 'unchecked') {
+        matchChecked = !r.isChecked;
+      }
+
+      return matchDate && matchSupplier && matchProduct && matchBottomStock && matchArrived && matchChecked;
     });
 
     if (showDuplicatesOnly) {
@@ -985,13 +1067,17 @@ export const DailyReport = () => {
       });
     }
 
+    if (showZeroStockOnly) {
+      result = result.filter(r => !r.isKosongPabrik && !r.isArrivedOnly && Number(r.quantity) === 0 && !r.isArrived);
+    }
+
     return result.sort((a, b) => {
       const dA = formatExcelDate(a.date) || a.date;
       const dB = formatExcelDate(b.date) || b.date;
       if (dA !== dB) return new Date(dB).getTime() - new Date(dA).getTime();
       return (b.createdAt || 0) - (a.createdAt || 0);
     });
-  }, [reports, filterDate, filterSupplier, productFilterQuery, products, bottomStockFilter, arrivedFilter, showDuplicatesOnly]);
+  }, [reports, filterDate, filterSupplier, productFilterQuery, products, bottomStockFilter, arrivedFilter, checkedFilter, showDuplicatesOnly, showZeroStockOnly]);
 
   // Filter reports for display
   const filteredReports = useMemo(() => {
@@ -1014,8 +1100,57 @@ export const DailyReport = () => {
     const arrivedCount = filteredReports.filter(r => r.isArrived).length;
     const kosongPabrikCount = filteredReports.filter(r => r.isKosongPabrik).length;
     const warningCount = filteredReports.filter(r => r.isWarningStock).length;
-    return { totalCount, totalVolume, orderedCount, arrivedCount, kosongPabrikCount, warningCount };
+    const checkedCount = filteredReports.filter(r => r.isChecked).length;
+
+    // Deduplicate items with stok 0 (qty 0): jika ada item yang sama terinput berulang tetap dihitung 1
+    // Jika pada report stok 0 namun masuk dalam barang datang (isArrived true), jangan dihitung stok 0
+    const arrivedProductIds = new Set<string>();
+    reports.forEach(r => {
+      if (r.isArrived) {
+        arrivedProductIds.add(r.productId);
+      }
+    });
+
+    const zeroStockSet = new Set<string>();
+    filteredReports.forEach(r => {
+      const isItemArrived = r.isArrived || arrivedProductIds.has(r.productId);
+      if (!r.isKosongPabrik && !r.isArrivedOnly && Number(r.quantity) === 0 && !isItemArrived) {
+        const prod = products.find(p => p.id === r.productId);
+        const key = (prod?.name || r.productId || '').trim().toLowerCase();
+        if (key) {
+          zeroStockSet.add(key);
+        }
+      }
+    });
+    const zeroStockCount = zeroStockSet.size;
+
+    return { totalCount, totalVolume, orderedCount, arrivedCount, kosongPabrikCount, warningCount, zeroStockCount, checkedCount };
+  }, [filteredReports, products, reports]);
+
+  const allFilteredChecked = useMemo(() => {
+    if (filteredReports.length === 0) return false;
+    return filteredReports.every(r => r.isChecked);
   }, [filteredReports]);
+
+  const checkedCountInFilter = useMemo(() => {
+    return filteredReports.filter(r => r.isChecked).length;
+  }, [filteredReports]);
+
+  const handleToggleCheckAllFiltered = async () => {
+    if (filteredReports.length === 0) return;
+    const targetStatus = !allFilteredChecked;
+    const now = Date.now();
+    const reportsToUpdate = filteredReports.map(r => ({
+      ...r,
+      isChecked: targetStatus,
+      checkedAt: targetStatus ? (r.checkedAt || now) : null
+    }));
+    await updateReportsBatch(reportsToUpdate);
+  };
+
+  const handleToggleCheckedFilter = () => {
+    setCheckedFilter(prev => prev === 'checked' ? 'all' : 'checked');
+  };
 
   const setDatePreset = (preset: 'all' | 'today' | 'yesterday') => {
     if (preset === 'all') {
@@ -1036,7 +1171,7 @@ export const DailyReport = () => {
     return 'custom';
   }, [filterDate]);
 
-  const hasActiveFilters = !!(filterDate || filterSupplier || supplierFilterQuery || productFilterQuery || bottomStockFilter !== 'all' || arrivedFilter !== 'all' || showDuplicatesOnly);
+  const hasActiveFilters = !!(filterDate || filterSupplier || supplierFilterQuery || productFilterQuery || bottomStockFilter !== 'all' || arrivedFilter !== 'all' || checkedFilter !== 'all' || showDuplicatesOnly || showZeroStockOnly);
 
   const resetAllFilters = () => {
     setFilterDate('');
@@ -1045,7 +1180,9 @@ export const DailyReport = () => {
     setProductFilterQuery('');
     setBottomStockFilter('all');
     setArrivedFilter('all');
+    setCheckedFilter('all');
     setShowDuplicatesOnly(false);
+    setShowZeroStockOnly(false);
   };
 
   return (
@@ -1228,6 +1365,12 @@ export const DailyReport = () => {
           arrivedCount={stats.arrivedCount}
           kosongPabrikCount={stats.kosongPabrikCount}
           warningCount={stats.warningCount}
+          zeroStockCount={stats.zeroStockCount}
+          checkedCount={stats.checkedCount}
+          checkedFilter={checkedFilter}
+          onToggleCheckedFilter={handleToggleCheckedFilter}
+          isZeroStockFilterActive={showZeroStockOnly}
+          onToggleZeroStockFilter={() => setShowZeroStockOnly(prev => !prev)}
         />
 
         {/* Toolbar & Filters */}
@@ -1246,10 +1389,16 @@ export const DailyReport = () => {
           setSupplierSearchHistory={setSupplierSearchHistory}
           productFilterQuery={productFilterQuery}
           setProductFilterQuery={setProductFilterQuery}
+          products={products}
           bottomStockFilter={bottomStockFilter}
           setBottomStockFilter={setBottomStockFilter}
           arrivedFilter={arrivedFilter}
           setArrivedFilter={setArrivedFilter}
+          checkedFilter={checkedFilter}
+          setCheckedFilter={setCheckedFilter}
+          onToggleCheckAllFiltered={handleToggleCheckAllFiltered}
+          allFilteredChecked={allFilteredChecked}
+          checkedCountInFilter={checkedCountInFilter}
           showDuplicatesOnly={showDuplicatesOnly}
           setShowDuplicatesOnly={setShowDuplicatesOnly}
           onDeleteAllDuplicates={handleDeleteAllDuplicates}
@@ -1355,6 +1504,7 @@ export const DailyReport = () => {
                 <option value={25}>25</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
+                <option value={9999}>Semua</option>
               </select>
             </div>
           </div>
@@ -1442,20 +1592,46 @@ export const DailyReport = () => {
             <div className="flex-1 overflow-y-auto border border-theme-200 rounded-2xl mb-6 p-2 space-y-1">
               {filteredYesterdayReports.map(r => {
                 const product = products.find(p => p.id === r.productId);
+                const normalizedToday = formatExcelDate(todayDate) || todayDate;
+                const hasArrivedToday = reports.some(
+                  tr => (formatExcelDate(tr.date) || tr.date) === normalizedToday && tr.productId === r.productId && tr.isArrived
+                );
+                const isZeroStockArrived = Number(r.quantity) === 0 && (r.isArrived || hasArrivedToday);
+                const isArrivedOnly = r.isArrived && !r.isReorder;
+                const isDisabled = isZeroStockArrived || isArrivedOnly;
+
                 return (
                   <div 
                     key={r.id} 
-                    className="flex items-center gap-3 p-3 hover:bg-theme-50 rounded-xl cursor-pointer"
-                    onClick={() => toggleCopySelection(r.id)}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-xl transition-colors",
+                      isDisabled ? "bg-theme-100/50 opacity-60 cursor-not-allowed" : "hover:bg-theme-50 cursor-pointer"
+                    )}
+                    onClick={() => {
+                      if (!isDisabled) toggleCopySelection(r.id);
+                    }}
                   >
                     <input
                       type="checkbox"
                       checked={(selectedCopyIds || []).includes(r.id)}
+                      disabled={isDisabled}
                       onChange={() => {}} // handled by div click
-                      className="w-4 h-4 text-blue-500 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                      className="w-4 h-4 text-blue-500 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer disabled:cursor-not-allowed"
                     />
                     <div className="flex-1">
-                      <p className="font-bold text-sm text-theme-900">{product?.name || 'Unknown'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-sm text-theme-900">{product?.name || 'Unknown'}</p>
+                        {isZeroStockArrived && (
+                          <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                            Stok 0 & Barang Datang (Tidak Disalin)
+                          </span>
+                        )}
+                        {!isZeroStockArrived && isArrivedOnly && (
+                          <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
+                            Sudah Datang
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-theme-600-text">Qty: {r.quantity} {product?.unit || ''}</p>
                     </div>
                   </div>

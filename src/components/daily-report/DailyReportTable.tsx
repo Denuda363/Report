@@ -1,6 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { Edit2, Trash2, Calendar as CalendarIcon } from 'lucide-react';
+import { Edit2, Trash2, Calendar as CalendarIcon, CheckCircle2, Square, CheckSquare } from 'lucide-react';
 import { ReportEntry, Product, Supplier } from '../../types';
 import { cn } from '../../lib/utils';
 
@@ -29,7 +29,7 @@ export const DailyReportTable: React.FC<DailyReportTableProps> = ({
 }) => {
   return (
     <div className={cn("overflow-x-auto w-full", className)}>
-      <table className="w-full text-left border-collapse min-w-[900px]">
+      <table className="w-full text-left border-collapse min-w-[980px]">
         <thead className="sticky top-0 bg-theme-100/90 backdrop-blur-xs z-10">
           <tr className="border-b border-theme-200">
             <th className="py-3 px-4 text-xs font-bold text-theme-600 uppercase tracking-wider rounded-tl-xl whitespace-nowrap">
@@ -43,6 +43,12 @@ export const DailyReportTable: React.FC<DailyReportTableProps> = ({
             </th>
             <th className="py-3 px-4 text-xs font-bold text-theme-600 uppercase tracking-wider text-right">
               Qty
+            </th>
+            <th className="py-3 px-3 text-xs font-bold text-teal-800 bg-teal-50/70 uppercase tracking-wider text-center whitespace-nowrap">
+              <div className="flex items-center justify-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+                <span>Ceklis</span>
+              </div>
             </th>
             <th className="py-3 px-4 text-xs font-bold text-theme-600 uppercase tracking-wider text-center">
               Bottom Stock
@@ -77,7 +83,8 @@ export const DailyReportTable: React.FC<DailyReportTableProps> = ({
                 key={r.id}
                 className={cn(
                   "hover:bg-theme-50/70 transition-colors",
-                  r.isWarningStock && "bg-amber-50/30"
+                  r.isWarningStock && "bg-amber-50/30",
+                  r.isChecked && "bg-emerald-50/30 hover:bg-emerald-50/60"
                 )}
               >
                 {/* Tanggal */}
@@ -90,8 +97,15 @@ export const DailyReportTable: React.FC<DailyReportTableProps> = ({
 
                 {/* Produk */}
                 <td className="py-3.5 px-4 text-sm font-bold text-theme-900">
-                  <div className="max-w-[220px] break-words">
-                    {product?.name || 'Unknown'}
+                  <div className="flex items-center gap-2">
+                    {r.isChecked && (
+                      <span className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-700" title="Item ini sudah dicek">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      </span>
+                    )}
+                    <span className="max-w-[220px] break-words">
+                      {product?.name || 'Unknown'}
+                    </span>
                   </div>
                   {r.notes && (
                     <div className="text-[11px] text-amber-800 mt-1 font-normal bg-amber-50 border border-amber-200/60 inline-block px-2 py-0.5 rounded-md">
@@ -112,6 +126,41 @@ export const DailyReportTable: React.FC<DailyReportTableProps> = ({
                   <span className="px-2 py-1 rounded-lg bg-neutral-100 text-neutral-900 border border-neutral-200">
                     {r.quantity} <span className="text-xs font-normal text-neutral-500">{product?.unit || 'pcs'}</span>
                   </span>
+                </td>
+
+                {/* Crosscheck Ceklis */}
+                <td className="py-3.5 px-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateReport({
+                      ...r,
+                      isChecked: !r.isChecked,
+                      checkedAt: !r.isChecked ? Date.now() : null
+                    })}
+                    className={cn(
+                      "inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95 cursor-pointer",
+                      r.isChecked
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-500/20"
+                        : "bg-white text-neutral-600 border-neutral-300 hover:border-emerald-400 hover:text-emerald-700 hover:bg-emerald-50/40"
+                    )}
+                    title={
+                      r.isChecked
+                        ? `Sudah Dicek${r.checkedAt ? ` pada ${format(new Date(r.checkedAt), 'HH:mm')}` : ''} (Klik untuk batal)`
+                        : "Klik untuk tandai sudah dicek (Crosscheck)"
+                    }
+                  >
+                    {r.isChecked ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
+                        <span className="text-[11px] font-extrabold">Sudah Cek</span>
+                      </>
+                    ) : (
+                      <>
+                        <Square className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                        <span className="text-[11px] font-semibold text-neutral-500">Ceklis</span>
+                      </>
+                    )}
+                  </button>
                 </td>
 
                 {/* Bottom Stock */}

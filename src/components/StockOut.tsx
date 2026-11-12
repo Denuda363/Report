@@ -3,18 +3,22 @@ import { format, subDays, startOfMonth } from 'date-fns';
 import { Search, PackageMinus, Plus, ChevronDown, X, Check, Trash2, Edit2, Calendar as CalendarIcon, PackageOpen } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { StockOutEntry } from '../types';
-import { getSearchHistory, addSearchHistory, clearSearchHistory } from '../lib/searchHistory';
-import { SearchHistoryChips } from './SearchHistoryChips';
+import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../lib/searchHistory';
+import { PreviousSearchSection } from './PreviousSearchSection';
 
 export const StockOut = () => {
-  const { stockOuts, products, addStockOut, updateStockOut, deleteStockOut, updateProduct, userId, addReport, reports } = useAppContext();
+  const { stockOuts, products, addStockOut, updateStockOut, deleteStockOut, updateProduct, userId, addReport, reports, addStockOutsBatch } = useAppContext();
   
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 6), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   
   const [searchQuery, setSearchQuery] = useState('');
-  const lastSearchQueryRef = useRef('');
+  const [isTypingNew, setIsTypingNew] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const productInputRef = useRef<HTMLInputElement>(null);
+  const qtyInputRef = useRef<HTMLInputElement>(null);
+  const [lastSearchQuery, setLastSearchQueryState] = useState(() => getLastSearchQuery('stockout_product'));
   const [productSearchHistory, setProductSearchHistory] = useState<string[]>(() => getSearchHistory('stockout_product'));
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
   const productDropdownRef = useRef<HTMLDivElement>(null);
@@ -32,7 +36,22 @@ export const StockOut = () => {
     stock: number;
   }
   
-  const [pendingItems, setPendingItems] = useState<PendingOutItem[]>([]);
+  const [pendingItems, setPendingItems] = useState<PendingOutItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('stockout_pending_items');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('stockout_pending_items', JSON.stringify(pendingItems));
+    } catch (e) {
+      console.error("Error saving stockout pending items to localStorage:", e);
+    }
+  }, [pendingItems]);
   const [mobileTab, setMobileTab] = useState<'form' | 'history'>('form');
 
   const [editStockOutId, setEditStockOutId] = useState<string | null>(null);
@@ -112,16 +131,83 @@ export const StockOut = () => {
     return products.filter(p => (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()));
   }, [products, searchQuery]);
 
+  // Previous search results for StockOut
+  const previousProducts = useMemo(() => {
+    if (!lastSearchQuery) return [];
+    const q = lastSearchQuery.toLowerCase();
+    return products.filter(p => (p.name || '').toLowerCase().includes(q)).slice(0, 50);
+  }, [products, lastSearchQuery]);
+
+  // Auto-scroll highlighted product into view when navigating with arrow keys
+  useEffect(() => {
+    if (isProductDropdownOpen && productDropdownRef.current) {
+      const activeEl = productDropdownRef.current.querySelector('[data-highlighted="true"]') as HTMLElement | null;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedIndex, isProductDropdownOpen]);
+
   const handleProductSelect = (id: string, name: string, stock: number) => {
-    if (searchQuery.trim()) {
-      lastSearchQueryRef.current = searchQuery.trim();
-      const updated = addSearchHistory('stockout_product', searchQuery.trim());
+    const typed = searchQuery.trim();
+    const queryToSave = (isTypingNew && typed) ? typed : (lastSearchQuery || name).trim();
+    if (queryToSave) {
+      setLastSearchQuery('stockout_product', queryToSave);
+      setLastSearchQueryState(queryToSave);
+      const updated = addSearchHistory('stockout_product', queryToSave);
       setProductSearchHistory(updated);
     }
     setSelectedProduct({ id, name, stock });
+    setSearchQuery(name);
     setIsProductDropdownOpen(false);
+    setIsTypingNew(false);
     setCurrentQty('');
     setCurrentNotes('');
+    setTimeout(() => {
+      qtyInputRef.current?.focus();
+    }, 50);
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const isShowingPrevious = (!isTypingNew || !searchQuery.trim()) && !!lastSearchQuery && previousProducts.length > 0;
+    const activeList = isShowingPrevious ? previousProducts : filteredProducts;
+
+    if (!isProductDropdownOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setIsProductDropdownOpen(true);
+        setHighlightedIndex(0);
+        if (!lastSearchQuery) {
+          setIsTypingNew(true);
+        }
+      } else if (e.key === 'Enter' && selectedProduct) {
+        e.preventDefault();
+        qtyInputRef.current?.focus();
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isShowingPrevious && !isTypingNew) {
+        setIsTypingNew(true);
+        setHighlightedIndex(0);
+        return;
+      }
+      setHighlightedIndex((prev) => Math.min(prev + 1, Math.max(0, activeList.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeList.length > 0 && highlightedIndex >= 0 && highlightedIndex < activeList.length) {
+        const p = activeList[highlightedIndex];
+        handleProductSelect(p.id, p.name, p.stock || 0);
+      }
+    } else if (e.key === 'Escape') {
+      setIsProductDropdownOpen(false);
+      setIsTypingNew(false);
+    }
   };
 
   const handleAddPending = () => {
@@ -141,14 +227,24 @@ export const StockOut = () => {
     }]);
     
     setSelectedProduct(null);
-    setSearchQuery(lastSearchQueryRef.current || '');
+    setSearchQuery('');
     setCurrentQty('');
     setCurrentNotes('');
+    setTimeout(() => {
+      productInputRef.current?.focus();
+    }, 50);
+  };
+
+  const handleFormInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddPending();
+    }
   };
   
   const handleCancelSelected = () => {
     setSelectedProduct(null);
-    setSearchQuery(lastSearchQueryRef.current || '');
+    setSearchQuery('');
     setCurrentQty('');
     setCurrentNotes('');
   };
@@ -160,12 +256,15 @@ export const StockOut = () => {
   const handleSaveAll = async () => {
     if (pendingItems.length === 0) return;
     
+    const stockOutsToAdd: Omit<StockOutEntry, 'id'>[] = [];
+    const productsToUpdateMap = new Map<string, typeof products[0]>();
+    const lowStockReportsToAdd: any[] = [];
+
     for (const item of pendingItems) {
-      const product = products.find(p => p.id === item.productId);
+      const product = productsToUpdateMap.get(item.productId) || products.find(p => p.id === item.productId);
       
       if (product) {
-        // Create stock out record
-        await addStockOut({
+        stockOutsToAdd.push({
           date,
           productId: item.productId,
           quantity: item.qty,
@@ -174,18 +273,19 @@ export const StockOut = () => {
           userId: userId || ''
         });
         
-        // Update product stock
         const newStock = Math.max(0, (product.stock || 0) - item.qty);
-        await updateProduct({
+        const updatedProd = {
           ...product,
           stock: newStock
-        });
+        };
+        productsToUpdateMap.set(item.productId, updatedProd);
         
         // Auto add to daily report if stock is below bottomStock
         if (product.bottomStock !== undefined && newStock < product.bottomStock) {
-          const existsToday = reports.some(r => r.date === date && r.productId === product.id);
+          const existsToday = reports.some(r => r.date === date && r.productId === product.id) ||
+                              lowStockReportsToAdd.some(r => r.date === date && r.productId === product.id);
           if (!existsToday) {
-            await addReport({
+            lowStockReportsToAdd.push({
               date,
               productId: product.id,
               quantity: 0,
@@ -197,11 +297,29 @@ export const StockOut = () => {
         }
       }
     }
+
+    if (stockOutsToAdd.length > 0) {
+      await addStockOutsBatch(stockOutsToAdd, Array.from(productsToUpdateMap.values()), lowStockReportsToAdd);
+    }
     
     setPendingItems([]);
-    alert("Berhasil menyimpan data pengeluaran stok!");
+    alert("Berhasil menyimpan data pengeluaran stok secara instan!");
     setMobileTab('history');
   };
+
+  // Ctrl + S shortcut to save pending stock out items list
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (pendingItems.length > 0) {
+          handleSaveAll();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  });
 
   const setDatePreset = (preset: 'today' | '7days' | '30days' | 'thisMonth') => {
     const today = new Date();
@@ -296,53 +414,115 @@ export const StockOut = () => {
               <div className="flex items-center w-full px-3 py-2 border border-theme-200 rounded-xl text-sm bg-white focus-within:border-theme-500 focus-within:ring-2 focus-within:ring-theme-100 transition-all">
                 <Search className="w-4 h-4 text-theme-400 mr-2 shrink-0" />
                 <input 
+                  ref={productInputRef}
                   type="text" 
                   className="bg-transparent outline-none w-full text-theme-900"
                   placeholder="Ketik nama produk..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
+                    setIsTypingNew(true);
+                    setHighlightedIndex(0);
                     setIsProductDropdownOpen(true);
                   }}
-                  onFocus={() => setIsProductDropdownOpen(true)}
+                  onClick={() => {
+                    setIsProductDropdownOpen(true);
+                    setIsTypingNew(false);
+                    setHighlightedIndex(0);
+                    productInputRef.current?.select();
+                  }}
+                  onFocus={() => {
+                    setIsProductDropdownOpen(true);
+                    setIsTypingNew(false);
+                    setHighlightedIndex(0);
+                    productInputRef.current?.select();
+                  }}
+                  onKeyDown={handleSearchKeyDown}
                 />
                 {searchQuery && (
                   <X 
                     className="w-4 h-4 text-theme-400 hover:text-rose-500 cursor-pointer mr-1 shrink-0" 
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedProduct(null);
+                      setIsTypingNew(false);
+                    }}
                   />
                 )}
-                <ChevronDown className={`w-4 h-4 text-theme-400 ml-1 transition-transform duration-200 ${isProductDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown 
+                  className={`w-4 h-4 text-theme-400 ml-1 transition-transform duration-200 cursor-pointer ${isProductDropdownOpen ? 'rotate-180' : ''}`}
+                  onClick={() => {
+                    setIsProductDropdownOpen(!isProductDropdownOpen);
+                    setIsTypingNew(false);
+                  }}
+                />
               </div>
 
               {isProductDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white border border-theme-200 rounded-xl shadow-xl z-[60] py-1">
-                  <SearchHistoryChips
-                    history={productSearchHistory}
-                    onSelect={(term) => {
-                      setSearchQuery(term);
-                      setIsProductDropdownOpen(true);
-                    }}
-                    onClear={() => {
-                      clearSearchHistory('stockout_product');
-                      setProductSearchHistory([]);
-                    }}
-                  />
-                  {filteredProducts.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-theme-500 text-center">Tidak ada produk ditemukan</div>
-                  ) : (
-                    filteredProducts.map(p => (
-                      <div 
-                        key={p.id} 
-                        className="px-4 py-2 hover:bg-theme-50 cursor-pointer text-sm flex flex-col border-b border-neutral-100 last:border-0"
-                        onClick={() => handleProductSelect(p.id, p.name, p.stock || 0)}
-                      >
-                        <span className="font-bold text-theme-900">{p.name}</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-theme-600-text bg-theme-100 px-1.5 py-0.5 rounded">Sisa Stok: {p.stock || 0}</span>
-                        </div>
+                <div className="absolute top-full left-0 right-0 mt-1 max-h-72 overflow-y-auto bg-white border border-theme-200 rounded-xl shadow-xl z-[60] py-1">
+                  {/* Previous search results displayed when user clicks search bar without active typing */}
+                  {(!isTypingNew || !searchQuery.trim()) && lastSearchQuery && (
+                    <PreviousSearchSection
+                      lastQuery={lastSearchQuery}
+                      results={previousProducts}
+                      history={productSearchHistory}
+                      highlightedIndex={highlightedIndex}
+                      onHighlightIndex={setHighlightedIndex}
+                      onSelectResult={(p) => handleProductSelect(p.id, p.name, p.stock || 0)}
+                      onSelectQuery={(term) => {
+                        setSearchQuery(term);
+                        setIsTypingNew(false);
+                        setHighlightedIndex(0);
+                        setIsProductDropdownOpen(true);
+                      }}
+                      onClearHistory={() => {
+                        clearSearchHistory('stockout_product');
+                        setLastSearchQueryState('');
+                        setProductSearchHistory([]);
+                      }}
+                      renderTitle={(p) => p.name}
+                      renderSubtitle={(p) => `Sisa Stok: ${p.stock || 0} ${p.unit || 'pcs'}`}
+                      keyExtractor={(p) => `prev-so-${p.id}`}
+                    />
+                  )}
+
+                  {isTypingNew && (searchQuery.trim() || !lastSearchQuery) ? (
+                    filteredProducts.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-theme-500 text-center">
+                        Tidak ada produk ditemukan untuk &quot;{searchQuery}&quot;
                       </div>
-                    ))
+                    ) : (
+                      <div className="p-1 space-y-0.5">
+                        <div className="px-3 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                          Hasil Pencarian ({filteredProducts.length})
+                        </div>
+                        {filteredProducts.map((p, idx) => (
+                          <div 
+                            key={p.id} 
+                            data-highlighted={idx === highlightedIndex ? 'true' : undefined}
+                            onMouseEnter={() => setHighlightedIndex(idx)}
+                            className={`px-3 py-2 rounded-lg cursor-pointer text-sm flex items-center justify-between transition-colors ${
+                              idx === highlightedIndex ? 'bg-theme-100 text-theme-900 font-bold' : 'hover:bg-theme-50'
+                            }`}
+                            onClick={() => handleProductSelect(p.id, p.name, p.stock || 0)}
+                          >
+                            <div>
+                              <span className="font-bold text-theme-900 block">{p.name}</span>
+                              <span className="text-[10px] text-theme-600-text">{p.unit || 'pcs'}</span>
+                            </div>
+                            <span className="text-xs font-semibold text-theme-700 bg-theme-100 px-2 py-0.5 rounded-md">
+                              Stok: {p.stock || 0}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    !lastSearchQuery && (
+                      <div className="px-4 py-3 text-sm text-theme-500 text-center">
+                        Ketik nama produk atau tekan panah bawah untuk memilih...
+                      </div>
+                    )
                   )}
                 </div>
               )}
@@ -364,10 +544,12 @@ export const StockOut = () => {
                   <div>
                     <label className="block text-[10px] font-bold text-theme-500 uppercase mb-1">Qty Keluar</label>
                     <input 
+                      ref={qtyInputRef}
                       type="number" 
                       min="1"
                       value={currentQty}
                       onChange={(e) => setCurrentQty(e.target.value ? Number(e.target.value) : '')}
+                      onKeyDown={handleFormInputKeyDown}
                       className="w-full px-3 py-2 border border-theme-200 rounded-xl text-sm outline-none focus:border-theme-500 bg-white font-bold text-rose-600"
                       placeholder="0"
                       autoFocus
@@ -379,6 +561,7 @@ export const StockOut = () => {
                       type="text" 
                       value={currentNotes}
                       onChange={(e) => setCurrentNotes(e.target.value)}
+                      onKeyDown={handleFormInputKeyDown}
                       className="w-full px-3 py-2 border border-theme-200 rounded-xl text-sm outline-none focus:border-theme-500 bg-white"
                       placeholder="Rusak, dsb"
                     />
@@ -431,7 +614,9 @@ export const StockOut = () => {
               disabled={pendingItems.length === 0}
               className="w-full flex items-center justify-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-4 py-3 rounded-xl font-bold transition-all duration-300 text-sm shadow-lg shadow-rose-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
             >
-              <Check className="w-4 h-4" /> Simpan Pengeluaran
+              <Check className="w-4 h-4" />
+              <span>Simpan Pengeluaran</span>
+              <span className="text-[10px] bg-white/15 px-1.5 py-0.5 rounded font-medium ml-1">Ctrl+S</span>
             </button>
           </div>
         </div>

@@ -2,7 +2,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { 
   Calendar as CalendarIcon, Edit2, Trash2, CheckSquare, Square, 
-  PackageCheck, Factory, AlertCircle, Building2 
+  PackageCheck, Factory, AlertCircle, Building2, CheckCircle2 
 } from 'lucide-react';
 import { ReportEntry, Product, Supplier } from '../../types';
 import { cn } from '../../lib/utils';
@@ -40,10 +40,10 @@ export const DailyReportCards: React.FC<DailyReportCardsProps> = ({
           <div
             key={r.id}
             className={cn(
-              "bg-white rounded-2xl border p-3.5 sm:p-4 shadow-2xs transition-all duration-200 flex flex-col justify-between gap-3",
-              r.isWarningStock
-                ? "border-amber-300 bg-amber-50/20 hover:border-amber-400"
-                : "border-theme-200 hover:border-theme-300"
+              "bg-white rounded-2xl border p-3.5 sm:p-4 shadow-2xs transition-all duration-200 flex flex-col justify-between gap-3 relative",
+              r.isWarningStock && "border-amber-300 bg-amber-50/20 hover:border-amber-400",
+              r.isChecked && "border-emerald-400 bg-emerald-50/25 hover:border-emerald-500 shadow-xs",
+              !r.isWarningStock && !r.isChecked && "border-theme-200 hover:border-theme-300"
             )}
           >
             {/* Top Row: Date, Supplier, Product, Qty */}
@@ -61,9 +61,16 @@ export const DailyReportCards: React.FC<DailyReportCardsProps> = ({
                     </>
                   )}
                 </div>
-                <h4 className="font-bold text-sm sm:text-base text-theme-900 leading-snug break-words">
-                  {product?.name || 'Unknown Product'}
-                </h4>
+                <div className="flex items-start gap-1.5">
+                  {r.isChecked && (
+                    <span className="shrink-0 mt-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-600 text-white" title="Sudah Dicek">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    </span>
+                  )}
+                  <h4 className="font-bold text-sm sm:text-base text-theme-900 leading-snug break-words">
+                    {product?.name || 'Unknown Product'}
+                  </h4>
+                </div>
               </div>
               <div className="text-right shrink-0">
                 <span className="inline-flex items-center px-2.5 py-1 rounded-xl bg-neutral-900 text-white font-extrabold text-xs sm:text-sm shadow-xs">
@@ -72,6 +79,36 @@ export const DailyReportCards: React.FC<DailyReportCardsProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* Crosscheck Action Button */}
+            <button
+              type="button"
+              onClick={() => onUpdateReport({
+                ...r,
+                isChecked: !r.isChecked,
+                checkedAt: !r.isChecked ? Date.now() : null
+              })}
+              className={cn(
+                "w-full py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-between shadow-2xs active:scale-98 cursor-pointer",
+                r.isChecked
+                  ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-700 text-white shadow-xs"
+                  : "bg-white border-neutral-300 text-neutral-600 hover:border-emerald-400 hover:text-emerald-700 hover:bg-emerald-50/40"
+              )}
+            >
+              <div className="flex items-center gap-2">
+                {r.isChecked ? (
+                  <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+                ) : (
+                  <Square className="w-4 h-4 text-neutral-400 shrink-0" />
+                )}
+                <span>{r.isChecked ? 'Sudah Dicek (Crosscheck Selesai)' : 'Belum Dicek (Klik Ceklis)'}</span>
+              </div>
+              {r.isChecked && r.checkedAt && (
+                <span className="text-[10px] font-semibold text-emerald-100">
+                  {format(new Date(r.checkedAt), 'HH:mm')}
+                </span>
+              )}
+            </button>
 
             {/* Notes if any */}
             {r.notes && (

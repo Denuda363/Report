@@ -3,9 +3,9 @@ import { useAppContext } from '../store/AppContext';
 import { Plus, Trash2, Download, Upload, Search, ChevronDown, ChevronLeft, ChevronRight, Edit2, X, Filter, Check, Maximize2, Minimize2, Building2, Package, ChevronUp, SlidersHorizontal } from 'lucide-react';
 import { Supplier, Product } from '../types';
 import { downloadMasterDataTemplate, parseMasterDataImport } from '../lib/excel';
-import { getSearchHistory, addSearchHistory, clearSearchHistory } from '../lib/searchHistory';
-import { SearchHistoryChips } from './SearchHistoryChips';
 import { OperationProgressModal } from './common/OperationProgressModal';
+import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../lib/searchHistory';
+import { PreviousSearchSection } from './PreviousSearchSection';
 
 export const MasterData = () => {
   const { suppliers, products, addSupplier, updateSupplier, deleteSupplier, addProduct, updateProduct, deleteProduct, importMasterData, resetAllProductStocks } = useAppContext();
@@ -55,9 +55,27 @@ export const MasterData = () => {
   // Product Edit & Search State
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
+  const [isTypingNewSupplier, setIsTypingNewSupplier] = useState(false);
+  const [highlightedSupplierIndex, setHighlightedSupplierIndex] = useState(0);
+  const [highlightedAltSupplierIndex, setHighlightedAltSupplierIndex] = useState(0);
+  const productNameInputRef = useRef<HTMLInputElement>(null);
+  const supplierInputRef = useRef<HTMLInputElement>(null);
+  const [lastSupplierQuery, setLastSupplierQueryState] = useState(() => getLastSearchQuery('master_supplier'));
   const [supplierSearchHistory, setSupplierSearchHistory] = useState<string[]>(() => getSearchHistory('master_supplier'));
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
   const supplierDropdownRef = useRef<HTMLDivElement>(null);
+
+  // List Search Dropdown & Memory
+  const [isListSearchDropdownOpen, setIsListSearchDropdownOpen] = useState(false);
+  const [isTypingNewListSearch, setIsTypingNewListSearch] = useState(false);
+  const [highlightedListSearchIndex, setHighlightedListSearchIndex] = useState(0);
+  const [highlightedListSupplierIndex, setHighlightedListSupplierIndex] = useState(0);
+  const listSearchRef = useRef<HTMLDivElement>(null);
+  const listSearchInputRef = useRef<HTMLInputElement>(null);
+  const [lastProductListQuery, setLastProductListQueryState] = useState(() => getLastSearchQuery('master_product_list'));
+  const [productListSearchHistory, setProductListSearchHistory] = useState<string[]>(() => getSearchHistory('master_product_list'));
+  const [lastSupplierListQuery, setLastSupplierListQueryState] = useState(() => getLastSearchQuery('master_supplier_list'));
+  const [supplierListSearchHistory, setSupplierListSearchHistory] = useState<string[]>(() => getSearchHistory('master_supplier_list'));
 
   const [altSupplierSearchQuery, setAltSupplierSearchQuery] = useState('');
   const [isAltSupplierDropdownOpen, setIsAltSupplierDropdownOpen] = useState(false);
@@ -81,6 +99,9 @@ export const MasterData = () => {
       if (listSupplierDropdownRef.current && !listSupplierDropdownRef.current.contains(event.target as Node)) {
         setIsListSupplierDropdownOpen(false);
       }
+      if (listSearchRef.current && !listSearchRef.current.contains(event.target as Node)) {
+        setIsListSearchDropdownOpen(false);
+      }
       if (altSupplierDropdownRef.current && !altSupplierDropdownRef.current.contains(event.target as Node)) {
         setIsAltSupplierDropdownOpen(false);
       }
@@ -88,6 +109,53 @@ export const MasterData = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const previousSuppliersForSelect = useMemo(() => {
+    if (!lastSupplierQuery) return [];
+    const q = lastSupplierQuery.toLowerCase();
+    return suppliers.filter(s => (s.name || '').toLowerCase().includes(q)).slice(0, 50);
+  }, [suppliers, lastSupplierQuery]);
+
+  const previousProductsForListSearch = useMemo(() => {
+    if (!lastProductListQuery) return [];
+    const q = lastProductListQuery.toLowerCase();
+    return products.filter(p => (p.name || '').toLowerCase().includes(q)).slice(0, 50);
+  }, [products, lastProductListQuery]);
+
+  const previousSuppliersForListSearch = useMemo(() => {
+    if (!lastSupplierListQuery) return [];
+    const q = lastSupplierListQuery.toLowerCase();
+    return suppliers.filter(s => (s.name || '').toLowerCase().includes(q)).slice(0, 50);
+  }, [suppliers, lastSupplierListQuery]);
+
+  // Auto-scroll highlighted items into view across all MasterData dropdowns
+  useEffect(() => {
+    if (isSupplierDropdownOpen && supplierDropdownRef.current) {
+      const activeEl = supplierDropdownRef.current.querySelector('[data-highlighted="true"]') as HTMLElement | null;
+      if (activeEl) activeEl.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlightedSupplierIndex, isSupplierDropdownOpen]);
+
+  useEffect(() => {
+    if (isAltSupplierDropdownOpen && altSupplierDropdownRef.current) {
+      const activeEl = altSupplierDropdownRef.current.querySelector('[data-highlighted="true"]') as HTMLElement | null;
+      if (activeEl) activeEl.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlightedAltSupplierIndex, isAltSupplierDropdownOpen]);
+
+  useEffect(() => {
+    if (isListSearchDropdownOpen && listSearchRef.current) {
+      const activeEl = listSearchRef.current.querySelector('[data-highlighted="true"]') as HTMLElement | null;
+      if (activeEl) activeEl.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlightedListSearchIndex, isListSearchDropdownOpen]);
+
+  useEffect(() => {
+    if (isListSupplierDropdownOpen && listSupplierDropdownRef.current) {
+      const activeEl = listSupplierDropdownRef.current.querySelector('[data-highlighted="true"]') as HTMLElement | null;
+      if (activeEl) activeEl.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlightedListSupplierIndex, isListSupplierDropdownOpen]);
 
   const filteredSuppliersForSelect = useMemo(() => {
     return suppliers.filter(s => (s.name || '').toLowerCase().includes(supplierSearchQuery.toLowerCase()));
@@ -104,6 +172,92 @@ export const MasterData = () => {
   const filteredSuppliersForListFilter = useMemo(() => {
     return suppliers.filter(s => (s.name || '').toLowerCase().includes(listSupplierFilterQuery.toLowerCase()));
   }, [suppliers, listSupplierFilterQuery]);
+
+  const handleSelectSupplierForProduct = (s: Supplier) => {
+    const typed = supplierSearchQuery.trim();
+    const queryToSave = (isTypingNewSupplier && typed) ? typed : (lastSupplierQuery || s.name);
+    setProductSupplierId(s.id);
+    setSupplierSearchQuery(s.name);
+    if (queryToSave) {
+      setLastSearchQuery('master_supplier', queryToSave);
+      setLastSupplierQueryState(queryToSave);
+      const updated = addSearchHistory('master_supplier', queryToSave);
+      setSupplierSearchHistory(updated);
+    }
+    setIsSupplierDropdownOpen(false);
+    setIsTypingNewSupplier(false);
+  };
+
+  const handleSupplierKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const isShowingPrevious = (!isTypingNewSupplier || !supplierSearchQuery.trim()) && !!lastSupplierQuery && previousSuppliersForSelect.length > 0;
+    const activeList = isShowingPrevious ? previousSuppliersForSelect : filteredSuppliersForSelect;
+
+    if (!isSupplierDropdownOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setIsSupplierDropdownOpen(true);
+        setHighlightedSupplierIndex(0);
+        if (!lastSupplierQuery) {
+          setIsTypingNewSupplier(true);
+        }
+      }
+      // Note: if Enter is pressed while dropdown is closed and supplier is already selected, let form submit naturally
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isShowingPrevious && !isTypingNewSupplier) {
+        setIsTypingNewSupplier(true);
+        setHighlightedSupplierIndex(0);
+        return;
+      }
+      setHighlightedSupplierIndex((prev) => Math.min(prev + 1, Math.max(0, activeList.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedSupplierIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeList.length > 0 && highlightedSupplierIndex >= 0 && highlightedSupplierIndex < activeList.length) {
+        handleSelectSupplierForProduct(activeList[highlightedSupplierIndex]);
+      } else {
+        setIsSupplierDropdownOpen(false);
+        setIsTypingNewSupplier(false);
+      }
+    } else if (e.key === 'Escape') {
+      setIsSupplierDropdownOpen(false);
+      setIsTypingNewSupplier(false);
+    }
+  };
+
+  const handleAltSupplierKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isAltSupplierDropdownOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setIsAltSupplierDropdownOpen(true);
+        setHighlightedAltSupplierIndex(0);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedAltSupplierIndex((prev) => Math.min(prev + 1, Math.max(0, filteredAltSuppliersForSelect.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedAltSupplierIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      if (filteredAltSuppliersForSelect.length > 0 && highlightedAltSupplierIndex >= 0 && highlightedAltSupplierIndex < filteredAltSuppliersForSelect.length) {
+        e.preventDefault();
+        const s = filteredAltSuppliersForSelect[highlightedAltSupplierIndex];
+        setProductAlternativeSupplierIds((prev) => [...prev, s.id]);
+        setAltSupplierSearchQuery('');
+        setIsAltSupplierDropdownOpen(false);
+      }
+    } else if (e.key === 'Escape') {
+      setIsAltSupplierDropdownOpen(false);
+    }
+  };
 
   const handleSubmitSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -276,9 +430,129 @@ export const MasterData = () => {
       setProductLocation('');
       setProductCategory('');
       setSupplierSearchQuery('');
+      setTimeout(() => {
+        productNameInputRef.current?.focus();
+      }, 50);
     } catch (err: any) {
       console.error("Gagal menyimpan produk:", err);
       alert(`Gagal menyimpan produk: ${err.message || 'Terjadi kesalahan sistem'}`);
+    }
+  };
+
+  // Ctrl + S shortcut to save active Supplier or Product form
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (activeTab === 'suppliers' && supplierName.trim()) {
+          handleSubmitSupplier(e as any);
+        } else if (activeTab === 'products' && productName.trim() && productSupplierId) {
+          handleSubmitProduct(e as any);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  });
+
+  const handleSelectListSearchItem = (name: string) => {
+    const key = activeTab === 'suppliers' ? 'master_supplier_list' : 'master_product_list';
+    const curVal = (activeTab === 'suppliers' ? supplierListSearch : productListSearch).trim();
+    const lastQ = activeTab === 'suppliers' ? lastSupplierListQuery : lastProductListQuery;
+    const queryToSave = (isTypingNewListSearch && curVal) ? curVal : (lastQ || name).trim();
+    if (queryToSave) {
+      setLastSearchQuery(key, queryToSave);
+      if (activeTab === 'suppliers') {
+        setLastSupplierListQueryState(queryToSave);
+        setSupplierListSearchHistory(addSearchHistory(key, queryToSave));
+      } else {
+        setLastProductListQueryState(queryToSave);
+        setProductListSearchHistory(addSearchHistory(key, queryToSave));
+      }
+    }
+    if (activeTab === 'suppliers') {
+      setSupplierListSearch(name);
+    } else {
+      setProductListSearch(name);
+    }
+    setIsListSearchDropdownOpen(false);
+    setIsTypingNewListSearch(false);
+  };
+
+  const handleListSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const curVal = (activeTab === 'suppliers' ? supplierListSearch : productListSearch).trim();
+    const lastQ = activeTab === 'suppliers' ? lastSupplierListQuery : lastProductListQuery;
+    const prevList = activeTab === 'suppliers' ? previousSuppliersForListSearch : previousProductsForListSearch;
+    const liveList = activeTab === 'suppliers' ? filteredSuppliersList.slice(0, 50) : filteredProductsList.slice(0, 50);
+    const isShowingPrevious = (!isTypingNewListSearch || !curVal) && !!lastQ && prevList.length > 0;
+    const activeList = isShowingPrevious ? prevList : liveList;
+
+    if (!isListSearchDropdownOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setIsListSearchDropdownOpen(true);
+        setHighlightedListSearchIndex(0);
+        if (!lastQ) {
+          setIsTypingNewListSearch(true);
+        }
+      } else if (e.key === 'Enter' && curVal) {
+        handleSelectListSearchItem(curVal);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isShowingPrevious && !isTypingNewListSearch) {
+        setIsTypingNewListSearch(true);
+        setHighlightedListSearchIndex(0);
+        return;
+      }
+      setHighlightedListSearchIndex((prev) => Math.min(prev + 1, Math.max(0, activeList.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedListSearchIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeList.length > 0 && highlightedListSearchIndex >= 0 && highlightedListSearchIndex < activeList.length) {
+        handleSelectListSearchItem(activeList[highlightedListSearchIndex].name);
+      } else if (curVal) {
+        handleSelectListSearchItem(curVal);
+      }
+    } else if (e.key === 'Escape') {
+      setIsListSearchDropdownOpen(false);
+      setIsTypingNewListSearch(false);
+    }
+  };
+
+  const handleListSupplierFilterKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isListSupplierDropdownOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setIsListSupplierDropdownOpen(true);
+        setHighlightedListSupplierIndex(0);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedListSupplierIndex((prev) => Math.min(prev + 1, Math.max(0, filteredSuppliersForListFilter.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedListSupplierIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredSuppliersForListFilter.length > 0 && highlightedListSupplierIndex >= 0 && highlightedListSupplierIndex < filteredSuppliersForListFilter.length) {
+        const s = filteredSuppliersForListFilter[highlightedListSupplierIndex];
+        setListSupplierFilter(s.id);
+        setListSupplierFilterQuery(s.name);
+        setIsListSupplierDropdownOpen(false);
+      } else {
+        setIsListSupplierDropdownOpen(false);
+      }
+    } else if (e.key === 'Escape') {
+      setIsListSupplierDropdownOpen(false);
     }
   };
 
@@ -520,6 +794,7 @@ export const MasterData = () => {
                 <div>
                   <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Product Name</label>
                 <input
+                  ref={productNameInputRef}
                   type="text"
                   required
                   value={productName}
@@ -586,10 +861,16 @@ export const MasterData = () => {
                 <div className="relative" ref={supplierDropdownRef}>
                   <div 
                     className={`flex items-center w-full px-4 py-3 border rounded-2xl bg-theme-50 transition-all cursor-text ${isSupplierDropdownOpen ? 'border-theme-500 ring-2 ring-theme-500' : 'border-theme-200'}`}
-                    onClick={() => setIsSupplierDropdownOpen(true)}
+                    onClick={() => {
+                      setIsSupplierDropdownOpen(true);
+                      setIsTypingNewSupplier(false);
+                      setHighlightedSupplierIndex(0);
+                      supplierInputRef.current?.select();
+                    }}
                   >
                     <Search className="w-4 h-4 text-theme-600-text mr-2 shrink-0" />
                     <input
+                      ref={supplierInputRef}
                       type="text"
                       className="bg-transparent outline-none w-full text-sm text-theme-800"
                       placeholder="Search supplier..."
@@ -597,46 +878,91 @@ export const MasterData = () => {
                       onChange={(e) => {
                         setSupplierSearchQuery(e.target.value);
                         setProductSupplierId('');
+                        setIsTypingNewSupplier(true);
+                        setHighlightedSupplierIndex(0);
                         setIsSupplierDropdownOpen(true);
                       }}
-                      onFocus={() => setIsSupplierDropdownOpen(true)}
+                      onFocus={() => {
+                        setIsSupplierDropdownOpen(true);
+                        setIsTypingNewSupplier(false);
+                        setHighlightedSupplierIndex(0);
+                        supplierInputRef.current?.select();
+                      }}
+                      onKeyDown={handleSupplierKeyDown}
                     />
-                    <ChevronDown className="w-4 h-4 text-theme-600-text ml-2 shrink-0" />
+                    {supplierSearchQuery && (
+                      <X
+                        className="w-4 h-4 text-theme-600-text ml-1 shrink-0 cursor-pointer hover:text-rose-500 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSupplierSearchQuery('');
+                          setProductSupplierId('');
+                          setIsTypingNewSupplier(false);
+                        }}
+                      />
+                    )}
+                    <ChevronDown 
+                      className="w-4 h-4 text-theme-600-text ml-2 shrink-0 cursor-pointer" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsSupplierDropdownOpen(!isSupplierDropdownOpen);
+                        setIsTypingNewSupplier(false);
+                      }} 
+                    />
                   </div>
                   
                   {isSupplierDropdownOpen && (
-                    <div className="absolute z-10 w-full mt-2 bg-white border border-theme-200 rounded-2xl shadow-lg max-h-60 overflow-y-auto">
-                      <SearchHistoryChips
-                        history={supplierSearchHistory}
-                        onSelect={(term) => {
-                          setSupplierSearchQuery(term);
-                          setIsSupplierDropdownOpen(true);
-                        }}
-                        onClear={() => {
-                          clearSearchHistory('master_supplier');
-                          setSupplierSearchHistory([]);
-                        }}
-                      />
-                      {filteredSuppliersForSelect.length > 0 ? (
-                        filteredSuppliersForSelect.map(s => (
-                          <div 
-                            key={s.id}
-                            className="px-4 py-3 hover:bg-theme-100 cursor-pointer text-sm font-bold text-theme-900 transition-colors"
-                            onClick={() => {
-                              setProductSupplierId(s.id);
-                              setSupplierSearchQuery(s.name);
-                              const updated = addSearchHistory('master_supplier', s.name);
-                              setSupplierSearchHistory(updated);
-                              setIsSupplierDropdownOpen(false);
-                            }}
-                          >
-                            {s.name}
+                    <div className="absolute z-10 w-full mt-2 bg-white border border-theme-200 rounded-2xl shadow-xl max-h-72 overflow-y-auto">
+                      {(!isTypingNewSupplier || !supplierSearchQuery.trim()) && lastSupplierQuery && (
+                        <PreviousSearchSection
+                          lastQuery={lastSupplierQuery}
+                          results={previousSuppliersForSelect}
+                          history={supplierSearchHistory}
+                          highlightedIndex={highlightedSupplierIndex}
+                          onHighlightIndex={setHighlightedSupplierIndex}
+                          onSelectResult={(s) => handleSelectSupplierForProduct(s)}
+                          onSelectQuery={(term) => {
+                            setSupplierSearchQuery(term);
+                            setIsTypingNewSupplier(false);
+                            setHighlightedSupplierIndex(0);
+                            setIsSupplierDropdownOpen(true);
+                          }}
+                          onClearHistory={() => {
+                            clearSearchHistory('master_supplier');
+                            setLastSupplierQueryState('');
+                            setSupplierSearchHistory([]);
+                          }}
+                          renderTitle={(s) => s.name}
+                          keyExtractor={(s) => `prev-ms-${s.id}`}
+                        />
+                      )}
+
+                      {isTypingNewSupplier && (supplierSearchQuery.trim() || !lastSupplierQuery) ? (
+                        filteredSuppliersForSelect.length > 0 ? (
+                          filteredSuppliersForSelect.map((s, idx) => (
+                            <div 
+                              key={s.id}
+                              data-highlighted={idx === highlightedSupplierIndex ? 'true' : undefined}
+                              onMouseEnter={() => setHighlightedSupplierIndex(idx)}
+                              className={`px-4 py-3 cursor-pointer text-sm font-bold text-theme-900 transition-colors border-b border-theme-50 last:border-0 ${
+                                idx === highlightedSupplierIndex ? 'bg-theme-100 text-theme-900' : 'hover:bg-theme-100'
+                              }`}
+                              onClick={() => handleSelectSupplierForProduct(s)}
+                            >
+                              {s.name}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-4 py-4 text-center text-sm text-theme-600-text">
+                            Tidak ditemukan supplier.
                           </div>
-                        ))
+                        )
                       ) : (
-                        <div className="px-4 py-4 text-center text-sm text-theme-600-text">
-                          No suppliers found.
-                        </div>
+                        !lastSupplierQuery && (
+                          <div className="px-4 py-4 text-center text-sm text-theme-600-text">
+                            Ketik nama supplier atau tekan panah bawah untuk memilih...
+                          </div>
+                        )
                       )}
                     </div>
                   )}
@@ -673,19 +999,28 @@ export const MasterData = () => {
                         value={altSupplierSearchQuery}
                         onChange={(e) => {
                           setAltSupplierSearchQuery(e.target.value);
+                          setHighlightedAltSupplierIndex(0);
                           setIsAltSupplierDropdownOpen(true);
                         }}
-                        onFocus={() => setIsAltSupplierDropdownOpen(true)}
+                        onFocus={() => {
+                          setIsAltSupplierDropdownOpen(true);
+                          setHighlightedAltSupplierIndex(0);
+                        }}
+                        onKeyDown={handleAltSupplierKeyDown}
                       />
                       <ChevronDown className="w-4 h-4 text-theme-600-text ml-2 shrink-0" />
                     </div>
                     {isAltSupplierDropdownOpen && (
                       <div className="absolute z-50 w-full mt-2 bg-white border border-theme-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                         {filteredAltSuppliersForSelect.length > 0 ? (
-                          filteredAltSuppliersForSelect.map(s => (
+                          filteredAltSuppliersForSelect.map((s, idx) => (
                             <div 
                               key={s.id}
-                              className="px-4 py-3 hover:bg-theme-100 cursor-pointer text-sm font-bold text-theme-900 transition-colors border-b border-theme-50 last:border-0"
+                              data-highlighted={idx === highlightedAltSupplierIndex ? 'true' : undefined}
+                              onMouseEnter={() => setHighlightedAltSupplierIndex(idx)}
+                              className={`px-4 py-3 cursor-pointer text-sm font-bold text-theme-900 transition-colors border-b border-theme-50 last:border-0 ${
+                                idx === highlightedAltSupplierIndex ? 'bg-theme-100 text-theme-900' : 'hover:bg-theme-100'
+                              }`}
                               onClick={() => {
                                 setProductAlternativeSupplierIds(prev => [...prev, s.id]);
                                 setAltSupplierSearchQuery('');
@@ -780,22 +1115,139 @@ export const MasterData = () => {
             {/* Search & Mobile Filter Toggle Row */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               {/* Search Bar */}
-              <div className="relative flex-1">
+              <div className="relative flex-1" ref={listSearchRef}>
                 <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  ref={listSearchInputRef}
                   type="text"
                   placeholder={activeTab === 'suppliers' ? "Cari nama supplier atau ID..." : "Cari produk, kategori, lokasi, supplier..."}
                   value={activeTab === 'suppliers' ? supplierListSearch : productListSearch}
-                  onChange={(e) => activeTab === 'suppliers' ? setSupplierListSearch(e.target.value) : setProductListSearch(e.target.value)}
+                  onChange={(e) => {
+                    if (activeTab === 'suppliers') {
+                      setSupplierListSearch(e.target.value);
+                    } else {
+                      setProductListSearch(e.target.value);
+                    }
+                    setIsTypingNewListSearch(true);
+                    setHighlightedListSearchIndex(0);
+                    setIsListSearchDropdownOpen(true);
+                  }}
+                  onClick={() => {
+                    setIsListSearchDropdownOpen(true);
+                    setIsTypingNewListSearch(false);
+                    setHighlightedListSearchIndex(0);
+                    listSearchInputRef.current?.select();
+                  }}
+                  onFocus={() => {
+                    setIsListSearchDropdownOpen(true);
+                    setIsTypingNewListSearch(false);
+                    setHighlightedListSearchIndex(0);
+                    listSearchInputRef.current?.select();
+                  }}
+                  onKeyDown={handleListSearchKeyDown}
                   className="w-full pl-9 pr-8 py-2 border border-neutral-200 rounded-xl bg-white focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400 outline-none transition-all text-xs sm:text-sm text-neutral-800"
                 />
                 {(activeTab === 'suppliers' ? supplierListSearch : productListSearch) && (
                   <button 
-                    onClick={() => activeTab === 'suppliers' ? setSupplierListSearch('') : setProductListSearch('')}
+                    onClick={() => {
+                      if (activeTab === 'suppliers') {
+                        setSupplierListSearch('');
+                      } else {
+                        setProductListSearch('');
+                      }
+                      setIsTypingNewListSearch(false);
+                    }}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-1"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
+                )}
+
+                {/* Dropdown for Previous & Live Search Results */}
+                {isListSearchDropdownOpen && (
+                  <div className="absolute left-0 z-50 mt-1 w-72 bg-white border border-theme-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-1">
+                    {(!isTypingNewListSearch || !(activeTab === 'suppliers' ? supplierListSearch : productListSearch).trim()) && (
+                      <>
+                        {activeTab === 'products' && lastProductListQuery && (
+                          <PreviousSearchSection
+                            lastQuery={lastProductListQuery}
+                            results={previousProductsForListSearch}
+                            history={productListSearchHistory}
+                            highlightedIndex={highlightedListSearchIndex}
+                            onHighlightIndex={setHighlightedListSearchIndex}
+                            onSelectResult={(p) => handleSelectListSearchItem(p.name)}
+                            onSelectQuery={(term) => {
+                              setProductListSearch(term);
+                              setIsTypingNewListSearch(false);
+                              setHighlightedListSearchIndex(0);
+                              setIsListSearchDropdownOpen(true);
+                            }}
+                            onClearHistory={() => {
+                              clearSearchHistory('master_product_list');
+                              setLastProductListQueryState('');
+                              setProductListSearchHistory([]);
+                            }}
+                            renderTitle={(p) => p.name}
+                            keyExtractor={(p) => `prev-mpl-${p.id}`}
+                          />
+                        )}
+
+                        {activeTab === 'suppliers' && lastSupplierListQuery && (
+                          <PreviousSearchSection
+                            lastQuery={lastSupplierListQuery}
+                            results={previousSuppliersForListSearch}
+                            history={supplierListSearchHistory}
+                            highlightedIndex={highlightedListSearchIndex}
+                            onHighlightIndex={setHighlightedListSearchIndex}
+                            onSelectResult={(s) => handleSelectListSearchItem(s.name)}
+                            onSelectQuery={(term) => {
+                              setSupplierListSearch(term);
+                              setIsTypingNewListSearch(false);
+                              setHighlightedListSearchIndex(0);
+                              setIsListSearchDropdownOpen(true);
+                            }}
+                            onClearHistory={() => {
+                              clearSearchHistory('master_supplier_list');
+                              setLastSupplierListQueryState('');
+                              setSupplierListSearchHistory([]);
+                            }}
+                            renderTitle={(s) => s.name}
+                            keyExtractor={(s) => `prev-msl-${s.id}`}
+                          />
+                        )}
+                      </>
+                    )}
+
+                    {isTypingNewListSearch && ((activeTab === 'suppliers' ? supplierListSearch : productListSearch).trim() || !(activeTab === 'suppliers' ? lastSupplierListQuery : lastProductListQuery)) && (
+                      <div>
+                        <div className="px-2.5 py-1 text-[10px] font-bold text-neutral-400 uppercase">
+                          Hasil Pencarian ({activeTab === 'suppliers' ? filteredSuppliersList.slice(0, 50).length : filteredProductsList.slice(0, 50).length})
+                        </div>
+                        {(activeTab === 'suppliers' ? filteredSuppliersList : filteredProductsList).length === 0 ? (
+                          <div className="p-3 text-xs text-neutral-400 text-center">
+                            Tidak ditemukan hasil
+                          </div>
+                        ) : (
+                          (activeTab === 'suppliers' ? filteredSuppliersList.slice(0, 50) : filteredProductsList.slice(0, 50)).map((item: any, idx: number) => (
+                            <div
+                              key={`mls-live-${item.id}`}
+                              data-highlighted={idx === highlightedListSearchIndex ? 'true' : undefined}
+                              onMouseEnter={() => setHighlightedListSearchIndex(idx)}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleSelectListSearchItem(item.name);
+                              }}
+                              className={`px-2.5 py-1.5 rounded-lg cursor-pointer text-xs font-semibold truncate transition-colors ${
+                                idx === highlightedListSearchIndex ? 'bg-theme-100 text-theme-900 font-bold' : 'hover:bg-theme-50 text-neutral-800'
+                              }`}
+                            >
+                              {item.name}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -851,9 +1303,14 @@ export const MasterData = () => {
                       onChange={(e) => {
                         setListSupplierFilterQuery(e.target.value);
                         setListSupplierFilter('');
+                        setHighlightedListSupplierIndex(0);
                         setIsListSupplierDropdownOpen(true);
                       }}
-                      onFocus={() => setIsListSupplierDropdownOpen(true)}
+                      onFocus={() => {
+                        setIsListSupplierDropdownOpen(true);
+                        setHighlightedListSupplierIndex(0);
+                      }}
+                      onKeyDown={handleListSupplierFilterKeyDown}
                       placeholder="Semua Supplier"
                       className="text-xs outline-none bg-transparent text-neutral-700 w-full"
                     />
@@ -862,30 +1319,21 @@ export const MasterData = () => {
                   
                   {isListSupplierDropdownOpen && (
                     <div className="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                      <SearchHistoryChips
-                        history={supplierSearchHistory}
-                        onSelect={(term) => {
-                          setListSupplierFilterQuery(term);
-                          setIsListSupplierDropdownOpen(true);
-                        }}
-                        onClear={() => {
-                          clearSearchHistory('master_supplier');
-                          setSupplierSearchHistory([]);
-                        }}
-                      />
                       {filteredSuppliersForListFilter.length === 0 ? (
                         <div className="p-3 text-xs text-neutral-500 text-center">Tidak ada supplier</div>
                       ) : (
                         <ul className="p-1 space-y-0.5">
-                          {filteredSuppliersForListFilter.map(s => (
+                          {filteredSuppliersForListFilter.map((s, idx) => (
                             <li 
                               key={s.id}
-                              className="px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100 rounded-lg cursor-pointer font-medium whitespace-nowrap overflow-hidden text-ellipsis"
+                              data-highlighted={idx === highlightedListSupplierIndex ? 'true' : undefined}
+                              onMouseEnter={() => setHighlightedListSupplierIndex(idx)}
+                              className={`px-3 py-1.5 text-xs rounded-lg cursor-pointer font-medium whitespace-nowrap overflow-hidden text-ellipsis transition-colors ${
+                                idx === highlightedListSupplierIndex ? 'bg-theme-100 text-theme-900 font-bold' : 'text-neutral-700 hover:bg-neutral-100'
+                              }`}
                               onClick={() => {
                                 setListSupplierFilter(s.id);
                                 setListSupplierFilterQuery(s.name);
-                                const updated = addSearchHistory('master_supplier', s.name);
-                                setSupplierSearchHistory(updated);
                                 setIsListSupplierDropdownOpen(false);
                               }}
                             >
@@ -1275,6 +1723,7 @@ export const MasterData = () => {
                   <option value={20}>20</option>
                   <option value={50}>50</option>
                   <option value={100}>100</option>
+                  <option value={9999}>Semua</option>
                 </select>
               </div>
               <span className="text-xs text-theme-600-text">

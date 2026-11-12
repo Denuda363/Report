@@ -2,19 +2,27 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, X, Factory, Trash2, Maximize2, Minimize2, Edit2, Save, Plus } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { format } from 'date-fns';
-import { getSearchHistory, addSearchHistory, clearSearchHistory } from '../lib/searchHistory';
-import { SearchHistoryChips } from './SearchHistoryChips';
+import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../lib/searchHistory';
+import { PreviousSearchSection } from './PreviousSearchSection';
 
 export const KosongPabrikRecap = () => {
   const { products, suppliers, updateProduct, addProduct, reports, updateReport } = useAppContext();
 
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
+  const [isTypingNew, setIsTypingNew] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [lastSearchQuery, setLastSearchQueryState] = useState(() => getLastSearchQuery('kosong_product'));
   const [searchHistory, setSearchHistory] = useState<string[]>(() => getSearchHistory('kosong_product'));
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const [listSearchQuery, setListSearchQuery] = useState('');
+  const [isListDropdownOpen, setIsListDropdownOpen] = useState(false);
+  const [highlightedListIndex, setHighlightedListIndex] = useState(0);
+  const listSearchRef = useRef<HTMLDivElement>(null);
+  const listSearchInputRef = useRef<HTMLInputElement>(null);
   const [isListFullscreen, setIsListFullscreen] = useState(false);
 
   // Edit State
@@ -36,12 +44,40 @@ export const KosongPabrikRecap = () => {
   }, [kosongProducts, listSearchQuery]);
 
   const filteredProductsForSearch = useMemo(() => {
-    if (!searchQuery) return [];
-    const lowerQuery = searchQuery.toLowerCase();
+    const lowerQuery = searchQuery.trim().toLowerCase();
+    if (!lowerQuery) {
+      return products.filter(p => !p.isKosongPabrik).slice(0, 50);
+    }
     return products.filter(p => 
       (p.name || '').toLowerCase().includes(lowerQuery) && !p.isKosongPabrik
     ).slice(0, 50);
   }, [products, searchQuery]);
+
+  // Previous search products for Kosong Pabrik
+  const previousProducts = useMemo(() => {
+    if (!lastSearchQuery) return [];
+    const q = lastSearchQuery.toLowerCase();
+    return products.filter(p => (p.name || '').toLowerCase().includes(q) && !p.isKosongPabrik).slice(0, 50);
+  }, [products, lastSearchQuery]);
+
+  // Auto-scroll highlighted item into view
+  useEffect(() => {
+    if (isDropdownOpen && dropdownRef.current) {
+      const activeEl = dropdownRef.current.querySelector('[data-highlighted="true"]') as HTMLElement | null;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedIndex, isDropdownOpen]);
+
+  useEffect(() => {
+    if (isListDropdownOpen && listSearchRef.current) {
+      const activeEl = listSearchRef.current.querySelector('[data-highlighted="true"]') as HTMLElement | null;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedListIndex, isListDropdownOpen]);
 
   // Handle click outside for dropdown
   useEffect(() => {
@@ -49,16 +85,68 @@ export const KosongPabrikRecap = () => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
       }
+      if (listSearchRef.current && !listSearchRef.current.contains(event.target as Node)) {
+        setIsListDropdownOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const isShowingPrevious = (!isTypingNew || !searchQuery.trim()) && !!lastSearchQuery && previousProducts.length > 0;
+    const activeList = isShowingPrevious ? previousProducts : filteredProductsForSearch;
+
+    if (!isDropdownOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setIsDropdownOpen(true);
+        setHighlightedIndex(0);
+        if (!lastSearchQuery) {
+          setIsTypingNew(true);
+        }
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isShowingPrevious && !isTypingNew) {
+        setIsTypingNew(true);
+        setHighlightedIndex(0);
+        return;
+      }
+      setHighlightedIndex((prev) => Math.min(prev + 1, Math.max(0, activeList.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeList.length > 0 && highlightedIndex >= 0 && highlightedIndex < activeList.length) {
+        handleSelectProduct(activeList[highlightedIndex]);
+      } else if (searchQuery.trim()) {
+        handleAddManualProduct(searchQuery.trim());
+      }
+    } else if (e.key === 'Escape') {
+      setIsDropdownOpen(false);
+      setIsTypingNew(false);
+    }
+  };
+
   const handleSelectProduct = async (product: any) => {
-    if (searchQuery.trim()) {
-      const updated = addSearchHistory('kosong_product', searchQuery.trim());
+    const typed = searchQuery.trim();
+    const queryToSave = (isTypingNew && typed) ? typed : (lastSearchQuery || product.name).trim();
+    if (queryToSave) {
+      setLastSearchQuery('kosong_product', queryToSave);
+      setLastSearchQueryState(queryToSave);
+      const updated = addSearchHistory('kosong_product', queryToSave);
       setSearchHistory(updated);
     }
+
+    setIsDropdownOpen(false);
+    setIsTypingNew(false);
+    setSearchQuery('');
+
     await updateProduct({ 
       ...product,
       isKosongPabrik: true,
@@ -80,8 +168,12 @@ export const KosongPabrikRecap = () => {
   const handleAddManualProduct = async (name: string) => {
     if (!name.trim()) return;
     try {
-      const updated = addSearchHistory('kosong_product', name.trim());
+      const queryToSave = name.trim();
+      setLastSearchQuery('kosong_product', queryToSave);
+      setLastSearchQueryState(queryToSave);
+      const updated = addSearchHistory('kosong_product', queryToSave);
       setSearchHistory(updated);
+
       await addProduct({
         name: name.trim(),
         unit: 'Pcs',
@@ -113,7 +205,7 @@ export const KosongPabrikRecap = () => {
 
   const handleSaveEdit = async () => {
     if (!editingProduct) return;
-    await updateProduct(editingProduct.id, {
+    await updateProduct({
       ...editingProduct,
       name: editName,
       supplierId: editSupplierId
@@ -139,46 +231,85 @@ export const KosongPabrikRecap = () => {
             <div className="relative flex items-center w-full px-4 py-3 border border-rose-200 rounded-2xl bg-theme-50 focus-within:ring-2 focus-within:ring-rose-500 focus-within:border-rose-500 transition-all">
               <Search className="w-4 h-4 text-rose-400 mr-2 shrink-0" />
               <input
+                ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
+                  setIsTypingNew(true);
+                  setHighlightedIndex(0);
                   setIsDropdownOpen(true);
                 }}
-                onFocus={() => setIsDropdownOpen(true)}
+                onClick={() => {
+                  setIsDropdownOpen(true);
+                  setIsTypingNew(false);
+                  setHighlightedIndex(0);
+                  searchInputRef.current?.select();
+                }}
+                onFocus={() => {
+                  setIsDropdownOpen(true);
+                  setIsTypingNew(false);
+                  setHighlightedIndex(0);
+                  searchInputRef.current?.select();
+                }}
+                onKeyDown={handleSearchKeyDown}
                 className="w-full outline-none bg-transparent text-sm text-theme-800"
                 placeholder="Cari nama produk..."
               />
               {searchQuery && (
                 <X 
                   className="w-4 h-4 text-theme-600-text ml-2 shrink-0 cursor-pointer hover:text-rose-500 transition-colors" 
-                  onClick={() => setSearchQuery('')} 
+                  onClick={() => {
+                    setSearchQuery('');
+                    setIsTypingNew(false);
+                  }} 
                 />
               )}
             </div>
 
             {isDropdownOpen && (
-              <div className="absolute z-50 w-full mt-2 bg-white border border-theme-200 rounded-2xl shadow-xl max-h-60 overflow-y-auto py-2">
-                <SearchHistoryChips
-                  history={searchHistory}
-                  onSelect={(term) => {
-                    setSearchQuery(term);
-                    setIsDropdownOpen(true);
-                  }}
-                  onClear={() => {
-                    clearSearchHistory('kosong_product');
-                    setSearchHistory([]);
-                  }}
-                />
-                {searchQuery ? (
+              <div className="absolute z-50 w-full mt-2 bg-white border border-theme-200 rounded-2xl shadow-xl max-h-72 overflow-y-auto py-1">
+                {(!isTypingNew || !searchQuery.trim()) && lastSearchQuery && (
+                  <PreviousSearchSection
+                    lastQuery={lastSearchQuery}
+                    results={previousProducts}
+                    history={searchHistory}
+                    highlightedIndex={highlightedIndex}
+                    onHighlightIndex={setHighlightedIndex}
+                    onSelectResult={(p) => handleSelectProduct(p)}
+                    onSelectQuery={(term) => {
+                      setSearchQuery(term);
+                      setIsTypingNew(false);
+                      setHighlightedIndex(0);
+                      setIsDropdownOpen(true);
+                    }}
+                    onClearHistory={() => {
+                      clearSearchHistory('kosong_product');
+                      setLastSearchQueryState('');
+                      setSearchHistory([]);
+                    }}
+                    renderTitle={(p) => p.name}
+                    renderSubtitle={(p) => {
+                      const s = suppliers.find(sup => sup.id === p.supplierId);
+                      return s?.name || 'Tanpa Supplier';
+                    }}
+                    keyExtractor={(p) => `prev-kp-${p.id}`}
+                  />
+                )}
+
+                {isTypingNew && (searchQuery.trim() || !lastSearchQuery) ? (
                   <>
                     {filteredProductsForSearch.length > 0 ? (
-                      filteredProductsForSearch.map(p => {
+                      filteredProductsForSearch.map((p, idx) => {
                         const s = suppliers.find(sup => sup.id === p.supplierId);
                         return (
                           <div 
                             key={p.id}
-                            className="px-4 py-3 hover:bg-theme-100 cursor-pointer border-b border-theme-50 last:border-0"
+                            data-highlighted={idx === highlightedIndex ? 'true' : undefined}
+                            onMouseEnter={() => setHighlightedIndex(idx)}
+                            className={`px-4 py-3 cursor-pointer border-b border-theme-50 last:border-0 transition-colors ${
+                              idx === highlightedIndex ? 'bg-theme-100 text-theme-900' : 'hover:bg-theme-100'
+                            }`}
                             onClick={() => handleSelectProduct(p)}
                           >
                             <div className="font-bold text-sm text-theme-900">{p.name}</div>
@@ -206,9 +337,9 @@ export const KosongPabrikRecap = () => {
                     )}
                   </>
                 ) : (
-                  searchHistory.length === 0 && (
+                  !lastSearchQuery && (
                     <div className="px-4 py-3 text-sm text-theme-500 text-center">
-                      Ketik nama produk untuk mencari...
+                      Ketik nama produk atau tekan panah bawah untuk memilih...
                     </div>
                   )
                 )}
@@ -233,15 +364,76 @@ export const KosongPabrikRecap = () => {
           </div>
           
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 text-theme-600-text absolute left-3 top-1/2 -translate-y-1/2" />
+            <div className="relative w-full sm:w-64" ref={listSearchRef}>
+              <Search className="w-4 h-4 text-theme-600-text absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input 
+                ref={listSearchInputRef}
                 type="text" 
                 placeholder="Cari di daftar..."
                 value={listSearchQuery}
-                onChange={(e) => setListSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-theme-200 rounded-xl text-sm focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all"
+                onChange={(e) => {
+                  setListSearchQuery(e.target.value);
+                  setHighlightedListIndex(0);
+                  setIsListDropdownOpen(true);
+                }}
+                onFocus={() => {
+                  setIsListDropdownOpen(true);
+                  setHighlightedListIndex(0);
+                }}
+                onKeyDown={(e) => {
+                  if (!isListDropdownOpen) {
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setIsListDropdownOpen(true);
+                      setHighlightedListIndex(0);
+                    }
+                    return;
+                  }
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setHighlightedListIndex((prev) => Math.min(prev + 1, Math.max(0, filteredKosongProducts.length - 1)));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setHighlightedListIndex((prev) => Math.max(prev - 1, 0));
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (filteredKosongProducts.length > 0 && highlightedListIndex >= 0 && highlightedListIndex < filteredKosongProducts.length) {
+                      setListSearchQuery(filteredKosongProducts[highlightedListIndex].name);
+                    }
+                    setIsListDropdownOpen(false);
+                  } else if (e.key === 'Escape') {
+                    setIsListDropdownOpen(false);
+                  }
+                }}
+                className="w-full pl-9 pr-8 py-2 bg-white border border-theme-200 rounded-xl text-sm focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all"
               />
+              {listSearchQuery && (
+                <X 
+                  className="w-4 h-4 text-neutral-400 hover:text-rose-500 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+                  onClick={() => setListSearchQuery('')}
+                />
+              )}
+              {isListDropdownOpen && filteredKosongProducts.length > 0 && (
+                <div className="absolute left-0 right-0 z-50 mt-1 bg-white border border-theme-200 rounded-xl shadow-xl max-h-56 overflow-y-auto p-1">
+                  {filteredKosongProducts.map((p, idx) => (
+                    <div
+                      key={`kp-list-${p.id}`}
+                      data-highlighted={idx === highlightedListIndex ? 'true' : undefined}
+                      onMouseEnter={() => setHighlightedListIndex(idx)}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setListSearchQuery(p.name);
+                        setIsListDropdownOpen(false);
+                      }}
+                      className={`px-3 py-2 rounded-lg cursor-pointer text-xs font-semibold truncate transition-colors ${
+                        idx === highlightedListIndex ? 'bg-theme-100 text-theme-900 font-bold' : 'hover:bg-theme-50 text-theme-800'
+                      }`}
+                    >
+                      {p.name}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <button
               onClick={() => setIsListFullscreen(!isListFullscreen)}

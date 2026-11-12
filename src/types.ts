@@ -35,6 +35,9 @@ export interface ReportEntry {
   arrivedAt?: number;
   arrivedSupplierId?: string;
   arrivedQty?: number;
+  isChecked?: boolean;
+  checkedAt?: number;
+  checkedBy?: string;
 }
 
 export interface StockOutEntry {
@@ -47,7 +50,31 @@ export interface StockOutEntry {
   userId: string;
 }
 
-export type AutoDeleteMode = 'none' | 'keep_today' | 'keep_2_days';
+export interface NearExpiredEntry {
+  id: string;
+  productId?: string;
+  productName: string;
+  batch: string;
+  expiredDate: string; // YYYY-MM-DD
+  supplierId?: string;
+  supplierName: string;
+  quantity?: number;
+  unit?: string;
+  notes?: string;
+  createdAt: number;
+  status?: 'pending' | 'returned' | 'disposed' | 'resolved';
+}
+
+export type AutoDeleteMode = 
+  | 'none' 
+  | 'keep_today' 
+  | 'keep_2_days' 
+  | 'keep_3_days' 
+  | 'keep_7_days' 
+  | 'keep_14_days' 
+  | 'keep_30_days' 
+  | 'custom';
+
 export type NavbarPosition = 'bottom' | 'left' | 'right';
 export type DbProvider = 'supabase' | 'firebase' | 'local';
 
@@ -69,6 +96,7 @@ export interface ChatMessage {
 
 export interface UserSettings {
   autoDeleteMode: AutoDeleteMode;
+  autoDeleteDays?: number; // Custom retention days when mode is 'custom' or specified
   navbarPosition?: NavbarPosition;
   theme?: string;
   useLocalDb?: boolean;

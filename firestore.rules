@@ -1,7 +1,43 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
+    // Master Suppliers collection
+    match /suppliers/{supplierId} {
+      allow read, write: if true;
+    }
+
+    // Master Products catalog
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+
+    // Daily Reports & Crosscheck Checklist
+    match /reports/{reportId} {
+      allow read, write: if true;
+    }
+
+    // Stock Outs
+    match /stock_outs/{stockOutId} {
+      allow read, write: if true;
+    }
+
+    // Near Expired Products
+    match /near_expired/{nearExpiredId} {
+      allow read, write: if true;
+    }
+
+    // Application Settings & Real-Time Sync
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Live Collaboration Chat Users
+    match /chat_users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Live Collaboration Chat Messages
+    match /messages/{messageId} {
       allow read, write: if true;
     }
   }

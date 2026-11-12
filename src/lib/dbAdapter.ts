@@ -1,10 +1,19 @@
 import { db, handleFirestoreError, OperationType, isFirebaseQuotaExceeded } from './firebase';
 import { localDb, generateId } from './localDb';
 import { getSupabaseClient, checkSupabaseTableStatus, SUPABASE_SQL_SCHEMA } from './supabase';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, writeBatch, getDoc } from 'firebase/firestore';
-import { DbProvider } from '../types';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, writeBatch, getDoc, getDocs, query, limit } from 'firebase/firestore';
+import { DbProvider, AutoDeleteMode } from '../types';
 
-export const REQUIRED_TABLES = ['suppliers', 'products', 'reports', 'stock_outs', 'settings'] as const;
+export const REQUIRED_TABLES = [
+  'suppliers', 
+  'products', 
+  'reports', 
+  'stock_outs', 
+  'near_expired', 
+  'settings', 
+  'chat_users', 
+  'messages'
+] as const;
 export type RequiredTableName = typeof REQUIRED_TABLES[number];
 
 export interface TableStatusDetail {
@@ -33,15 +42,27 @@ export const TABLE_METADATA: Record<RequiredTableName, { label: string; descript
   },
   reports: {
     label: 'Laporan Harian & Order',
-    description: 'Laporan stok harian, status order, dan barang datang'
+    description: 'Laporan stok harian, status order, barang datang, & ceklis'
   },
   stock_outs: {
     label: 'Barang Keluar (Pengeluaran)',
     description: 'Riwayat pengeluaran barang dan pengurangan stok'
   },
+  near_expired: {
+    label: 'Rekap Produk Expired Dekat',
+    description: 'Mencatat produk mendekati kedaluwarsa, no batch, expired, dan estimasi supplier'
+  },
   settings: {
     label: 'Pengaturan Aplikasi',
     description: 'Konfigurasi tema, auto-delete, dan preferensi'
+  },
+  chat_users: {
+    label: 'Pengguna Chat Realtime',
+    description: 'Kehadiran aktif dan identitas kolaborasi tim'
+  },
+  messages: {
+    label: 'Pesan Chat Kolaborasi',
+    description: 'Pesan koordinasi dan catatan instan antar staf'
   }
 };
 
@@ -104,7 +125,13 @@ export const subscribeToCollection = (
         if (!store) return callback([]);
         const keys = await store.keys();
         const items = await Promise.all(keys.map(k => store.getItem(k)));
-        callback(items.filter((item: any) => item && !String(item.id || '').startsWith('_')));
+        const mapped = items.map((item: any) => ({
+          ...item,
+          isChecked: Boolean(item?.isChecked !== undefined ? item?.isChecked : item?.ischecked),
+          checkedAt: item?.checkedAt || item?.checkedat || null,
+          checkedBy: item?.checkedBy || item?.checkedby || null
+        })).filter((item: any) => item && !String(item.id || '').startsWith('_'));
+        callback(mapped);
       } catch (e) {
         console.error(`[LocalDB] Error reading ${collectionName}:`, e);
         callback([]);
@@ -128,7 +155,13 @@ export const subscribeToCollection = (
         const { data, error } = await supabase.from(collectionName).select('*');
         if (!isSubscribed) return;
         if (!error && data) {
-          callback(data.filter((item: any) => item && !String(item.id || '').startsWith('_')));
+          const mapped = data.map((item: any) => ({
+            ...item,
+            isChecked: Boolean(item.isChecked !== undefined ? item.isChecked : item.ischecked),
+            checkedAt: item.checkedAt || item.checkedat || null,
+            checkedBy: item.checkedBy || item.checkedby || null
+          })).filter((item: any) => item && !String(item.id || '').startsWith('_'));
+          callback(mapped);
         } else if (error) {
           // Table doesn't exist yet in Supabase or schema error
           if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
@@ -191,7 +224,16 @@ export const subscribeToCollection = (
   }
   return onSnapshot(colRef as any, (snapshot: any) => {
     const docs = snapshot.docs
-      .map((d: any) => ({ id: d.id, ...d.data() }))
+      .map((d: any) => {
+        const raw = d.data() || {};
+        return {
+          ...raw,
+          id: d.id,
+          isChecked: Boolean(raw.isChecked !== undefined ? raw.isChecked : raw.ischecked),
+          checkedAt: raw.checkedAt || raw.checkedat || null,
+          checkedBy: raw.checkedBy || raw.checkedby || null
+        };
+      })
       .filter((item: any) => item && !String(item.id || '').startsWith('_'));
     callback(docs);
   }, (err) => {
@@ -204,8 +246,8 @@ export const addRecord = async (collectionName: string, data: any) => {
   const provider = getDbProvider();
 
   if (provider === 'local') {
-    const id = generateId();
-    const record = { id, ...data };
+    const id = data.id || generateId();
+    const record = { ...data, id };
     await localDb[collectionName as keyof typeof localDb].setItem(id, record);
     notifyLocalChange(collectionName);
     return id;
@@ -249,9 +291,14 @@ export const updateRecord = async (collectionName: string, id: string, data: any
   const provider = getDbProvider();
 
   if (provider === 'local') {
-    const existing: any = await localDb[collectionName as keyof typeof localDb].getItem(id);
-    if (existing) {
-      await localDb[collectionName as keyof typeof localDb].setItem(id, { ...existing, ...data });
+    const store = localDb[collectionName as keyof typeof localDb];
+    if (store) {
+      const existing: any = await store.getItem(id);
+      if (existing) {
+        await store.setItem(id, { ...existing, ...data });
+      } else {
+        await store.setItem(id, { id, ...data });
+      }
       notifyLocalChange(collectionName);
     }
     return;
@@ -370,7 +417,7 @@ export const executeBatch = async (
       const chunk = otherOps.slice(i, i + CHUNK_SIZE);
       await Promise.all(chunk.map(op => {
         if (op.type === 'update') {
-          return supabase.from(op.collection).update(op.data).eq('id', op.id);
+          return supabase.from(op.collection).upsert({ id: op.id, ...op.data });
         } else if (op.type === 'set') {
           return supabase.from(op.collection).upsert({ id: op.id, ...op.data });
         }
@@ -432,17 +479,23 @@ export const ensureFirebaseCollections = async (): Promise<{
     try {
       if (table === 'settings') {
         const settingsRef = doc(db, 'settings', 'public');
-        await setDoc(settingsRef, {
-          id: 'public',
-          autoDeleteMode: 'none',
-          navbarPosition: 'bottom',
-          theme: 'green',
-          dbProvider: 'firebase',
-          initializedAt: Date.now(),
-          updatedAt: Date.now(),
-          isSystemConfig: true
-        }, { merge: true });
-        created.push('settings');
+        const snap = await getDoc(settingsRef);
+        if (!snap.exists()) {
+          await setDoc(settingsRef, {
+            id: 'public',
+            autoDeleteMode: 'none',
+            autoDeleteDays: 3,
+            navbarPosition: 'bottom',
+            theme: 'green',
+            dbProvider: 'firebase',
+            initializedAt: Date.now(),
+            updatedAt: Date.now(),
+            isSystemConfig: true
+          });
+          created.push('settings');
+        } else {
+          skipped.push('settings');
+        }
       } else {
         // Buat dokumen skema eksplisit agar koleksi langsung terdaftar di Google Cloud/Firebase Console
         const schemaRef = doc(db, table, '_schema');
@@ -467,7 +520,7 @@ export const ensureFirebaseCollections = async (): Promise<{
     created,
     skipped,
     details: skipped.length === 0
-      ? `Semua 5 tabel Firestore (${created.join(', ')}) berhasil dibuat dan aktif.`
+      ? `Semua ${REQUIRED_TABLES.length} tabel Firestore (${created.join(', ')}) berhasil dibuat dan aktif.`
       : `${created.length} tabel dibuat, ${skipped.length} dilewati.`
   };
 };
@@ -499,7 +552,7 @@ export const ensureLocalDbStores = async (): Promise<{
   }
   return {
     created,
-    details: `Semua 5 tabel lokal IndexedDB (${created.join(', ')}) siap digunakan.`
+    details: `Semua ${REQUIRED_TABLES.length} tabel lokal IndexedDB (${created.join(', ')}) siap digunakan.`
   };
 };
 
@@ -544,7 +597,7 @@ export const ensureSupabaseTables = async (): Promise<{
     created,
     missing,
     details: missing.length === 0
-      ? `Semua 5 tabel Supabase sudah lengkap (${created.join(', ')}).`
+      ? `Semua ${REQUIRED_TABLES.length} tabel Supabase sudah lengkap (${created.join(', ')}).`
       : `Terdapat ${missing.length} tabel belum dibuat (${missing.join(', ')}). Buka Pengaturan untuk menjalankan Setup SQL.`
   };
 };
@@ -677,7 +730,13 @@ export const checkDatabaseTablesStatus = async (targetProvider?: DbProvider): Pr
         exists = snap.exists();
       } else {
         const schemaSnap = await getDoc(doc(db, name, '_schema'));
-        exists = schemaSnap.exists();
+        if (schemaSnap.exists()) {
+          exists = true;
+        } else {
+          // Check if at least 1 real record exists in this collection
+          const sampleSnap = await getDocs(query(collection(db, name), limit(1)));
+          exists = !sampleSnap.empty;
+        }
       }
     } catch {
       // If permission or quota issue, assume checking failed
@@ -697,7 +756,151 @@ export const checkDatabaseTablesStatus = async (targetProvider?: DbProvider): Pr
     provider: 'firebase',
     tables,
     allReady,
-    message: allReady ? 'Semua 5 koleksi/tabel Firestore siap digunakan.' : 'Beberapa tabel belum dibuat di Firestore.'
+    message: allReady ? `Semua ${REQUIRED_TABLES.length} koleksi/tabel Firestore siap digunakan.` : 'Beberapa tabel belum dibuat di Firestore.'
   };
+};
+
+/**
+ * Berlangganan perubahan pengaturan pembersih data secara real-time antar semua perangkat.
+ * Menggunakan direct document listener pada Firestore 'settings/public' dan Supabase realtime.
+ */
+export const subscribeToSettings = (
+  callback: (settings: { autoDeleteMode?: AutoDeleteMode; autoDeleteDays?: number; theme?: string }) => void
+): (() => void) => {
+  const unsubscribers: (() => void)[] = [];
+
+  // 1. Direct Firestore realtime listener on 'settings/public'
+  try {
+    const settingsDocRef = doc(db, 'settings', 'public');
+    const unsubFirestore = onSnapshot(settingsDocRef, (docSnap) => {
+      const exists = typeof docSnap.exists === 'function' ? docSnap.exists() : Boolean(docSnap.exists);
+      if (exists) {
+        const data = docSnap.data();
+        if (data) {
+          callback({
+            autoDeleteMode: data.autoDeleteMode as AutoDeleteMode,
+            autoDeleteDays: data.autoDeleteDays !== undefined ? Number(data.autoDeleteDays) : undefined,
+            theme: data.theme
+          });
+        }
+      }
+    }, (err) => {
+      console.warn('[Firestore Settings Listener] Notice:', err?.message || err);
+    });
+    unsubscribers.push(unsubFirestore);
+  } catch (e) {
+    console.warn('[Firestore Settings Setup] Notice:', e);
+  }
+
+  // 2. Supabase realtime listener (if active)
+  if (isSupabaseDb()) {
+    try {
+      const supabase = getSupabaseClient();
+      const channelId = `realtime_settings_${Math.random().toString(36).substring(2, 8)}`;
+      const channel = supabase
+        .channel(channelId)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'settings' },
+          async () => {
+            try {
+              const { data } = await supabase.from('settings').select('*').eq('id', 'public').maybeSingle();
+              if (data) {
+                callback({
+                  autoDeleteMode: data.autoDeleteMode as AutoDeleteMode,
+                  autoDeleteDays: data.autoDeleteDays !== undefined ? Number(data.autoDeleteDays) : undefined,
+                  theme: data.theme
+                });
+              }
+            } catch {}
+          }
+        )
+        .subscribe();
+      unsubscribers.push(() => {
+        supabase.removeChannel(channel).catch(() => {});
+      });
+    } catch (e) {
+      console.warn('[Supabase Settings Listener] Notice:', e);
+    }
+  }
+
+  // 3. Local BroadcastChannel for instant cross-tab / cross-window sync on the same device
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const bc = new BroadcastChannel('dailyreport_settings_sync');
+      bc.onmessage = (event) => {
+        if (event.data) {
+          callback(event.data);
+        }
+      };
+      unsubscribers.push(() => {
+        bc.close();
+      });
+    }
+  } catch {}
+
+  return () => {
+    unsubscribers.forEach(unsub => {
+      try { unsub(); } catch {}
+    });
+  };
+};
+
+/**
+ * Menyinkronkan perubahan pengaturan pembersih data ke seluruh database cloud (Firestore & Supabase)
+ * dan broadcast local sehingga perangkat lain langsung mengikuti secara real-time.
+ */
+export const syncSettingsToCloud = async (
+  newSettings: { autoDeleteMode?: AutoDeleteMode; autoDeleteDays?: number; theme?: string }
+): Promise<void> => {
+  const payload: Record<string, any> = {
+    id: 'public',
+    updatedAt: Date.now()
+  };
+  if (newSettings.autoDeleteMode !== undefined) {
+    payload.autoDeleteMode = newSettings.autoDeleteMode;
+  }
+  if (newSettings.autoDeleteDays !== undefined) {
+    payload.autoDeleteDays = Number(newSettings.autoDeleteDays);
+  }
+  if (newSettings.theme !== undefined) {
+    payload.theme = newSettings.theme;
+  }
+
+  // 1. Broadcast ke tab lokal pada perangkat yang sama
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const bc = new BroadcastChannel('dailyreport_settings_sync');
+      bc.postMessage(payload);
+      bc.close();
+    }
+  } catch {}
+
+  // 2. Selalu simpan ke Google Cloud Firestore (basis database cloud utama)
+  try {
+    const clean = sanitizeForFirestore(payload);
+    await setDoc(doc(db, 'settings', 'public'), clean, { merge: true });
+  } catch (err: any) {
+    console.warn('[Cloud Sync Firestore] Notice:', err?.message || err);
+  }
+
+  // 3. Simpan juga ke Supabase jika instance Supabase aktif
+  try {
+    const supabase = getSupabaseClient();
+    await supabase.from('settings').upsert({
+      id: 'public',
+      ...payload
+    });
+  } catch {}
+
+  // 4. Update local IndexedDB
+  try {
+    const store = localDb.settings;
+    if (store) {
+      const existing: any = await store.getItem('public');
+      await store.setItem('public', { ...(existing || {}), ...payload });
+      notifyLocalChange('settings');
+    }
+  } catch {}
 };
 

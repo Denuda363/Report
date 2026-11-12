@@ -1,11 +1,26 @@
 import React, { useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
-import { format, parseISO, subDays } from 'date-fns';
-import { TrendingUp, Package, Users, Activity, Archive } from 'lucide-react';
+import { format, parseISO, subDays, differenceInDays, isValid, startOfDay } from 'date-fns';
+import { TrendingUp, Package, Users, Activity, Archive, CalendarClock, AlertTriangle } from 'lucide-react';
 
 export const Dashboard = () => {
-  const { reports, products, suppliers } = useAppContext();
+  const { reports, products, suppliers, nearExpiredList } = useAppContext();
+
+  // Near Expired critical alert (< 30 days or already expired)
+  const urgentExpiredItems = useMemo(() => {
+    const today = startOfDay(new Date());
+    return (nearExpiredList || []).filter(item => {
+      if (item.status === 'resolved' || item.status === 'returned') return false;
+      try {
+        const exp = startOfDay(parseISO(item.expiredDate));
+        if (!isValid(exp)) return false;
+        return differenceInDays(exp, today) <= 30;
+      } catch {
+        return false;
+      }
+    });
+  }, [nearExpiredList]);
 
   // Aggregate stats
   const totalProductsSold = useMemo(() => reports.reduce((sum, r) => sum + r.quantity, 0), [reports]);
@@ -59,6 +74,28 @@ export const Dashboard = () => {
 
   return (
     <div className="space-y-4 h-full flex flex-col">
+      {/* Urgent Near-Expired Alert Banner */}
+      {urgentExpiredItems.length > 0 && (
+        <div className="bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs animate-pulse">
+              <CalendarClock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-rose-950">
+                Peringatan: {urgentExpiredItems.length} Produk Mendekati / Melewati Tanggal Expired (&lt; 30 Hari)!
+              </h4>
+              <p className="text-[11px] sm:text-xs text-rose-700 mt-0.5">
+                Segera periksa menu <strong>Expired Dekat</strong> untuk memprioritaskan penjualan, retur ke vendor, atau tindakan penanganan.
+              </p>
+            </div>
+          </div>
+          <span className="hidden sm:inline-block px-3 py-1 rounded-xl bg-rose-600 text-white text-xs font-bold shrink-0">
+            {urgentExpiredItems.length} Item Kritis
+          </span>
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
         {stats.map((stat, i) => (

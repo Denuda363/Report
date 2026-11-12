@@ -24,6 +24,7 @@ export const exportReportsToPdf = (
       Quantity: report.quantity,
       'Sudah Order': report.isOrdered ? '✓' : '-',
       'Sudah Datang': report.isArrived ? '✓' : '-',
+      'Sudah Dicek': report.isChecked ? '✓' : '-',
       'Kosong Pabrik': isKosongPabrik ? '✓' : '-',
       'Order Ulang': report.isReorder ? `✓ (${report.reorderQty})` : '-',
       isKosongPabrik,
@@ -67,12 +68,13 @@ export const exportReportsToPdf = (
       item.Unit,
       item['Sudah Order'],
       item['Sudah Datang'],
+      item['Sudah Dicek'],
       item['Order Ulang']
     ]);
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Tanggal', 'Nama Produk', 'Kuantitas', 'Satuan', 'Sudah Order', 'Sudah Datang', 'Order Ulang']],
+      head: [['Tanggal', 'Nama Produk', 'Kuantitas', 'Satuan', 'Sudah Order', 'Sudah Datang', 'Sudah Dicek', 'Order Ulang']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [139, 157, 119] },
@@ -126,6 +128,40 @@ export const exportReportsToPdf = (
       headStyles: { fillColor: [225, 29, 72] },
       margin: { left: 14, right: 14 },
     });
+  }
+
+  // Deduplicate products with qty 0: item yang sama terinput berulang tetap dihitung 1
+  // Jika pada report stok 0 namun masuk dalam barang datang (arrived), jangan dihitung stok 0
+  const arrivedProductNames = new Set<string>();
+  reports.forEach(r => {
+    if (r.isArrived || r.isArrivedOnly) {
+      const prod = products.find(p => p.id === r.productId);
+      const name = (prod?.name || '').trim().toLowerCase();
+      if (name) arrivedProductNames.add(name);
+    }
+  });
+
+  const zeroQtyProductSet = new Set<string>();
+  normalItems.forEach(item => {
+    if (Number(item.Quantity) === 0) {
+      const cleanName = (item.Product || '').trim().toLowerCase();
+      const isArrived = item['Sudah Datang'] === '[✓ Sudah Datang]' || arrivedProductNames.has(cleanName);
+      if (cleanName && !isArrived) zeroQtyProductSet.add(cleanName);
+    }
+  });
+  const zeroQtyCount = zeroQtyProductSet.size;
+
+  const lastTableY = (doc as any).lastAutoTable?.finalY;
+  const noteY = lastTableY ? lastTableY + 12 : currentY + 10;
+  if (noteY > 270) {
+    doc.addPage();
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Produk Stok Kosong : ${zeroQtyCount} Item`, 14, 20);
+  } else {
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Produk Stok Kosong : ${zeroQtyCount} Item`, 14, noteY);
   }
 
   doc.save(`${filename}.pdf`);
