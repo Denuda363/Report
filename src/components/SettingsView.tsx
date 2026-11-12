@@ -20,7 +20,7 @@ import { UserGuide } from './UserGuide';
 
 export interface SettingsViewProps {
   onNavigateTab?: (tab: 'dashboard' | 'master' | 'report' | 'arrived' | 'stockout' | 'kosong' | 'lowstock' | 'settings') => void;
-  defaultSubTab?: 'config' | 'guide';
+  defaultSubTab?: 'config' | 'guide' | 'about';
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defaultSubTab = 'config' }) => {
@@ -31,7 +31,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
     reports, cleanOldReportsNow
   } = useAppContext();
   
-  const [activeSubTab, setActiveSubTab] = useState<'config' | 'guide'>(defaultSubTab);
+  const [activeSubTab, setActiveSubTab] = useState<'config' | 'guide' | 'about'>(defaultSubTab);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Copyright & Developer states
@@ -321,6 +321,240 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
 
   const activeProvider = dbProvider || getDbProvider();
 
+  const renderAboutCard = () => (
+    <div id="section-tentang-aplikasi" className="bg-white rounded-[2.5rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8 relative">
+      {/* Background ambient accents */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-100/40 via-theme-100/30 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-theme-100/40 to-transparent rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
+
+      <div className="relative z-10">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-neutral-100 mb-8">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
+              <Award className="w-7 h-7" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xl md:text-2xl font-black text-theme-900 tracking-tight">
+                  Tentang Aplikasi & Hak Cipta
+                </h3>
+                {/* APPLICATION VERSION BADGE PROMINENT */}
+                <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                  Versi Aplikasi: v3.2.0 Pro Edition
+                </span>
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-neutral-100 text-neutral-700 border border-neutral-200">
+                  Build 2026.11.12 (Stable)
+                </span>
+              </div>
+              <p className="text-xs md:text-sm text-theme-600-text mt-1 font-medium">
+                Informasi resmi profil pengembang (Developer), sertifikat hak cipta, dan spesifikasi arsitektur aplikasi.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleCopyCopyright}
+              className="px-3.5 py-2 text-xs font-bold rounded-xl border border-neutral-200 hover:border-emerald-300 bg-white hover:bg-emerald-50 text-neutral-700 hover:text-emerald-800 transition-all shadow-xs flex items-center gap-2 active:scale-95"
+              title="Salin ringkasan hak cipta & developer"
+            >
+              {isCopiedCopyright ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-neutral-500" />}
+              <span>{isCopiedCopyright ? 'Info Berhasil Disalin!' : 'Salin Info Pengembang'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 3 Main Grid Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+          {/* CARD 1: DEVELOPER APLIKASI (DENUDA) */}
+          <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border-2 border-emerald-500/30 p-6 flex flex-col justify-between shadow-xs hover:border-emerald-500/60 transition-all relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
+            
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-600" />
+                  Developer Aplikasi
+                </span>
+                <span className="text-xs font-semibold text-neutral-400">Pencipta Resmi</span>
+              </div>
+
+              <div className="flex items-center gap-3.5 mb-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-neutral-900 via-emerald-950 to-neutral-900 text-emerald-400 border-2 border-emerald-400/40 font-black text-xl flex items-center justify-center shadow-md shadow-emerald-900/10 shrink-0">
+                  DN
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xl font-black text-neutral-950 tracking-tight">Denuda</h4>
+                    <BadgeCheck className="w-5 h-5 text-emerald-600 fill-emerald-100 shrink-0" />
+                  </div>
+                  <p className="text-xs font-bold text-emerald-700">Lead Developer & Software Creator</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-neutral-600 font-medium leading-relaxed mb-4">
+                Aplikasi ini dirancang, diprogram, dan dikembangkan secara penuh oleh <strong className="text-neutral-900 font-bold">Denuda</strong> sebagai solusi manajemen operasional toko dan gudang yang cepat, presisi, serta terhubung antarperangkat secara real-time.
+              </p>
+
+              <div className="space-y-1.5 pt-3 border-t border-neutral-200/60 text-xs">
+                <div className="flex items-center gap-2 text-neutral-700 font-medium">
+                  <Code2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Arsitek Kode & Desain Sistem</span>
+                </div>
+                <div className="flex items-center gap-2 text-neutral-700 font-medium">
+                  <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Spesialis Database Real-Time & Cloud</span>
+                </div>
+                <div className="flex items-center gap-2 text-neutral-700 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Dedikasi Optimalisasi Operasional</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] font-semibold text-emerald-800">
+              <span>Pengembang: <strong>Denuda</strong></span>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] uppercase font-bold">Original Author</span>
+            </div>
+          </div>
+
+          {/* CARD 2: HAK CIPTA APLIKASI */}
+          <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border border-neutral-200 p-6 flex flex-col justify-between shadow-xs hover:border-theme-300 transition-all relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-28 h-28 bg-theme-400/10 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
+
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-theme-100 text-theme-900 border border-theme-200 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-theme-600" />
+                  Hak Cipta Aplikasi
+                </span>
+                <span className="text-xs font-semibold text-neutral-400">Legal Notice</span>
+              </div>
+
+              <div className="flex items-center gap-3.5 mb-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-theme-800 to-neutral-900 text-white flex items-center justify-center shadow-md shadow-neutral-900/10 shrink-0">
+                  <Copyright className="w-7 h-7 text-theme-200" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-black text-neutral-950 tracking-tight leading-snug">
+                    © 2024 - 2026 Denuda
+                  </h4>
+                  <p className="text-xs font-bold text-theme-700">Seluruh Hak Cipta Dilindungi</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-neutral-600 font-medium leading-relaxed mb-4">
+                Seluruh arsitektur kode sumber, modul antarmuka pengguna (UI/UX), tata kelola basis data, dan fitur inovatif aplikasi ini merupakan karya cipta intelektual yang dilindungi undang-undang atas nama <strong className="text-neutral-900 font-bold">Denuda</strong>.
+              </p>
+
+              <div className="p-3 rounded-xl bg-theme-50/70 border border-theme-100 text-xs text-theme-900 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <ShieldCheck className="w-3.5 h-3.5 text-theme-600 shrink-0" />
+                  <span>Lisensi Perangkat Lunak:</span>
+                </div>
+                <p className="text-[11px] text-theme-700 font-medium">
+                  Hak kepemilikan penuh dan lisensi eksklusif terdaftar resmi pada pengembang <strong>Denuda</strong> (All Rights Reserved).
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] font-semibold text-neutral-600">
+              <span>Status: <strong>Resmi & Dilindungi</strong></span>
+              <span className="text-[10px] text-theme-600 font-mono">ID: DRP-DENUDA-2026</span>
+            </div>
+          </div>
+
+          {/* CARD 3: TENTANG APLIKASI & SPESIFIKASI */}
+          <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border border-neutral-200 p-6 flex flex-col justify-between shadow-xs hover:border-neutral-300 transition-all md:col-span-2 lg:col-span-1">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-neutral-200/80 text-neutral-800 flex items-center gap-1">
+                  <Info className="w-3 h-3 text-neutral-600" />
+                  Spesifikasi Aplikasi
+                </span>
+                <span className="text-xs font-mono font-black text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md border border-emerald-300">
+                  v3.2.0 Pro
+                </span>
+              </div>
+
+              <div className="mb-4">
+                <h4 className="text-lg font-black text-neutral-950 tracking-tight">Daily Report Pro</h4>
+                <p className="text-xs text-neutral-500 font-medium mt-0.5">
+                  Sistem Rekap Laporan Stok, Barang Datang & Expired
+                </p>
+              </div>
+
+              <div className="space-y-2.5 text-xs">
+                <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
+                  <span className="text-neutral-500 font-medium">Versi Aplikasi</span>
+                  <span className="font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                    v3.2.0 Pro Edition
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
+                  <span className="text-neutral-500 font-medium">Pengembang (Developer)</span>
+                  <span className="font-black text-neutral-900 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200">
+                    Denuda
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
+                  <span className="text-neutral-500 font-medium">Arsitektur Aplikasi</span>
+                  <span className="font-bold text-neutral-800">Progressive Web App (PWA)</span>
+                </div>
+
+                <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
+                  <span className="text-neutral-500 font-medium">Database Aktif</span>
+                  <span className="font-bold text-neutral-800">
+                    {activeProvider === 'supabase' ? 'Supabase PostgreSQL' : activeProvider === 'firebase' ? 'Google Cloud Firestore' : 'IndexedDB Lokal'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
+                  <span className="text-neutral-500 font-medium">Dukungan Multi-Perangkat</span>
+                  <span className="font-bold text-emerald-700 flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Real-time Sinkron
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-1.5">
+                  <span className="text-neutral-500 font-medium">Teknologi</span>
+                  <span className="font-mono text-[11px] text-neutral-700">React 19 + TypeScript + Tailwind</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] text-neutral-500 font-medium">
+              <span>Kesiapan Offline</span>
+              <span className="font-bold text-emerald-700">Aktif (IndexedDB Failover)</span>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Bottom Dedicated Credit Banner */}
+        <div className="mt-8 pt-6 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-500 font-medium">
+          <div className="flex items-center gap-2">
+            <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
+            <span>
+              Dibuat dan dipersembahkan dengan dedikasi tinggi oleh <strong className="text-neutral-900 font-bold">Denuda</strong> untuk kemudahan operasional harian Anda.
+            </span>
+          </div>
+          <div className="flex items-center gap-3 shrink-0 text-[11px]">
+            <span>Hak Cipta © 2024 - 2026 <strong>Denuda</strong></span>
+            <span className="text-neutral-300">•</span>
+            <span>All Rights Reserved</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="h-full flex flex-col gap-6 pb-12 max-w-5xl mx-auto w-full">
       {/* Settings Top Header with Tabs */}
@@ -331,10 +565,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex items-center p-1.5 bg-neutral-100 rounded-2xl border border-neutral-200/80 shrink-0 self-start sm:self-auto">
+        <div className="flex items-center p-1.5 bg-neutral-100 rounded-2xl border border-neutral-200/80 shrink-0 self-start sm:self-auto flex-wrap gap-1">
           <button
             onClick={() => setActiveSubTab('config')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
               activeSubTab === 'config'
                 ? 'bg-white text-theme-900 shadow-sm'
                 : 'text-neutral-600 hover:text-neutral-900'
@@ -346,7 +580,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
 
           <button
             onClick={() => setActiveSubTab('guide')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all relative ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all relative ${
               activeSubTab === 'guide'
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-neutral-600 hover:text-neutral-900'
@@ -360,39 +594,177 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
               Animasi
             </span>
           </button>
+
+          <button
+            onClick={() => setActiveSubTab('about')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all relative ${
+              activeSubTab === 'about'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <Award className="w-3.5 h-3.5" />
+            <span>Tentang Aplikasi</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide ${
+              activeSubTab === 'about' ? 'bg-white text-emerald-900' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              v3.2.0
+            </span>
+          </button>
         </div>
       </div>
 
-      {/* View Content: Guide vs Config */}
+      {/* View Content: Guide vs About vs Config */}
       {activeSubTab === 'guide' ? (
         <UserGuide onNavigateTab={onNavigateTab} isEmbedded />
+      ) : activeSubTab === 'about' ? (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Quick Sub-navigation bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-neutral-50 p-4 rounded-2xl border border-neutral-200/80">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-neutral-500 mr-1">Navigasi Tab:</span>
+              <button
+                onClick={() => setActiveSubTab('config')}
+                className="px-3 py-1.5 bg-white border border-neutral-300 hover:border-theme-400 hover:bg-theme-50 text-xs font-bold rounded-xl text-neutral-700 transition-all flex items-center gap-1.5 shadow-2xs"
+              >
+                <Settings className="w-3.5 h-3.5 text-theme-600" />
+                <span>Buka Konfigurasi Sistem</span>
+              </button>
+              <button
+                onClick={() => setActiveSubTab('guide')}
+                className="px-3 py-1.5 bg-white border border-neutral-300 hover:border-emerald-400 hover:bg-emerald-50 text-xs font-bold rounded-xl text-neutral-700 transition-all flex items-center gap-1.5 shadow-2xs"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Buka Panduan Lengkap</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-emerald-800 bg-emerald-100 px-3 py-1 rounded-xl border border-emerald-300 flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-emerald-600" />
+                Versi Aplikasi: v3.2.0 Pro
+              </span>
+            </div>
+          </div>
+
+          {renderAboutCard()}
+        </div>
       ) : (
         <div className="space-y-8">
-          {/* Animated User Guide Launcher Banner */}
-          <div className="relative bg-gradient-to-r from-theme-800 via-theme-900 to-neutral-900 rounded-[2rem] p-6 text-white shadow-lg overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 border border-theme-700/50">
-            <div className="flex items-center gap-4 relative z-10">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shrink-0 shadow-inner">
-                <BookOpen className="w-7 h-7" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 animate-pulse" /> Panduan Interaktif & Animasi
-                  </span>
+          {/* Top Quick Launcher Banners (Tentang Aplikasi Launcher & Panduan) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 1. TENTANG APLIKASI LAUNCHER (MENAMPILKAN VERSI APLIKASI INI & DEVELOPER DENUDA) */}
+            <div className="relative bg-gradient-to-br from-neutral-900 via-theme-950 to-neutral-900 rounded-[2rem] p-5 sm:p-6 text-white shadow-md overflow-hidden flex flex-col justify-between border border-theme-700/50 group">
+              <div className="absolute top-0 right-0 w-44 h-44 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
+              
+              <div className="relative z-10">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400">
+                      Tentang Aplikasi Launcher
+                    </span>
+                  </div>
+
+                  {/* PROMINENT APPLICATION VERSION BADGE */}
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 shadow-inner">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                    <span className="text-xs font-black tracking-wide">Versi Aplikasi: v3.2.0 Pro</span>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-white">Panduan Lengkap Cara Penggunaan</h3>
-                <p className="text-xs text-neutral-300 mt-0.5 max-w-xl">
-                  Pelajari alur input antrean kilat, otomatisasi checklist barang datang, ekspor rekap, hingga simulasi fitur hidup dengan animasi interaktif.
+
+                <div className="flex items-start gap-3.5 mb-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shrink-0 shadow-md shadow-emerald-900/30">
+                    <Award className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
+                      <span>Daily Report Pro</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-emerald-300 border border-emerald-400/30">
+                        Build 2026.11.12
+                      </span>
+                    </h3>
+                    <p className="text-xs text-neutral-300 font-medium mt-0.5">
+                      Developer: <strong className="text-emerald-400 font-bold">Denuda</strong> • Hak Cipta © 2024 - 2026 Denuda
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-neutral-300/90 leading-relaxed mb-4">
+                  Sistem rekap laporan stok harian, checklist barang datang kilat, kontrol expired dekat, & manajemen data multi-perangkat.
                 </p>
               </div>
+
+              <div className="relative z-10 pt-3 border-t border-white/10 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2 text-[11px] text-neutral-300 font-medium">
+                  <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Karya Resmi <strong>Denuda</strong></span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('section-tentang-aplikasi');
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth' });
+                    } else {
+                      setActiveSubTab('about');
+                    }
+                  }}
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 shrink-0"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                  <span>Buka Tentang Aplikasi</span>
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => setActiveSubTab('guide')}
-              className="relative z-10 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 shrink-0"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Buka Panduan Lengkap</span>
-            </button>
+
+            {/* 2. PANDUAN LENGKAP LAUNCHER BANNER */}
+            <div className="relative bg-gradient-to-br from-theme-900 via-neutral-900 to-neutral-900 rounded-[2rem] p-5 sm:p-6 text-white shadow-md overflow-hidden flex flex-col justify-between border border-theme-700/50 group">
+              <div className="absolute top-0 right-0 w-44 h-44 bg-teal-500/10 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
+
+              <div className="relative z-10">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse" />
+                    <span className="text-[11px] font-black uppercase tracking-wider text-teal-400">
+                      Panduan Interaktif & Animasi
+                    </span>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-500/20 text-teal-300 border border-teal-400/30">
+                    Animasi & Simulasi
+                  </span>
+                </div>
+
+                <div className="flex items-start gap-3.5 mb-3">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-teal-400 shrink-0 shadow-inner">
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">Panduan Cara Penggunaan</h3>
+                    <p className="text-xs text-neutral-300 font-medium mt-0.5">
+                      Pelajari alur antrean kilat, otomatisasi checklist, dan simulasi demo.
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-neutral-300/90 leading-relaxed mb-4">
+                  Panduan visual langkah-demi-langkah dilengkapi animasi alur kerja untuk mempercepat adaptasi tim operasional.
+                </p>
+              </div>
+
+              <div className="relative z-10 pt-3 border-t border-white/10 flex items-center justify-between gap-3 flex-wrap">
+                <span className="text-[11px] text-neutral-300 font-medium">Tersedia 6 Modul Lengkap</span>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('guide')}
+                  className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-neutral-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 shrink-0"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>Buka Panduan Lengkap</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -1328,224 +1700,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
       </div>
 
       {/* TENTANG APLIKASI, DEVELOPER & HAK CIPTA */}
-      <div className="bg-white rounded-[2.5rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8 relative">
-        {/* Background ambient accents */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-100/40 via-theme-100/30 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-        <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-theme-100/40 to-transparent rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
-
-        <div className="relative z-10">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-neutral-100 mb-8">
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
-                <Award className="w-7 h-7" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-xl md:text-2xl font-black text-theme-900 tracking-tight">
-                    Tentang Aplikasi & Hak Cipta
-                  </h3>
-                  <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                    <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    Versi Resmi Terverifikasi
-                  </span>
-                </div>
-                <p className="text-xs md:text-sm text-theme-600-text mt-1 font-medium">
-                  Informasi resmi profil pengembang (Developer), sertifikat hak cipta, dan spesifikasi arsitektur aplikasi.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleCopyCopyright}
-                className="px-3.5 py-2 text-xs font-bold rounded-xl border border-neutral-200 hover:border-emerald-300 bg-white hover:bg-emerald-50 text-neutral-700 hover:text-emerald-800 transition-all shadow-xs flex items-center gap-2 active:scale-95"
-                title="Salin ringkasan hak cipta & developer"
-              >
-                {isCopiedCopyright ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-neutral-500" />}
-                <span>{isCopiedCopyright ? 'Info Berhasil Disalin!' : 'Salin Info Pengembang'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* 3 Main Grid Columns */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-            {/* CARD 1: DEVELOPER APLIKASI (DENUDA) */}
-            <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border-2 border-emerald-500/30 p-6 flex flex-col justify-between shadow-xs hover:border-emerald-500/60 transition-all relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
-              
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-emerald-600" />
-                    Developer Aplikasi
-                  </span>
-                  <span className="text-xs font-semibold text-neutral-400">Pencipta Resmi</span>
-                </div>
-
-                <div className="flex items-center gap-3.5 mb-4">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-neutral-900 via-emerald-950 to-neutral-900 text-emerald-400 border-2 border-emerald-400/40 font-black text-xl flex items-center justify-center shadow-md shadow-emerald-900/10 shrink-0">
-                    DN
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <h4 className="text-xl font-black text-neutral-950 tracking-tight">Denuda</h4>
-                      <BadgeCheck className="w-5 h-5 text-emerald-600 fill-emerald-100 shrink-0" />
-                    </div>
-                    <p className="text-xs font-bold text-emerald-700">Lead Developer & Software Creator</p>
-                  </div>
-                </div>
-
-                <p className="text-xs text-neutral-600 font-medium leading-relaxed mb-4">
-                  Aplikasi ini dirancang, diprogram, dan dikembangkan secara penuh oleh <strong className="text-neutral-900 font-bold">Denuda</strong> sebagai solusi manajemen operasional toko dan gudang yang cepat, presisi, serta terhubung antarperangkat secara real-time.
-                </p>
-
-                <div className="space-y-1.5 pt-3 border-t border-neutral-200/60 text-xs">
-                  <div className="flex items-center gap-2 text-neutral-700 font-medium">
-                    <Code2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Arsitek Kode & Desain Sistem</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-neutral-700 font-medium">
-                    <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Spesialis Database Real-Time & Cloud</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-neutral-700 font-medium">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Dedikasi Optimalisasi Operasional</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] font-semibold text-emerald-800">
-                <span>Pengembang: <strong>Denuda</strong></span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] uppercase font-bold">Original Author</span>
-              </div>
-            </div>
-
-            {/* CARD 2: HAK CIPTA APLIKASI */}
-            <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border border-neutral-200 p-6 flex flex-col justify-between shadow-xs hover:border-theme-300 transition-all relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-28 h-28 bg-theme-400/10 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
-
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-theme-100 text-theme-900 border border-theme-200 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-theme-600" />
-                    Hak Cipta Aplikasi
-                  </span>
-                  <span className="text-xs font-semibold text-neutral-400">Legal Notice</span>
-                </div>
-
-                <div className="flex items-center gap-3.5 mb-4">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-theme-800 to-neutral-900 text-white flex items-center justify-center shadow-md shadow-neutral-900/10 shrink-0">
-                    <Copyright className="w-7 h-7 text-theme-200" />
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-black text-neutral-950 tracking-tight leading-snug">
-                      © 2024 - 2026 Denuda
-                    </h4>
-                    <p className="text-xs font-bold text-theme-700">Seluruh Hak Cipta Dilindungi</p>
-                  </div>
-                </div>
-
-                <p className="text-xs text-neutral-600 font-medium leading-relaxed mb-4">
-                  Seluruh arsitektur kode sumber, modul antarmuka pengguna (UI/UX), tata kelola basis data, dan fitur inovatif aplikasi ini merupakan karya cipta intelektual yang dilindungi undang-undang atas nama <strong className="text-neutral-900 font-bold">Denuda</strong>.
-                </p>
-
-                <div className="p-3 rounded-xl bg-theme-50/70 border border-theme-100 text-xs text-theme-900 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <ShieldCheck className="w-3.5 h-3.5 text-theme-600 shrink-0" />
-                    <span>Lisensi Perangkat Lunak:</span>
-                  </div>
-                  <p className="text-[11px] text-theme-700 font-medium">
-                    Hak kepemilikan penuh dan lisensi eksklusif terdaftar resmi pada pengembang <strong>Denuda</strong> (All Rights Reserved).
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] font-semibold text-neutral-600">
-                <span>Status: <strong>Resmi & Dilindungi</strong></span>
-                <span className="text-[10px] text-theme-600 font-mono">ID: DRP-DENUDA-2026</span>
-              </div>
-            </div>
-
-            {/* CARD 3: TENTANG APLIKASI & SPESIFIKASI */}
-            <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border border-neutral-200 p-6 flex flex-col justify-between shadow-xs hover:border-neutral-300 transition-all md:col-span-2 lg:col-span-1">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-neutral-200/80 text-neutral-800 flex items-center gap-1">
-                    <Info className="w-3 h-3 text-neutral-600" />
-                    Spesifikasi Aplikasi
-                  </span>
-                  <span className="text-xs font-mono font-bold text-neutral-500">v3.2.0 Pro</span>
-                </div>
-
-                <div className="mb-4">
-                  <h4 className="text-lg font-black text-neutral-950 tracking-tight">Daily Report Pro</h4>
-                  <p className="text-xs text-neutral-500 font-medium mt-0.5">
-                    Sistem Rekap Laporan Stok, Barang Datang & Expired
-                  </p>
-                </div>
-
-                <div className="space-y-2.5 text-xs">
-                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
-                    <span className="text-neutral-500 font-medium">Pengembang (Developer)</span>
-                    <span className="font-black text-neutral-900 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200">
-                      Denuda
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
-                    <span className="text-neutral-500 font-medium">Arsitektur Aplikasi</span>
-                    <span className="font-bold text-neutral-800">Progressive Web App (PWA)</span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
-                    <span className="text-neutral-500 font-medium">Database Aktif</span>
-                    <span className="font-bold text-neutral-800">
-                      {activeProvider === 'supabase' ? 'Supabase PostgreSQL' : activeProvider === 'firebase' ? 'Google Cloud Firestore' : 'IndexedDB Lokal'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-100">
-                    <span className="text-neutral-500 font-medium">Dukungan Multi-Perangkat</span>
-                    <span className="font-bold text-emerald-700 flex items-center gap-1">
-                      <Check className="w-3 h-3" /> Real-time Sinkron
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-1.5">
-                    <span className="text-neutral-500 font-medium">Teknologi</span>
-                    <span className="font-mono text-[11px] text-neutral-700">React 19 + TypeScript + Tailwind</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] text-neutral-500 font-medium">
-                <span>Kesiapan Offline</span>
-                <span className="font-bold text-emerald-700">Aktif (IndexedDB Failover)</span>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Bottom Dedicated Credit Banner */}
-          <div className="mt-8 pt-6 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-500 font-medium">
-            <div className="flex items-center gap-2">
-              <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
-              <span>
-                Dibuat dan dipersembahkan dengan dedikasi tinggi oleh <strong className="text-neutral-900 font-bold">Denuda</strong> untuk kemudahan operasional harian Anda.
-              </span>
-            </div>
-            <div className="flex items-center gap-3 shrink-0 text-[11px]">
-              <span>Hak Cipta © 2024 - 2026 <strong>Denuda</strong></span>
-              <span className="text-neutral-300">•</span>
-              <span>All Rights Reserved</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      {renderAboutCard()}
     </div>
   )}
 </div>

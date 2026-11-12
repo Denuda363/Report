@@ -246,7 +246,7 @@ export const Layout = () => {
           </div>
           {!isDesktopSidebarCollapsed && (
             <div className="mt-2.5 text-center text-[10px] text-theme-600-text/80 font-medium">
-              Daily Report Pro © 2026 <strong className="text-theme-900 font-bold">Denuda</strong>
+              Daily Report Pro <span className="font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">v3.2.0</span> • © 2026 <strong className="text-theme-900 font-bold">Denuda</strong>
             </div>
           )}
         </div>
@@ -575,7 +575,9 @@ export const Layout = () => {
 
           {/* Sheet Footer */}
           <div className="p-3 border-t border-theme-200 bg-neutral-50 flex items-center justify-between text-xs text-neutral-600 shrink-0">
-            <span className="font-medium text-[11px]">Daily Report Pro · © 2026 Denuda</span>
+            <span className="font-medium text-[11px]">
+              Daily Report Pro <span className="font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">v3.2.0</span> · © 2026 Denuda
+            </span>
             <button
               onClick={() => {
                 setActiveTab('settings');
