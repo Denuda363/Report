@@ -103,4 +103,5 @@ export interface UserSettings {
   dbProvider?: DbProvider;
   supabaseUrl?: string;
   supabaseKey?: string;
+  dbPinHash?: string;
 }

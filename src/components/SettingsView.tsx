@@ -5,7 +5,8 @@ import {
   Database, Download, Upload, Server, Copy, Check, ExternalLink, 
   RefreshCw, AlertTriangle, ChevronDown, ChevronUp, Layers, CheckCircle, Flame,
   BookOpen, Sparkles, Play, Calendar, Clock, Minus, Plus, Info, ShieldCheck,
-  Code2, Copyright, Award, Heart, BadgeCheck, Laptop, Cpu
+  Code2, Copyright, Award, Heart, BadgeCheck, Laptop, Cpu,
+  Lock, KeyRound, Eye, EyeOff, X
 } from 'lucide-react';
 import { AutoDeleteMode, NavbarPosition, DbProvider } from '../types';
 import { 
@@ -15,8 +16,10 @@ import {
 import { getDbProvider, AllTablesStatusResult, TABLE_METADATA } from '../lib/dbAdapter';
 import { testFirebaseConnection, resetFirebaseQuotaStatus } from '../lib/firebase';
 import { getCleanupCutoffDate, formatDateIndo, AUTO_DELETE_PRESETS, getRetentionDays } from '../lib/cleanupUtils';
+import { verifyDatabasePin, hashUserPin, isValidPinFormat } from '../lib/pinSecurity';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { UserGuide } from './UserGuide';
+import { DbPinModal } from './common/DbPinModal';
 
 export interface SettingsViewProps {
   onNavigateTab?: (tab: 'dashboard' | 'master' | 'report' | 'arrived' | 'stockout' | 'kosong' | 'lowstock' | 'settings') => void;
@@ -41,6 +44,81 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
     navigator.clipboard.writeText(text);
     setIsCopiedCopyright(true);
     setTimeout(() => setIsCopiedCopyright(false), 3000);
+  };
+
+  // Database PIN security & hidden PIN change states
+  const [pendingProvider, setPendingProvider] = useState<DbProvider | null>(null);
+  const [showChangePinModal, setShowChangePinModal] = useState(false);
+  const [currentPinInput, setCurrentPinInput] = useState('');
+  const [newPinInput, setNewPinInput] = useState('');
+  const [confirmPinInput, setConfirmPinInput] = useState('');
+  const [showPinFields, setShowPinFields] = useState(false);
+  const [pinChangeError, setPinChangeError] = useState<string | null>(null);
+  const [pinChangeSuccess, setPinChangeSuccess] = useState<string | null>(null);
+  const [isSavingPin, setIsSavingPin] = useState(false);
+  const [secretTapCount, setSecretTapCount] = useState(0);
+
+  const openHiddenPinSettings = () => {
+    setCurrentPinInput('');
+    setNewPinInput('');
+    setConfirmPinInput('');
+    setShowPinFields(false);
+    setPinChangeError(null);
+    setPinChangeSuccess(null);
+    setShowChangePinModal(true);
+  };
+
+  const handleSecretIdTap = () => {
+    const next = secretTapCount + 1;
+    if (next >= 3) {
+      setSecretTapCount(0);
+      openHiddenPinSettings();
+    } else {
+      setSecretTapCount(next);
+      setTimeout(() => {
+        setSecretTapCount((prev) => (prev === next ? 0 : prev));
+      }, 2000);
+    }
+  };
+
+  const handleChangePinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinChangeError(null);
+    setPinChangeSuccess(null);
+
+    const checkCurrent = verifyDatabasePin(currentPinInput, settings.dbPinHash);
+    if (!checkCurrent.valid) {
+      setPinChangeError('PIN saat ini tidak sesuai.');
+      return;
+    }
+
+    if (!isValidPinFormat(newPinInput)) {
+      setPinChangeError('PIN baru harus berupa 4 hingga 8 digit angka.');
+      return;
+    }
+
+    if (newPinInput !== confirmPinInput) {
+      setPinChangeError('Konfirmasi PIN baru tidak cocok.');
+      return;
+    }
+
+    setIsSavingPin(true);
+    try {
+      const nextHash = hashUserPin(newPinInput);
+      await updateSettings({ ...settings, dbPinHash: nextHash });
+      setPinChangeSuccess('PIN keamanan database berhasil diperbarui dan disinkronkan.');
+      setCurrentPinInput('');
+      setNewPinInput('');
+      setConfirmPinInput('');
+      setTimeout(() => {
+        setShowChangePinModal(false);
+        setPinChangeSuccess(null);
+      }, 1200);
+    } catch (err: any) {
+      setPinChangeError(err?.message || 'Gagal menyimpan perubahan PIN.');
+    } finally {
+      setIsSavingPin(false);
+    }
   };
 
   // Auto-Delete / Data Cleaner states
@@ -162,21 +240,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
     }
   };
 
+  const providerDisplayNames: Record<DbProvider, string> = {
+    supabase: 'Supabase Cloud (PostgreSQL)',
+    firebase: 'Firebase Firestore',
+    local: 'Offline / Lokal Browser (IndexedDB)'
+  };
+
   const handleProviderChange = (provider: DbProvider) => {
     if (provider === dbProvider) return;
-    const providerNames = {
-      supabase: 'Supabase Cloud (PostgreSQL)',
-      firebase: 'Firebase Firestore',
-      local: 'Offline / Lokal Browser (IndexedDB)'
-    };
-    
-    if (provider === 'firebase') {
+    setPendingProvider(provider);
+  };
+
+  const executeConfirmedProviderSwitch = () => {
+    if (!pendingProvider) return;
+    const target = pendingProvider;
+    setPendingProvider(null);
+    if (target === 'firebase') {
       resetFirebaseQuotaStatus();
     }
-
-    if (window.confirm(`Ganti sumber database utama ke ${providerNames[provider]}? Halaman akan dimuat ulang.`)) {
-      updateSettings({ ...settings, dbProvider: provider });
-    }
+    updateSettings({ ...settings, dbProvider: target });
   };
 
   const handleSaveSupabaseConfig = () => {
@@ -464,7 +546,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
 
             <div className="mt-5 pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px] font-semibold text-neutral-600">
               <span>Status: <strong>Resmi & Dilindungi</strong></span>
-              <span className="text-[10px] text-theme-600 font-mono">ID: DRP-DENUDA-2026</span>
+              <span
+                onClick={handleSecretIdTap}
+                className="text-[10px] text-theme-600 font-mono select-none cursor-default"
+              >
+                ID: DRP-DENUDA-2026
+              </span>
             </div>
           </div>
 
@@ -773,22 +860,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
             <div className="lg:col-span-8 flex flex-col gap-8">
               
               {/* DATABASE PROVIDER SELECTION */}
-              <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8">
-            <div className="flex items-start gap-5 mb-6">
-              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm">
-                <Database className="w-7 h-7 text-emerald-600" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-bold text-theme-900">Sumber Database</h3>
-                  <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800">
-                    {activeProvider === 'supabase' ? 'Supabase Aktif' : activeProvider === 'firebase' ? 'Firebase Aktif' : 'Offline Aktif'}
-                  </span>
+              <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8 relative">
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div className="flex items-start gap-5">
+                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm shrink-0">
+                  <Database className="w-7 h-7 text-emerald-600" />
                 </div>
-                <p className="text-sm text-theme-600-text mt-1.5 font-medium leading-relaxed">
-                  Pilih database yang digunakan untuk menyimpan produk, supplier, dan laporan harian Anda.
-                </p>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xl font-bold text-theme-900">Sumber Database</h3>
+                    <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800">
+                      {activeProvider === 'supabase' ? 'Supabase Aktif' : activeProvider === 'firebase' ? 'Firebase Aktif' : 'Offline Aktif'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-theme-600-text mt-1.5 font-medium leading-relaxed">
+                    Pilih database yang digunakan untuk menyimpan produk, supplier, dan laporan harian Anda. (Dilindungi PIN)
+                  </p>
+                </div>
               </div>
+
+              {/* Discreet hidden trigger for changing database PIN */}
+              <button
+                type="button"
+                onClick={openHiddenPinSettings}
+                className="p-2 rounded-xl text-neutral-300 hover:text-neutral-600 hover:bg-neutral-100/80 transition-all opacity-40 hover:opacity-100 shrink-0"
+                aria-label="Keamanan PIN"
+              >
+                <Lock className="w-4 h-4" />
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -1703,6 +1802,153 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
       {renderAboutCard()}
     </div>
   )}
+
+      {/* Database Switch PIN Verification Modal */}
+      <DbPinModal
+        isOpen={pendingProvider !== null}
+        targetProviderName={pendingProvider ? providerDisplayNames[pendingProvider] : ''}
+        storedPinHash={settings.dbPinHash}
+        onSuccess={executeConfirmedProviderSwitch}
+        onCancel={() => setPendingProvider(null)}
+      />
+
+      {/* Hidden / Discreet Change Database PIN Modal */}
+      {showChangePinModal && (
+        <div
+          className="fixed inset-0 z-[220] flex items-center justify-center bg-neutral-950/60 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={() => setShowChangePinModal(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-[2rem] border border-theme-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 pb-4 border-b border-neutral-100 flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-neutral-900 text-emerald-400 flex items-center justify-center shrink-0 shadow-xs">
+                  <KeyRound className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-theme-900 tracking-tight">
+                    Pengaturan Ubah PIN Database
+                  </h3>
+                  <p className="text-xs font-medium text-neutral-500 mt-0.5">
+                    Perbarui PIN keamanan untuk perpindahan sumber database
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChangePinModal(false)}
+                className="p-2 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+                title="Tutup"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePinSubmit} className="p-6 space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-neutral-700">
+                    PIN Saat Ini
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPinFields(!showPinFields)}
+                    className="text-[11px] font-semibold text-theme-700 hover:underline flex items-center gap-1"
+                  >
+                    {showPinFields ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    <span>{showPinFields ? 'Sembunyikan' : 'Tampilkan'}</span>
+                  </button>
+                </div>
+                <input
+                  type={showPinFields ? 'text' : 'password'}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={10}
+                  value={currentPinInput}
+                  onChange={(e) => {
+                    setCurrentPinInput(e.target.value.replace(/\D/g, ''));
+                    setPinChangeError(null);
+                  }}
+                  placeholder="Masukkan PIN lama"
+                  className="w-full px-3.5 py-2.5 text-sm font-bold tracking-widest rounded-xl border border-neutral-200 bg-neutral-50 focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500/20 outline-none transition-all"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1.5">
+                  PIN Baru (4 - 8 Digit Angka)
+                </label>
+                <input
+                  type={showPinFields ? 'text' : 'password'}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={8}
+                  value={newPinInput}
+                  onChange={(e) => {
+                    setNewPinInput(e.target.value.replace(/\D/g, ''));
+                    setPinChangeError(null);
+                  }}
+                  placeholder="Masukkan PIN baru"
+                  className="w-full px-3.5 py-2.5 text-sm font-bold tracking-widest rounded-xl border border-neutral-200 bg-neutral-50 focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500/20 outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1.5">
+                  Konfirmasi PIN Baru
+                </label>
+                <input
+                  type={showPinFields ? 'text' : 'password'}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={8}
+                  value={confirmPinInput}
+                  onChange={(e) => {
+                    setConfirmPinInput(e.target.value.replace(/\D/g, ''));
+                    setPinChangeError(null);
+                  }}
+                  placeholder="Ulangi PIN baru"
+                  className="w-full px-3.5 py-2.5 text-sm font-bold tracking-widest rounded-xl border border-neutral-200 bg-neutral-50 focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500/20 outline-none transition-all"
+                />
+              </div>
+
+              {pinChangeError && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{pinChangeError}</span>
+                </div>
+              )}
+
+              {pinChangeSuccess && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{pinChangeSuccess}</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowChangePinModal(false)}
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-bold transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPin}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-neutral-900 hover:bg-neutral-800 active:scale-[0.98] disabled:opacity-50 text-white text-xs font-bold transition-all shadow-sm"
+                >
+                  {isSavingPin ? 'Menyimpan...' : 'Simpan PIN Baru'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 </div>
   );
 };

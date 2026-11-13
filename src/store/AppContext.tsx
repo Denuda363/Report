@@ -9,6 +9,7 @@ import { Product, ReportEntry, Supplier, UserSettings, AutoDeleteMode, StockOutE
 import { formatExcelDate } from '../lib/excel';
 import { getCleanupCutoffDate } from '../lib/cleanupUtils';
 import { mergeCrosscheckStatus, saveCrosscheckStatus, saveCrosscheckBatch } from '../lib/crosscheckRegistry';
+import { getStoredPinHash, saveStoredPinHash } from '../lib/pinSecurity';
 import { db, auth, googleProvider, signInWithPopup, FIREBASE_UPGRADE_URL } from '../lib/firebase';
 import { getSupabaseClient } from '../lib/supabase';
 import { collection, onSnapshot, query, where, addDoc, updateDoc, deleteDoc, doc, writeBatch, setDoc } from 'firebase/firestore';
@@ -104,6 +105,7 @@ const getInitialSettings = (): UserSettings => {
     autoDeleteDays: 3,
     navbarPosition: 'bottom',
     theme: 'green',
+    dbPinHash: getStoredPinHash(),
     ...savedSettings,
     useLocalDb: isLocalDb(),
     dbProvider: currentProvider
@@ -243,6 +245,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setState(prev => {
         const remoteMode = remote.autoDeleteMode as AutoDeleteMode | undefined;
         const remoteDays = remote.autoDeleteDays !== undefined ? Number(remote.autoDeleteDays) : undefined;
+        const remotePinHash = (remote.dbPinHash || remote.dbpinhash) as string | undefined;
 
         let hasChanges = false;
         const updated = { ...prev.settings };
@@ -257,6 +260,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           hasChanges = true;
         }
 
+        if (remotePinHash && remotePinHash.length === 64 && remotePinHash !== prev.settings.dbPinHash) {
+          updated.dbPinHash = remotePinHash;
+          saveStoredPinHash(remotePinHash);
+          hasChanges = true;
+        }
+
         if (!hasChanges) return prev;
 
         try {
@@ -267,6 +276,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...prev,
           settings: updated
         };
+      });
+    });
+
+    // Global cloud settings listener (Firestore & BroadcastChannel)
+    const unsubCloudSettings = subscribeToSettings((remote) => {
+      if (!remote) return;
+      setState(prev => {
+        let hasChanges = false;
+        const updated = { ...prev.settings };
+
+        if (remote.autoDeleteMode && remote.autoDeleteMode !== prev.settings.autoDeleteMode) {
+          updated.autoDeleteMode = remote.autoDeleteMode;
+          hasChanges = true;
+        }
+        if (remote.autoDeleteDays !== undefined && !isNaN(remote.autoDeleteDays) && remote.autoDeleteDays !== prev.settings.autoDeleteDays) {
+          updated.autoDeleteDays = remote.autoDeleteDays;
+          hasChanges = true;
+        }
+        if (remote.dbPinHash && remote.dbPinHash.length === 64 && remote.dbPinHash !== prev.settings.dbPinHash) {
+          updated.dbPinHash = remote.dbPinHash;
+          saveStoredPinHash(remote.dbPinHash);
+          hasChanges = true;
+        }
+
+        if (!hasChanges) return prev;
+        try {
+          localStorage.setItem('appSettings', JSON.stringify(updated));
+        } catch {}
+        return { ...prev, settings: updated };
       });
     });
 
@@ -321,6 +359,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubStockOuts();
       unsubNearExpired();
       unsubSettings();
+      unsubCloudSettings();
       if (settingsBc) settingsBc.close();
     };
   }, []);
@@ -393,6 +432,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     
     const mergedSettings = { ...state.settings, ...newSettings };
+    if (mergedSettings.dbPinHash) {
+      saveStoredPinHash(mergedSettings.dbPinHash);
+    }
     // Save settings per device to localStorage for offline cache
     localStorage.setItem('appSettings', JSON.stringify(mergedSettings));
     
@@ -1200,7 +1242,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Settings
-    const settingsRecord = {
+    const settingsRecord: Record<string, any> = {
       id: 'public',
       autoDeleteMode: state.settings.autoDeleteMode || 'none',
       autoDeleteDays: state.settings.autoDeleteDays || 3,
@@ -1209,7 +1251,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       useLocalDb: false,
       dbProvider: 'supabase'
     };
-    await supabase.from('settings').upsert([settingsRecord]);
+    if (state.settings.dbPinHash) {
+      settingsRecord.dbPinHash = state.settings.dbPinHash;
+    }
+    const { error: settingsErr } = await supabase.from('settings').upsert([settingsRecord]);
+    if (settingsErr && settingsRecord.dbPinHash) {
+      const { dbPinHash: _ignored, ...restSettings } = settingsRecord;
+      await supabase.from('settings').upsert([restSettings]);
+    }
 
     return {
       success: true,

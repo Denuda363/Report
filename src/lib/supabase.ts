@@ -125,9 +125,11 @@ CREATE TABLE IF NOT EXISTS public.settings (
   theme TEXT DEFAULT 'default',
   "useLocalDb" BOOLEAN DEFAULT FALSE,
   "dbProvider" TEXT DEFAULT 'supabase',
+  "dbPinHash" TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "autoDeleteDays" INTEGER DEFAULT 3;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "dbPinHash" TEXT;
 
 -- 6. Tabel Near Expired (Rekap Produk Expired Dekat)
 CREATE TABLE IF NOT EXISTS public.near_expired (

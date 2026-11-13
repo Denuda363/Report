@@ -105,6 +105,7 @@
         "dbProvider": { "type": "string" },
         "supabaseUrl": { "type": "string" },
         "supabaseKey": { "type": "string" },
+        "dbPinHash": { "type": "string" },
         "updatedAt": { "type": "number" }
       }
     },

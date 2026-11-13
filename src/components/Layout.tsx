@@ -18,6 +18,7 @@ import { Clock } from './Clock';
 import { useAppContext } from '../store/AppContext';
 import { PWAInstallButton } from './PWAInstallButton';
 import { ChatBox } from './ChatBox';
+import { DbPinModal } from './common/DbPinModal';
 
 export type TabId = 'dashboard' | 'master' | 'report' | 'arrived' | 'stockout' | 'kosong' | 'lowstock' | 'expired' | 'settings';
 
@@ -27,6 +28,7 @@ export const Layout = () => {
   const [isMobileMenuSheetOpen, setIsMobileMenuSheetOpen] = useState(false);
   const [mobileMenuSearch, setMobileMenuSearch] = useState('');
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
+  const [showLocalSwitchPinModal, setShowLocalSwitchPinModal] = useState(false);
   const { 
     settings, 
     quotaExceededInfo, 
@@ -702,7 +704,7 @@ export const Layout = () => {
             <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
               <button
                 type="button"
-                onClick={switchToLocalDb}
+                onClick={() => setShowLocalSwitchPinModal(true)}
                 className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
               >
                 Beralih ke Offline
@@ -768,6 +770,17 @@ export const Layout = () => {
       {renderMobileMenuSheet()}
 
       <ChatBox />
+
+      <DbPinModal
+        isOpen={showLocalSwitchPinModal}
+        targetProviderName="Offline / Lokal Browser (IndexedDB)"
+        storedPinHash={settings.dbPinHash}
+        onSuccess={() => {
+          setShowLocalSwitchPinModal(false);
+          switchToLocalDb();
+        }}
+        onCancel={() => setShowLocalSwitchPinModal(false)}
+      />
     </div>
   );
 };

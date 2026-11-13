@@ -765,7 +765,7 @@ export const checkDatabaseTablesStatus = async (targetProvider?: DbProvider): Pr
  * Menggunakan direct document listener pada Firestore 'settings/public' dan Supabase realtime.
  */
 export const subscribeToSettings = (
-  callback: (settings: { autoDeleteMode?: AutoDeleteMode; autoDeleteDays?: number; theme?: string }) => void
+  callback: (settings: { autoDeleteMode?: AutoDeleteMode; autoDeleteDays?: number; theme?: string; dbPinHash?: string }) => void
 ): (() => void) => {
   const unsubscribers: (() => void)[] = [];
 
@@ -780,7 +780,8 @@ export const subscribeToSettings = (
           callback({
             autoDeleteMode: data.autoDeleteMode as AutoDeleteMode,
             autoDeleteDays: data.autoDeleteDays !== undefined ? Number(data.autoDeleteDays) : undefined,
-            theme: data.theme
+            theme: data.theme,
+            dbPinHash: data.dbPinHash || data.dbpinhash
           });
         }
       }
@@ -809,7 +810,8 @@ export const subscribeToSettings = (
                 callback({
                   autoDeleteMode: data.autoDeleteMode as AutoDeleteMode,
                   autoDeleteDays: data.autoDeleteDays !== undefined ? Number(data.autoDeleteDays) : undefined,
-                  theme: data.theme
+                  theme: data.theme,
+                  dbPinHash: data.dbPinHash || data.dbpinhash
                 });
               }
             } catch {}
@@ -847,11 +849,11 @@ export const subscribeToSettings = (
 };
 
 /**
- * Menyinkronkan perubahan pengaturan pembersih data ke seluruh database cloud (Firestore & Supabase)
+ * Menyinkronkan perubahan pengaturan pembersih data & keamanan ke seluruh database cloud (Firestore & Supabase)
  * dan broadcast local sehingga perangkat lain langsung mengikuti secara real-time.
  */
 export const syncSettingsToCloud = async (
-  newSettings: { autoDeleteMode?: AutoDeleteMode; autoDeleteDays?: number; theme?: string }
+  newSettings: { autoDeleteMode?: AutoDeleteMode; autoDeleteDays?: number; theme?: string; dbPinHash?: string }
 ): Promise<void> => {
   const payload: Record<string, any> = {
     id: 'public',
@@ -865,6 +867,9 @@ export const syncSettingsToCloud = async (
   }
   if (newSettings.theme !== undefined) {
     payload.theme = newSettings.theme;
+  }
+  if (newSettings.dbPinHash !== undefined) {
+    payload.dbPinHash = newSettings.dbPinHash;
   }
 
   // 1. Broadcast ke tab lokal pada perangkat yang sama
@@ -887,10 +892,18 @@ export const syncSettingsToCloud = async (
   // 3. Simpan juga ke Supabase jika instance Supabase aktif
   try {
     const supabase = getSupabaseClient();
-    await supabase.from('settings').upsert({
+    const { error } = await supabase.from('settings').upsert({
       id: 'public',
       ...payload
     });
+    if (error && payload.dbPinHash !== undefined) {
+      // Fallback if older Supabase table schema doesn't yet have "dbPinHash" column
+      const { dbPinHash: _ignored, ...restPayload } = payload;
+      await supabase.from('settings').upsert({
+        id: 'public',
+        ...restPayload
+      });
+    }
   } catch {}
 
   // 4. Update local IndexedDB
