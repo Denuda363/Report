@@ -101,6 +101,7 @@
         "autoDeleteDays": { "type": "number" },
         "navbarPosition": { "type": "string" },
         "theme": { "type": "string" },
+        "clockStyle": { "type": "string" },
         "useLocalDb": { "type": "boolean" },
         "dbProvider": { "type": "string" },
         "supabaseUrl": { "type": "string" },

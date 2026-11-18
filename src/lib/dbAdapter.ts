@@ -2,7 +2,7 @@ import { db, handleFirestoreError, OperationType, isFirebaseQuotaExceeded } from
 import { localDb, generateId } from './localDb';
 import { getSupabaseClient, checkSupabaseTableStatus, SUPABASE_SQL_SCHEMA } from './supabase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, writeBatch, getDoc, getDocs, query, limit } from 'firebase/firestore';
-import { DbProvider, AutoDeleteMode } from '../types';
+import { DbProvider, AutoDeleteMode, ClockStyle } from '../types';
 
 export const REQUIRED_TABLES = [
   'suppliers', 
@@ -605,6 +605,7 @@ export const ensureFirebaseCollections = async (): Promise<{
             autoDeleteDays: 3,
             navbarPosition: 'bottom',
             theme: 'green',
+            clockStyle: '3d-blocks',
             dbProvider: 'firebase',
             initializedAt: Date.now(),
             updatedAt: Date.now(),
@@ -909,6 +910,7 @@ export type SyncableSettingsPayload = {
   autoDeleteMode?: AutoDeleteMode;
   autoDeleteDays?: number;
   theme?: string;
+  clockStyle?: ClockStyle;
   dbPinHash?: string;
   companyName?: string;
   companyTagline?: string;
@@ -927,6 +929,7 @@ export const subscribeToSettings = (
     autoDeleteMode: data.autoDeleteMode as AutoDeleteMode,
     autoDeleteDays: data.autoDeleteDays !== undefined ? Number(data.autoDeleteDays) : undefined,
     theme: data.theme,
+    clockStyle: (data.clockStyle ?? data.clockstyle) as ClockStyle | undefined,
     dbPinHash: data.dbPinHash || data.dbpinhash,
     companyName: data.companyName ?? data.companyname,
     companyTagline: data.companyTagline ?? data.companytagline,
@@ -1024,6 +1027,9 @@ export const syncSettingsToCloud = async (
   }
   if (newSettings.theme !== undefined) {
     payload.theme = newSettings.theme;
+  }
+  if (newSettings.clockStyle !== undefined) {
+    payload.clockStyle = newSettings.clockStyle;
   }
   if (newSettings.dbPinHash !== undefined) {
     payload.dbPinHash = newSettings.dbPinHash;

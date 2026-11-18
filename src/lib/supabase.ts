@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
   "autoDeleteDays" INTEGER DEFAULT 3,
   "navbarPosition" TEXT DEFAULT 'bottom',
   theme TEXT DEFAULT 'default',
+  "clockStyle" TEXT DEFAULT '3d-blocks',
   "useLocalDb" BOOLEAN DEFAULT FALSE,
   "dbProvider" TEXT DEFAULT 'supabase',
   "dbPinHash" TEXT,
@@ -167,6 +168,7 @@ ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "autoDeleteMode" TEXT DEFAU
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "autoDeleteDays" INTEGER DEFAULT 3;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "navbarPosition" TEXT DEFAULT 'bottom';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'default';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "clockStyle" TEXT DEFAULT '3d-blocks';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "useLocalDb" BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "dbProvider" TEXT DEFAULT 'supabase';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "dbPinHash" TEXT;
@@ -340,7 +342,7 @@ export const REQUIRED_SUPABASE_COLUMNS: Record<keyof TableStatus, string[]> = {
   stock_outs: ['id', 'date', 'productId', 'quantity', 'notes', 'createdAt', 'userId'],
   settings: [
     'id', 'autoDeleteMode', 'autoDeleteDays', 'navbarPosition',
-    'theme', 'useLocalDb', 'dbProvider', 'dbPinHash',
+    'theme', 'clockStyle', 'useLocalDb', 'dbProvider', 'dbPinHash',
     'companyName', 'companyTagline', 'companyAddress', 'companyPhone', 'companyEmail', 'companyIcon',
     'updatedAt'
   ],

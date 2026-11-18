@@ -96,7 +96,7 @@ interface AppContextType extends AppState {
 
 const getInitialSettings = (): UserSettings => {
   if (typeof window === 'undefined') {
-    return { autoDeleteMode: 'none', autoDeleteDays: 3, navbarPosition: 'bottom', theme: 'green' };
+    return { autoDeleteMode: 'none', autoDeleteDays: 3, navbarPosition: 'bottom', theme: 'green', clockStyle: '3d-blocks' };
   }
   const currentProvider = getDbProvider();
   const savedSettingsStr = localStorage.getItem('appSettings');
@@ -111,6 +111,7 @@ const getInitialSettings = (): UserSettings => {
     autoDeleteDays: 3,
     navbarPosition: 'bottom',
     theme: 'green',
+    clockStyle: '3d-blocks',
     dbPinHash: getStoredPinHash(),
     ...savedSettings,
     useLocalDb: isLocalDb(),
@@ -350,6 +351,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 ...prev.settings,
                 ...(incoming.autoDeleteMode !== undefined ? { autoDeleteMode: incoming.autoDeleteMode } : {}),
                 ...(incoming.autoDeleteDays !== undefined ? { autoDeleteDays: incoming.autoDeleteDays } : {}),
+                ...(incoming.theme !== undefined ? { theme: incoming.theme } : {}),
+                ...(incoming.clockStyle !== undefined ? { clockStyle: incoming.clockStyle } : {}),
                 ...(incoming.dbPinHash !== undefined ? { dbPinHash: incoming.dbPinHash } : {}),
                 ...(incoming.companyName !== undefined ? { companyName: incoming.companyName } : {}),
                 ...(incoming.companyTagline !== undefined ? { companyTagline: incoming.companyTagline } : {}),
@@ -380,6 +383,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         autoDeleteDays: 3,
         navbarPosition: 'bottom',
         theme: 'green',
+        clockStyle: '3d-blocks',
         ...savedSettings,
         useLocalDb: isLocalDb(),
         dbProvider: currentProvider
@@ -1440,6 +1444,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       autoDeleteDays: state.settings.autoDeleteDays || 3,
       navbarPosition: state.settings.navbarPosition || 'bottom',
       theme: state.settings.theme || 'default',
+      clockStyle: state.settings.clockStyle || '3d-blocks',
       useLocalDb: false,
       dbProvider: 'supabase'
     };

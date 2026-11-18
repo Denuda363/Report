@@ -9,7 +9,7 @@ import {
   Lock, KeyRound, Eye, EyeOff, X,
   Building2, MapPin, Phone, Mail, ImagePlus, Save, RotateCcw
 } from 'lucide-react';
-import { AutoDeleteMode, NavbarPosition, DbProvider } from '../types';
+import { AutoDeleteMode, NavbarPosition, DbProvider, ClockStyle } from '../types';
 import { 
   getSupabaseConfig, setSupabaseConfig, SUPABASE_SQL_SCHEMA, 
   checkSupabaseTableStatus, TableStatus, DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_KEY 
@@ -19,9 +19,11 @@ import { testFirebaseConnection, resetFirebaseQuotaStatus } from '../lib/firebas
 import { getCleanupCutoffDate, formatDateIndo, AUTO_DELETE_PRESETS, getRetentionDays } from '../lib/cleanupUtils';
 import { verifyDatabasePin, hashUserPin, isValidPinFormat } from '../lib/pinSecurity';
 import { processCompanyIconFile } from '../lib/imageUtils';
+import { CLOCK_STYLE_OPTIONS, getRecommendedClockStyleForTheme } from '../lib/clockStyles';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { UserGuide } from './UserGuide';
 import { DbPinModal } from './common/DbPinModal';
+import { Clock as LiveClock } from './Clock';
 
 export type SettingsSubTab = 'profile' | 'appearance' | 'database' | 'data' | 'guide' | 'about';
 
@@ -527,9 +529,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
   };
 
   const handleThemeChange = (theme: string) => {
-    updateSettings({ ...settings, theme });
+    const matchedClockStyle = getRecommendedClockStyleForTheme(theme);
+    updateSettings({ ...settings, theme, clockStyle: matchedClockStyle });
   };
-  
+
+  const handleClockStyleChange = (clockStyle: ClockStyle) => {
+    updateSettings({ ...settings, clockStyle });
+  };
+
   const handleNavPositionChange = (position: NavbarPosition) => {
     updateSettings({ ...settings, navbarPosition: position });
   };
@@ -1334,7 +1341,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                   </span>
                 </div>
                 <p className="text-sm text-theme-600-text mt-1.5 font-medium leading-relaxed">
-                  Seluruh tema kini hadir dengan efek kedalaman 3D fisik. Pilih warna atau gaya tampilan (3D Depth, Glosy, atau Glass) yang paling nyaman untuk Anda.
+                  Seluruh tema kini hadir dengan efek kedalaman 3D fisik. Mengubah tema juga otomatis menyesuaikan gaya jam agar serasi.
                 </p>
               </div>
             </div>
@@ -1430,6 +1437,102 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
               })}
             </div>
           </div>
+
+          {/* Clock Style Settings */}
+          {(() => {
+            const recommendedStyle = getRecommendedClockStyleForTheme(settings.theme);
+            const activeClockStyle = settings.clockStyle || recommendedStyle;
+            const isMatchedWithTheme = activeClockStyle === recommendedStyle;
+
+            return (
+              <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-7">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
+                      <Clock className="w-7 h-7 text-theme-500" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-xl font-bold text-theme-900">Gaya Jam Header</h3>
+                        <span className="text-xs font-semibold text-theme-600-text">
+                          10 Gaya Unik · Pratinjau Langsung
+                        </span>
+                      </div>
+                      <p className="text-sm text-theme-600-text mt-1.5 font-medium leading-relaxed">
+                        Pilih gaya tampilan jam digital atau analog di header aplikasi. Saat tema diubah, gaya jam otomatis menyesuaikan dengan tema pilihan Anda.
+                      </p>
+                    </div>
+                  </div>
+
+                  {!isMatchedWithTheme && (
+                    <button
+                      type="button"
+                      onClick={() => handleClockStyleChange(recommendedStyle)}
+                      className="px-3.5 py-2 rounded-xl bg-theme-50 hover:bg-theme-100 border border-theme-200 text-theme-800 text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 self-start"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Ikuti Tema ({currentThemeLabel})</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {CLOCK_STYLE_OPTIONS.map((opt) => {
+                    const isSelected = activeClockStyle === opt.id;
+                    const isRecommended = recommendedStyle === opt.id;
+
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => handleClockStyleChange(opt.id)}
+                        className={`text-left p-4 rounded-[1.5rem] border-2 transition-all duration-200 flex flex-col justify-between gap-4 group ${
+                          isSelected
+                            ? 'border-theme-500 bg-theme-50/90 shadow-md'
+                            : 'border-theme-100 hover:border-theme-300 bg-white hover:bg-neutral-50/70'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 w-full">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-theme-900 text-sm">{opt.name}</span>
+                            </div>
+                            <p className="text-[11px] font-medium text-theme-600-text mt-0.5 leading-snug">
+                              {opt.description}
+                            </p>
+                          </div>
+
+                          <div className="shrink-0 flex items-center gap-1.5">
+                            {isSelected && <CheckCircle2 className="w-5 h-5 text-theme-600" />}
+                          </div>
+                        </div>
+
+                        {/* Live Clock Preview Box */}
+                        <div className="w-full py-3 px-2 rounded-2xl bg-neutral-100/80 border border-neutral-200/70 flex items-center justify-center overflow-hidden">
+                          <div className="pointer-events-none select-none">
+                            <LiveClock previewStyle={opt.id} compactPreview />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] font-semibold w-full pt-1 border-t border-theme-100/70">
+                          <span className="text-theme-600-text">{opt.badge}</span>
+                          {isRecommended ? (
+                            <span className="text-emerald-700 font-bold">
+                              Serasi dengan tema ini
+                            </span>
+                          ) : (
+                            <span className="text-neutral-400">
+                              {isSelected ? 'Dipilih manual' : 'Klik untuk pakai'}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Navigation Settings */}
           <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8">

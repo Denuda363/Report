@@ -82,6 +82,17 @@ export type AutoDeleteMode =
 
 export type NavbarPosition = 'bottom' | 'left' | 'right';
 export type DbProvider = 'supabase' | 'firebase' | 'local';
+export type ClockStyle =
+  | '3d-blocks'
+  | 'analog-hybrid'
+  | 'luxury-gold'
+  | 'nixie-tube'
+  | 'cyber-neon'
+  | 'minimal-swiss'
+  | 'prism-pop'
+  | 'flip-retro'
+  | 'glossy-pill'
+  | 'glass-frost';
 
 export interface ChatUser {
   id: string;
@@ -105,6 +116,7 @@ export interface UserSettings {
   autoDeleteDays?: number; // Custom retention days when mode is 'custom' or specified
   navbarPosition?: NavbarPosition;
   theme?: string;
+  clockStyle?: ClockStyle;
   useLocalDb?: boolean;
   dbProvider?: DbProvider;
   supabaseUrl?: string;
