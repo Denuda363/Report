@@ -51,7 +51,10 @@ export const DailyReportCards: React.FC<DailyReportCardsProps> = ({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 text-[11px] text-theme-500 font-medium mb-1">
                   <CalendarIcon className="w-3 h-3 text-theme-400 shrink-0" />
-                  <span>{format(new Date(r.date), 'dd MMM yyyy')}</span>
+                  <span>{(() => {
+                    const d = r.date ? new Date(r.date) : null;
+                    return d && !isNaN(d.getTime()) ? format(d, 'dd MMM yyyy') : (r.date || '-');
+                  })()}</span>
                   {supplier && (
                     <>
                       <span>•</span>

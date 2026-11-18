@@ -27,6 +27,23 @@
   --color-theme-600-text: #7A7F6E;
   --color-theme-800: #3A3D32;
   --color-theme-900: #2D3025;
+
+  /* 3D Surface Tokens (Default: Sage Green) */
+  --threed-bg-from: #F7F9F2;
+  --threed-bg-to: #E6EBE0;
+  --threed-sidebar-from: #F5F7EE;
+  --threed-sidebar-to: #E3E8D8;
+  --threed-card-from: #FFFFFF;
+  --threed-card-to: #F5F7F0;
+  --threed-edge: #CFD5C0;
+  --threed-secondary-edge: #C7CEB8;
+  --threed-btn-from: #9EB189;
+  --threed-btn-mid: #8B9D77;
+  --threed-btn-to: #728261;
+  --threed-btn-border: #5E6E4E;
+  --threed-btn-lip: #4B5B38;
+  --threed-btn-glow: rgba(85, 107, 47, 0.32);
+  --threed-shadow: rgba(45, 48, 37, 0.14);
 }
 
 [data-theme="blue"] {
@@ -41,6 +58,22 @@
   --color-theme-600-text: #4B5563;
   --color-theme-800: #1E3A8A;
   --color-theme-900: #172554;
+
+  --threed-bg-from: #F2F7FF;
+  --threed-bg-to: #DCEAFE;
+  --threed-sidebar-from: #EAF2FF;
+  --threed-sidebar-to: #CEE1FD;
+  --threed-card-from: #FFFFFF;
+  --threed-card-to: #F2F7FF;
+  --threed-edge: #B6D0F4;
+  --threed-secondary-edge: #ABC8F0;
+  --threed-btn-from: #60A5FA;
+  --threed-btn-mid: #3B82F6;
+  --threed-btn-to: #2563EB;
+  --threed-btn-border: #1D4ED8;
+  --threed-btn-lip: #1E40AF;
+  --threed-btn-glow: rgba(37, 99, 235, 0.35);
+  --threed-shadow: rgba(23, 37, 84, 0.14);
 }
 
 [data-theme="rose"] {
@@ -55,6 +88,22 @@
   --color-theme-600-text: #4B5563;
   --color-theme-800: #881337;
   --color-theme-900: #4C0519;
+
+  --threed-bg-from: #FFF5F6;
+  --threed-bg-to: #FFE2E6;
+  --threed-sidebar-from: #FFF0F2;
+  --threed-sidebar-to: #FFD6DC;
+  --threed-card-from: #FFFFFF;
+  --threed-card-to: #FFF4F6;
+  --threed-edge: #F4BDC6;
+  --threed-secondary-edge: #EFB2BD;
+  --threed-btn-from: #FB7185;
+  --threed-btn-mid: #F43F5E;
+  --threed-btn-to: #E11D48;
+  --threed-btn-border: #BE123C;
+  --threed-btn-lip: #9F1239;
+  --threed-btn-glow: rgba(225, 29, 72, 0.34);
+  --threed-shadow: rgba(76, 5, 25, 0.13);
 }
 
 [data-theme="amber"] {
@@ -69,6 +118,22 @@
   --color-theme-600-text: #4B5563;
   --color-theme-800: #78350F;
   --color-theme-900: #451A03;
+
+  --threed-bg-from: #FFFDF2;
+  --threed-bg-to: #FEF0C3;
+  --threed-sidebar-from: #FFF9DF;
+  --threed-sidebar-to: #FDE8A8;
+  --threed-card-from: #FFFFFF;
+  --threed-card-to: #FFFBF0;
+  --threed-edge: #EED091;
+  --threed-secondary-edge: #E7C682;
+  --threed-btn-from: #FBBF24;
+  --threed-btn-mid: #F59E0B;
+  --threed-btn-to: #D97706;
+  --threed-btn-border: #B45309;
+  --threed-btn-lip: #92400E;
+  --threed-btn-glow: rgba(217, 119, 6, 0.34);
+  --threed-shadow: rgba(69, 26, 3, 0.13);
 }
 
 [data-theme="purple"] {
@@ -83,6 +148,22 @@
   --color-theme-600-text: #4B5563;
   --color-theme-800: #4C1D95;
   --color-theme-900: #3B0764;
+
+  --threed-bg-from: #FCF8FF;
+  --threed-bg-to: #EFE1FF;
+  --threed-sidebar-from: #F8F0FF;
+  --threed-sidebar-to: #E6D2FF;
+  --threed-card-from: #FFFFFF;
+  --threed-card-to: #FAF5FF;
+  --threed-edge: #D7C0F7;
+  --threed-secondary-edge: #CEB3F4;
+  --threed-btn-from: #C084FC;
+  --threed-btn-mid: #A855F7;
+  --threed-btn-to: #9333EA;
+  --threed-btn-border: #7E22CE;
+  --threed-btn-lip: #6B21A8;
+  --threed-btn-glow: rgba(147, 51, 234, 0.34);
+  --threed-shadow: rgba(59, 7, 100, 0.14);
 }
 
 [data-theme="cyan"] {
@@ -97,6 +178,22 @@
   --color-theme-600-text: #4B5563;
   --color-theme-800: #164E63;
   --color-theme-900: #083344;
+
+  --threed-bg-from: #F0FEFF;
+  --threed-bg-to: #D4F7FC;
+  --threed-sidebar-from: #E5FBFF;
+  --threed-sidebar-to: #C0F1FA;
+  --threed-card-from: #FFFFFF;
+  --threed-card-to: #F1FCFE;
+  --threed-edge: #A3DCE8;
+  --threed-secondary-edge: #98D5E2;
+  --threed-btn-from: #22D3EE;
+  --threed-btn-mid: #06B6D4;
+  --threed-btn-to: #0891B2;
+  --threed-btn-border: #0E7490;
+  --threed-btn-lip: #155E75;
+  --threed-btn-glow: rgba(8, 145, 178, 0.34);
+  --threed-shadow: rgba(8, 51, 68, 0.14);
 }
 
 body {
@@ -115,6 +212,415 @@ body {
   --color-theme-600-text: #6366f1;
   --color-theme-800: #4338ca;
   --color-theme-900: #1e1b4b;
+
+  --threed-bg-from: #FDF0FF;
+  --threed-bg-to: #F6D8FE;
+  --threed-sidebar-from: #FFF0F8;
+  --threed-sidebar-to: #F7D4EE;
+  --threed-card-from: #FFFFFF;
+  --threed-card-to: #FDF4FF;
+  --threed-edge: #EAB6E7;
+  --threed-secondary-edge: #E1A9DF;
+  --threed-btn-from: #F472B6;
+  --threed-btn-mid: #EC4899;
+  --threed-btn-to: #A855F7;
+  --threed-btn-border: #9333EA;
+  --threed-btn-lip: #6D28D9;
+  --threed-btn-glow: rgba(217, 70, 239, 0.36);
+  --threed-shadow: rgba(30, 27, 75, 0.14);
+}
+
+/* ========================================================
+   TEMA 3D DEPTH (Architectural Slate-Cobalt 3D)
+   ======================================================== */
+[data-theme="3d"] {
+  --color-theme-50: #E8EEF7;
+  --color-theme-100: #DCE5F2;
+  --color-theme-200: #C2D0E4;
+  --color-theme-300: #A3B7D4;
+  --color-theme-500: #3B63D6;
+  --color-theme-600: #2C50BD;
+  --color-theme-700: #1F3B96;
+
+  --color-theme-600-text: #475569;
+  --color-theme-800: #1E293B;
+  --color-theme-900: #0F172A;
+
+  --threed-bg-from: #EEF3FA;
+  --threed-bg-to: #D9E3F1;
+  --threed-sidebar-from: #EBF1F9;
+  --threed-sidebar-to: #D3DEEE;
+  --threed-card-from: #FFFFFF;
+  --threed-card-to: #F4F7FC;
+  --threed-edge: #C3D0E3;
+  --threed-secondary-edge: #B8C7DC;
+  --threed-btn-from: #5278EB;
+  --threed-btn-mid: #365ED0;
+  --threed-btn-to: #284BB5;
+  --threed-btn-border: #22409A;
+  --threed-btn-lip: #1B3480;
+  --threed-btn-glow: rgba(27, 52, 128, 0.36);
+  --threed-shadow: rgba(15, 23, 42, 0.16);
+}
+
+/* ========================================================
+   TEMA GLOSY (3D + Polished High-Gloss Lacquer & Specular Sheen)
+   ======================================================== */
+[data-theme="glossy"] {
+  --color-theme-50: #EAF4FF;
+  --color-theme-100: #D8EBFF;
+  --color-theme-200: #B5D9FF;
+  --color-theme-300: #7EC0FF;
+  --color-theme-500: #0284C7;
+  --color-theme-600: #0369A1;
+  --color-theme-700: #075985;
+
+  --color-theme-600-text: #475569;
+  --color-theme-800: #0C4A6E;
+  --color-theme-900: #082F49;
+
+  --threed-bg-from: #F5FAFF;
+  --threed-bg-to: #DCEEFF;
+  --threed-sidebar-from: #FFFFFF;
+  --threed-sidebar-to: #C2E0FF;
+  --threed-card-from: #FFFFFF;
+  --threed-card-to: #EFF6FF;
+  --threed-edge: #A6CEFA;
+  --threed-secondary-edge: #9CC7F7;
+  --threed-btn-from: #56CCF2;
+  --threed-btn-mid: #0EA5E9;
+  --threed-btn-to: #0369A1;
+  --threed-btn-border: #0277B5;
+  --threed-btn-lip: #075985;
+  --threed-btn-glow: rgba(2, 132, 199, 0.44);
+  --threed-shadow: rgba(2, 132, 199, 0.18);
+}
+
+/* ========================================================
+   TEMA GLASS (3D + Frosted Aurora Glassmorphism)
+   ======================================================== */
+[data-theme="glass"] {
+  --color-theme-50: #EDF2FF;
+  --color-theme-100: #E0E7FF;
+  --color-theme-200: #C7D2FE;
+  --color-theme-300: #A5B4FC;
+  --color-theme-500: #4F46E5;
+  --color-theme-600: #4338CA;
+  --color-theme-700: #3730A3;
+
+  --color-theme-600-text: #334155;
+  --color-theme-800: #1E1B4B;
+  --color-theme-900: #0F172A;
+
+  --threed-edge: rgba(165, 180, 252, 0.65);
+  --threed-secondary-edge: rgba(165, 180, 252, 0.55);
+  --threed-btn-lip: rgba(49, 46, 129, 0.78);
+  --threed-btn-glow: rgba(79, 70, 229, 0.42);
+  --threed-shadow: rgba(30, 27, 75, 0.12);
+}
+
+@media screen {
+  /* ========================================================
+     EFEK 3D UNIVERSAL UNTUK SEMUA TEMA
+     ======================================================== */
+  body {
+    background: linear-gradient(145deg, var(--threed-bg-from) 0%, var(--threed-bg-to) 100%);
+  }
+
+  .bg-theme-50 {
+    background-image: linear-gradient(145deg, var(--threed-bg-from) 0%, var(--threed-bg-to) 100%);
+  }
+
+  aside.bg-theme-100 {
+    background: linear-gradient(180deg, var(--threed-sidebar-from) 0%, var(--threed-sidebar-to) 100%) !important;
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.78),
+      6px 0 22px -4px var(--threed-shadow);
+  }
+
+  header {
+    background: linear-gradient(180deg, #FFFFFF 0%, var(--threed-card-to) 100%) !important;
+    border-color: var(--threed-edge) !important;
+    box-shadow:
+      inset 0 1.5px 0 #FFFFFF,
+      0 4px 0 var(--threed-edge),
+      0 8px 18px -6px var(--threed-shadow) !important;
+  }
+
+  nav[aria-label="Mobile Navigation"] {
+    background: linear-gradient(180deg, #FFFFFF 0%, var(--threed-sidebar-to) 100%) !important;
+    border-color: var(--threed-edge) !important;
+    box-shadow:
+      inset 0 2px 0 #FFFFFF,
+      0 -6px 20px var(--threed-shadow) !important;
+  }
+
+  /* Raised 3D Physical Cards & Containers */
+  :is(
+    .bg-white.rounded-2xl,
+    .bg-white.rounded-3xl,
+    .bg-white.rounded-\[2rem\],
+    .bg-white.rounded-\[1\.5rem\]
+  ) {
+    background: linear-gradient(180deg, var(--threed-card-from) 0%, var(--threed-card-to) 100%) !important;
+    border-color: var(--threed-edge) !important;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.98),
+      0 5px 0 var(--threed-edge),
+      0 10px 22px -6px var(--threed-shadow) !important;
+  }
+
+  /* Raised 3D Active Theme Cards (e.g. Selected Theme / Nav Card) */
+  .bg-theme-50.rounded-\[1\.5rem\] {
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.95),
+      0 5px 0 var(--color-theme-500),
+      0 10px 20px -6px var(--threed-btn-glow) !important;
+  }
+
+  /* 3D Tactile Push Buttons (Primary Theme Accent & Badges/Logos) */
+  :is(button, a).bg-theme-500,
+  :is(button, a).bg-theme-600,
+  :is(button, a).bg-theme-700,
+  .w-10.h-10.bg-theme-500,
+  .w-9.h-9.bg-theme-500,
+  .bg-theme-500.rounded-2xl {
+    background: linear-gradient(180deg, var(--threed-btn-from) 0%, var(--threed-btn-mid) 54%, var(--threed-btn-to) 100%) !important;
+    border: 1px solid var(--threed-btn-border) !important;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.45),
+      0 4px 0 var(--threed-btn-lip),
+      0 7px 14px -3px var(--threed-btn-glow) !important;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.15s ease;
+  }
+
+  :is(button, a).bg-theme-500:hover,
+  :is(button, a).bg-theme-600:hover,
+  :is(button, a).bg-theme-700:hover {
+    filter: brightness(1.05);
+  }
+
+  :is(button, a).bg-theme-500:active,
+  :is(button, a).bg-theme-600:active,
+  :is(button, a).bg-theme-700:active {
+    transform: translateY(2px) !important;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.35),
+      0 2px 0 var(--threed-btn-lip),
+      0 3px 6px -2px var(--threed-btn-glow) !important;
+  }
+
+  /* 3D Tactile Push Buttons (Secondary White & Status Buttons) */
+  button.bg-white:not(.rounded-2xl):not(.rounded-3xl):not(.rounded-\[2rem\]) {
+    background: linear-gradient(180deg, #FFFFFF 0%, var(--threed-card-to) 100%) !important;
+    border-color: var(--threed-secondary-edge) !important;
+    box-shadow:
+      inset 0 1.5px 0 #FFFFFF,
+      0 3px 0 var(--threed-secondary-edge),
+      0 5px 10px -3px var(--threed-shadow) !important;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+
+  button.bg-white:not(.rounded-2xl):not(.rounded-3xl):not(.rounded-\[2rem\]):active {
+    transform: translateY(2px) !important;
+    box-shadow:
+      inset 0 1px 0 #FFFFFF,
+      0 1px 0 var(--threed-secondary-edge) !important;
+  }
+
+  button:is(.bg-emerald-500, .bg-emerald-600, .bg-red-500, .bg-red-600, .bg-rose-500, .bg-rose-600, .bg-amber-500, .bg-amber-600, .bg-amber-700, .bg-blue-600) {
+    box-shadow:
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.38),
+      0 3px 0 rgba(15, 23, 42, 0.28),
+      0 5px 10px -3px rgba(15, 23, 42, 0.22) !important;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.15s ease;
+  }
+
+  button:is(.bg-emerald-500, .bg-emerald-600, .bg-red-500, .bg-red-600, .bg-rose-500, .bg-rose-600, .bg-amber-500, .bg-amber-600, .bg-amber-700, .bg-blue-600):active {
+    transform: translateY(2px) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 1px 0 rgba(15, 23, 42, 0.28) !important;
+  }
+
+  /* Recessed 3D Debossed Form Controls */
+  :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]) {
+    box-shadow:
+      inset 0 2px 4px rgba(15, 23, 42, 0.08),
+      0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  }
+
+  /* ---------------- GLOSY 3D + SPECULAR SHINE OVERRIDES ---------------- */
+  [data-theme="glossy"] body {
+    background:
+      radial-gradient(circle at 12% 8%, #FFFFFF 0%, transparent 45%),
+      radial-gradient(circle at 88% 18%, rgba(56, 189, 248, 0.24) 0%, transparent 42%),
+      linear-gradient(160deg, #F5FAFF 0%, #DCEEFF 100%);
+  }
+
+  [data-theme="glossy"] aside.bg-theme-100 {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(216, 235, 255, 0.95) 52%, rgba(194, 224, 255, 0.96) 100%) !important;
+    box-shadow:
+      inset 0 1px 0 #FFFFFF,
+      inset -1px 0 0 rgba(255, 255, 255, 0.85),
+      6px 0 26px -6px rgba(2, 132, 199, 0.20);
+  }
+
+  [data-theme="glossy"] header {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F2F8FF 48%, #E6F2FF 51%, #F4F9FF 100%) !important;
+  }
+
+  [data-theme="glossy"] :is(
+    .bg-white.rounded-2xl,
+    .bg-white.rounded-3xl,
+    .bg-white.rounded-\[2rem\],
+    .bg-white.rounded-\[1\.5rem\]
+  ) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F9FCFF 48%, #EFF6FF 52%, #FAFDFE 100%) !important;
+    box-shadow:
+      inset 0 2px 0 #FFFFFF,
+      inset 0 14px 20px -14px rgba(255, 255, 255, 1),
+      0 5px 0 var(--threed-edge),
+      0 12px 26px -6px rgba(2, 132, 199, 0.22) !important;
+  }
+
+  [data-theme="glossy"] :is(button, a).bg-theme-500,
+  [data-theme="glossy"] :is(button, a).bg-theme-600,
+  [data-theme="glossy"] :is(button, a).bg-theme-700,
+  [data-theme="glossy"] .w-10.h-10.bg-theme-500,
+  [data-theme="glossy"] .w-9.h-9.bg-theme-500,
+  [data-theme="glossy"] .bg-theme-500.rounded-2xl {
+    background: linear-gradient(180deg, #56CCF2 0%, #0EA5E9 47%, #0284C7 51%, #0369A1 88%, #38BDF8 100%) !important;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.85),
+      0 4px 0 var(--threed-btn-lip),
+      0 8px 18px -4px rgba(2, 132, 199, 0.45) !important;
+  }
+
+  [data-theme="glossy"] button.bg-white:not(.rounded-2xl):not(.rounded-3xl):not(.rounded-\[2rem\]) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F4F9FF 49%, #E6F1FE 51%, #F7FBFF 100%) !important;
+  }
+
+  /* ---------------- GLASS 3D + FROSTED AURORA OVERRIDES ---------------- */
+  [data-theme="glass"] body {
+    background-color: #E7EEFF;
+    background-image:
+      radial-gradient(at 8% 12%, rgba(99, 102, 241, 0.34) 0px, transparent 50%),
+      radial-gradient(at 90% 10%, rgba(56, 189, 248, 0.36) 0px, transparent 48%),
+      radial-gradient(at 82% 88%, rgba(236, 72, 153, 0.24) 0px, transparent 50%),
+      radial-gradient(at 15% 85%, rgba(45, 212, 191, 0.26) 0px, transparent 48%);
+    background-attachment: fixed;
+  }
+
+  [data-theme="glass"] .flex.h-screen.bg-theme-50 {
+    background: transparent !important;
+  }
+
+  [data-theme="glass"] aside.bg-theme-100 {
+    background: rgba(255, 255, 255, 0.56) !important;
+    backdrop-filter: blur(20px) saturate(170%);
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    border-color: rgba(255, 255, 255, 0.78) !important;
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.85),
+      8px 0 32px rgba(30, 27, 75, 0.10);
+  }
+
+  [data-theme="glass"] header {
+    background: rgba(255, 255, 255, 0.62) !important;
+    backdrop-filter: blur(18px) saturate(170%);
+    -webkit-backdrop-filter: blur(18px) saturate(170%);
+    border-color: rgba(255, 255, 255, 0.80) !important;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.92),
+      0 4px 0 rgba(199, 210, 254, 0.55),
+      0 10px 24px -8px rgba(30, 27, 75, 0.12) !important;
+  }
+
+  [data-theme="glass"] nav[aria-label="Mobile Navigation"] {
+    background: rgba(255, 255, 255, 0.70) !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-color: rgba(255, 255, 255, 0.82) !important;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.95),
+      0 -8px 28px rgba(30, 27, 75, 0.12) !important;
+  }
+
+  [data-theme="glass"] :is(
+    .bg-white.rounded-2xl,
+    .bg-white.rounded-3xl,
+    .bg-white.rounded-\[2rem\],
+    .bg-white.rounded-\[1\.5rem\]
+  ) {
+    background: rgba(255, 255, 255, 0.62) !important;
+    backdrop-filter: blur(18px) saturate(165%);
+    -webkit-backdrop-filter: blur(18px) saturate(165%);
+    border-color: rgba(255, 255, 255, 0.82) !important;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.95),
+      0 5px 0 rgba(199, 210, 254, 0.58),
+      0 12px 30px -6px rgba(30, 27, 75, 0.14) !important;
+  }
+
+  [data-theme="glass"] .fixed.inset-0 :is(
+    .bg-white.rounded-2xl,
+    .bg-white.rounded-3xl,
+    .bg-white.rounded-\[2rem\],
+    .bg-white.rounded-t-3xl
+  ) {
+    background: rgba(255, 255, 255, 0.88) !important;
+    backdrop-filter: blur(24px) saturate(175%);
+    -webkit-backdrop-filter: blur(24px) saturate(175%);
+  }
+
+  [data-theme="glass"] :is(button, a).bg-theme-500,
+  [data-theme="glass"] :is(button, a).bg-theme-600,
+  [data-theme="glass"] :is(button, a).bg-theme-700,
+  [data-theme="glass"] .w-10.h-10.bg-theme-500,
+  [data-theme="glass"] .w-9.h-9.bg-theme-500,
+  [data-theme="glass"] .bg-theme-500.rounded-2xl {
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.88) 0%, rgba(79, 70, 229, 0.92) 60%, rgba(67, 56, 202, 0.95) 100%) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.52),
+      0 4px 0 rgba(49, 46, 129, 0.78),
+      0 8px 20px -4px rgba(79, 70, 229, 0.45) !important;
+  }
+
+  [data-theme="glass"] :is(button, a).bg-theme-500:hover,
+  [data-theme="glass"] :is(button, a).bg-theme-600:hover,
+  [data-theme="glass"] :is(button, a).bg-theme-700:hover {
+    filter: brightness(1.06);
+  }
+
+  [data-theme="glass"] button.bg-white:not(.rounded-2xl):not(.rounded-3xl):not(.rounded-\[2rem\]) {
+    background: rgba(255, 255, 255, 0.68) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-color: rgba(255, 255, 255, 0.85) !important;
+    box-shadow:
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.95),
+      0 3px 0 rgba(199, 210, 254, 0.60),
+      0 6px 14px -4px rgba(30, 27, 75, 0.12) !important;
+  }
+
+  [data-theme="glass"] :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]) {
+    background-color: rgba(255, 255, 255, 0.72) !important;
+    border-color: rgba(255, 255, 255, 0.88) !important;
+  }
+
+  [data-theme="glass"] table thead {
+    background: rgba(255, 255, 255, 0.48) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ========================================================

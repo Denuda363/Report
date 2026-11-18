@@ -61,7 +61,13 @@ interface AppContextType extends AppState {
     newSuppliers: { name: string }[],
     newProducts: { name: string; unit: string; supplierName: string; bottomStock?: number; stock?: number; location?: string; category?: string }[],
     onProgress?: (current: number, total: number, itemName?: string) => void
-  ) => Promise<string[]>;
+  ) => Promise<{
+    errors: string[];
+    addedSuppliers: number;
+    addedProducts: number;
+    updatedProducts: number;
+    skippedProducts: number;
+  }>;
   exportData: () => void;
   importData: (jsonData: string) => Promise<void>;
   migrateCurrentDataToSupabase: () => Promise<{ success: boolean; message: string; count: number }>;
@@ -266,6 +272,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           hasChanges = true;
         }
 
+        const companyFields: Array<['companyName' | 'companyTagline' | 'companyAddress' | 'companyPhone' | 'companyEmail' | 'companyIcon', string]> = [
+          ['companyName', 'companyname'],
+          ['companyTagline', 'companytagline'],
+          ['companyAddress', 'companyaddress'],
+          ['companyPhone', 'companyphone'],
+          ['companyEmail', 'companyemail'],
+          ['companyIcon', 'companyicon'],
+        ];
+        companyFields.forEach(([key, lowerKey]) => {
+          const val = remote[key] !== undefined ? remote[key] : remote[lowerKey];
+          if (val !== undefined && val !== prev.settings[key]) {
+            updated[key] = val;
+            hasChanges = true;
+          }
+        });
+
         if (!hasChanges) return prev;
 
         try {
@@ -299,6 +321,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           saveStoredPinHash(remote.dbPinHash);
           hasChanges = true;
         }
+        (['companyName', 'companyTagline', 'companyAddress', 'companyPhone', 'companyEmail', 'companyIcon'] as const).forEach((key) => {
+          if (remote[key] !== undefined && remote[key] !== prev.settings[key]) {
+            updated[key] = remote[key];
+            hasChanges = true;
+          }
+        });
 
         if (!hasChanges) return prev;
         try {
@@ -315,11 +343,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         settingsBc = new BroadcastChannel('dailyreport_settings_sync');
         settingsBc.onmessage = (event) => {
           if (event.data) {
+            const incoming = event.data;
             setState(prev => ({
               ...prev,
               settings: {
                 ...prev.settings,
-                ...event.data
+                ...(incoming.autoDeleteMode !== undefined ? { autoDeleteMode: incoming.autoDeleteMode } : {}),
+                ...(incoming.autoDeleteDays !== undefined ? { autoDeleteDays: incoming.autoDeleteDays } : {}),
+                ...(incoming.dbPinHash !== undefined ? { dbPinHash: incoming.dbPinHash } : {}),
+                ...(incoming.companyName !== undefined ? { companyName: incoming.companyName } : {}),
+                ...(incoming.companyTagline !== undefined ? { companyTagline: incoming.companyTagline } : {}),
+                ...(incoming.companyAddress !== undefined ? { companyAddress: incoming.companyAddress } : {}),
+                ...(incoming.companyPhone !== undefined ? { companyPhone: incoming.companyPhone } : {}),
+                ...(incoming.companyEmail !== undefined ? { companyEmail: incoming.companyEmail } : {}),
+                ...(incoming.companyIcon !== undefined ? { companyIcon: incoming.companyIcon } : {})
               }
             }));
           }
@@ -540,10 +577,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const resetAllProductStocks = async () => {
     if (!userId || state.products.length === 0) return;
     
-    // Batch updates (max 500 operations per batch)
-        const ops = state.products.filter(p => p.stock !== 0).map(p => ({
+    const ops = state.products.filter(p => p.stock !== 0).map(p => ({
       type: 'update', collection: 'products', id: p.id, data: { stock: 0 }
     })) as any[];
+    if (ops.length === 0) return;
+
+    setState(prev => ({
+      ...prev,
+      products: prev.products.map(p => (p.stock !== 0 ? { ...p, stock: 0 } : p))
+    }));
+
     await executeBatch(ops);
   };
 
@@ -754,6 +797,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteMultipleReports = async (ids: string[], forceDeleteArrived = false) => {
     if (!userId || ids.length === 0) return;
     try {
+      const idSet = new Set(ids);
       const ops = ids.map(id => {
         if (!forceDeleteArrived) {
           const report = state.reports.find(r => r.id === id);
@@ -763,6 +807,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         return { type: 'delete', collection: 'reports', id };
       }) as any[];
+
+      // Optimistic update
+      setState(prev => ({
+        ...prev,
+        reports: prev.reports
+          .map(r => {
+            if (!idSet.has(r.id)) return r;
+            if (!forceDeleteArrived && r.isArrived) {
+              return { ...r, quantity: 0, isKosongPabrik: false, isArrivedOnly: true };
+            }
+            return null;
+          })
+          .filter((r): r is ReportEntry => r !== null)
+      }));
+
       await executeBatch(ops);
     } catch (error) {
       console.error('Error deleting multiple reports:', error);
@@ -914,12 +973,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!userId) return;
     try {
       const reportsToDelete = state.reports.filter(r => r.date >= startDate && r.date <= endDate);
-            const ops = reportsToDelete.map(r => {
+      if (reportsToDelete.length === 0) return;
+      const deleteIds = new Set(reportsToDelete.map(r => r.id));
+
+      const ops = reportsToDelete.map(r => {
         if (r.isArrived) {
           return { type: 'update', collection: 'reports', id: r.id, data: { quantity: 0, isKosongPabrik: false, isArrivedOnly: true } };
         }
         return { type: 'delete', collection: 'reports', id: r.id };
       }) as any[];
+
+      setState(prev => ({
+        ...prev,
+        reports: prev.reports
+          .map(r => {
+            if (!deleteIds.has(r.id)) return r;
+            if (r.isArrived) {
+              return { ...r, quantity: 0, isKosongPabrik: false, isArrivedOnly: true };
+            }
+            return null;
+          })
+          .filter((r): r is ReportEntry => r !== null)
+      }));
+
       await executeBatch(ops);
     } catch (error) {
       console.error("Error deleting reports by date range:", error);
@@ -930,28 +1006,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     newSuppliers: { name: string }[],
     newProducts: { name: string; unit: string; supplierName: string; bottomStock?: number; stock?: number; location?: string; category?: string }[],
     onProgress?: (current: number, total: number, itemName?: string) => void
-  ): Promise<string[]> => {
-    if (!userId) return ["User not logged in."];
+  ): Promise<{
+    errors: string[];
+    addedSuppliers: number;
+    addedProducts: number;
+    updatedProducts: number;
+    skippedProducts: number;
+  }> => {
+    if (!userId) {
+      return {
+        errors: ["User not logged in."],
+        addedSuppliers: 0,
+        addedProducts: 0,
+        updatedProducts: 0,
+        skippedProducts: 0
+      };
+    }
 
     const errors: string[] = [];
     const totalItems = newSuppliers.length + newProducts.length;
     let processedCount = 0;
+    let addedProductsCount = 0;
+    let updatedProductsCount = 0;
+    let skippedProductsCount = 0;
+
+    const normalizeKey = (val: string) => String(val || '').toLowerCase().trim().replace(/\s+/g, ' ');
 
     try {
       const ops: { type: 'set' | 'update'; collection: string; id: string; data: any }[] = [];
-      const supplierMap = new Map(state.suppliers.map(s => [s.name.toLowerCase().trim(), s.id]));
+      const opIndexById = new Map<string, number>();
+
+      const supplierMap = new Map<string, string>(
+        state.suppliers.map((s): [string, string] => [normalizeKey(s.name), s.id])
+      );
       const addedSuppliers = new Map<string, string>();
       const newSuppliersList: Supplier[] = [];
 
-      // 1. Process explicit new suppliers
+      // 1. Process explicit new suppliers (jangan duplikasi jika nama supplier sudah ada)
       for (let i = 0; i < newSuppliers.length; i++) {
         const ns = newSuppliers[i];
+        const cleanSupplierName = String(ns.name || '').trim();
         processedCount++;
-        onProgress?.(processedCount, totalItems, `Supplier: ${ns.name}`);
-        const key = ns.name.toLowerCase().trim();
-        if (!supplierMap.has(key) && !addedSuppliers.has(key)) {
+        onProgress?.(processedCount, totalItems, `Supplier: ${cleanSupplierName}`);
+        const key = normalizeKey(cleanSupplierName);
+        if (key && !supplierMap.has(key) && !addedSuppliers.has(key)) {
           const id = generateId();
-          const record = { id, name: ns.name, userId };
+          const record = { id, name: cleanSupplierName, userId };
           ops.push({ type: 'set', collection: 'suppliers', id, data: record });
           addedSuppliers.set(key, id);
           newSuppliersList.push(record as Supplier);
@@ -961,79 +1061,153 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 2. Auto-create suppliers referenced by products
       for (let i = 0; i < newProducts.length; i++) {
         const np = newProducts[i];
-        const key = np.supplierName.toLowerCase().trim();
-        if (!supplierMap.has(key) && !addedSuppliers.has(key)) {
+        const cleanSupplierName = String(np.supplierName || '').trim();
+        const key = normalizeKey(cleanSupplierName);
+        if (key && !supplierMap.has(key) && !addedSuppliers.has(key)) {
           const id = generateId();
-          const record = { id, name: np.supplierName, userId };
+          const record = { id, name: cleanSupplierName, userId };
           ops.push({ type: 'set', collection: 'suppliers', id, data: record });
           addedSuppliers.set(key, id);
           newSuppliersList.push(record as Supplier);
         }
       }
 
-      // 3. Process products
-      const newProductsList: Product[] = [];
+      // 3. Process products (deduplikasi berdasarkan nama item, baik terhadap DB maupun baris lain dalam file import)
+      const productByNameMap = new Map<string, Product>();
+      for (const p of state.products) {
+        const pKey = normalizeKey(p.name);
+        if (pKey && !productByNameMap.has(pKey)) {
+          productByNameMap.set(pKey, p);
+        }
+      }
+
+      const newProductsMap = new Map<string, Product>();
       const updatedProductsMap = new Map<string, Product>();
+      const updatedIdTracker = new Set<string>();
 
       for (let i = 0; i < newProducts.length; i++) {
         const np = newProducts[i];
-        processedCount++;
-        onProgress?.(processedCount, totalItems, `Produk: ${np.name}`);
+        const cleanName = String(np.name || '').trim();
+        const cleanUnit = String(np.unit || 'pcs').trim() || 'pcs';
+        const cleanSupplierName = String(np.supplierName || '').trim();
+        const cleanLocation = String(np.location || '').trim();
+        const cleanCategory = String(np.category || '').trim();
 
-        const key = np.supplierName.toLowerCase().trim();
-        const supplierId = supplierMap.get(key) || addedSuppliers.get(key);
+        processedCount++;
+        onProgress?.(processedCount, totalItems, `Produk: ${cleanName}`);
+
+        const supKey = normalizeKey(cleanSupplierName);
+        const supplierId = supplierMap.get(supKey) || addedSuppliers.get(supKey);
+
+        if (!cleanName) continue;
 
         if (supplierId) {
-          const existingProduct = state.products.find(p => p.name.toLowerCase().trim() === np.name.toLowerCase().trim());
-          const newBottomStock = np.bottomStock !== undefined ? np.bottomStock : null;
+          const prodKey = normalizeKey(cleanName);
+          const existingProduct = productByNameMap.get(prodKey);
 
           if (existingProduct) {
-            const existingBottomStock = existingProduct.bottomStock !== undefined ? existingProduct.bottomStock : null;
+            // Nama item sudah ada -> JANGAN tambah baru. Cek apakah ada perubahan data lain.
+            const nextBottomStock = np.bottomStock !== undefined ? np.bottomStock : (existingProduct.bottomStock ?? null);
+            const existingBottomStock = existingProduct.bottomStock ?? null;
+            const nextStock = np.stock !== undefined ? np.stock : existingProduct.stock;
+            const nextLocation = cleanLocation ? cleanLocation : (existingProduct.location || undefined);
+            const nextCategory = cleanCategory ? cleanCategory : (existingProduct.category || undefined);
+
+            const hasNameCaseChange = (existingProduct.name || '').trim() !== cleanName;
+            const hasUnitChange = (existingProduct.unit || '').trim() !== cleanUnit;
+            const hasSupplierChange = (existingProduct.supplierId || '') !== supplierId;
+            const hasBottomStockChange = np.bottomStock !== undefined && existingBottomStock !== nextBottomStock;
+            const hasStockChange = np.stock !== undefined && (existingProduct.stock ?? null) !== nextStock;
+            const hasLocationChange = Boolean(cleanLocation) && (existingProduct.location || '').trim() !== cleanLocation;
+            const hasCategoryChange = Boolean(cleanCategory) && (existingProduct.category || '').trim() !== cleanCategory;
+
             if (
-              existingProduct.unit !== np.unit ||
-              existingProduct.supplierId !== supplierId ||
-              existingBottomStock !== newBottomStock
+              hasNameCaseChange ||
+              hasUnitChange ||
+              hasSupplierChange ||
+              hasBottomStockChange ||
+              hasStockChange ||
+              hasLocationChange ||
+              hasCategoryChange
             ) {
+              const updateFields: Partial<Product> = {
+                ...(hasNameCaseChange ? { name: cleanName } : {}),
+                unit: cleanUnit,
+                supplierId: supplierId,
+                ...(hasBottomStockChange ? { bottomStock: nextBottomStock } : {}),
+                ...(hasStockChange && nextStock !== undefined ? { stock: nextStock } : {}),
+                ...(nextLocation ? { location: nextLocation } : {}),
+                ...(nextCategory ? { category: nextCategory } : {})
+              };
               const updated = {
                 ...existingProduct,
-                unit: np.unit,
-                supplierId: supplierId,
-                bottomStock: newBottomStock
-              };
-              ops.push({
-                type: 'update',
-                collection: 'products',
-                id: existingProduct.id,
-                data: {
-                  unit: np.unit,
-                  supplierId: supplierId,
-                  bottomStock: newBottomStock
+                ...updateFields
+              } as Product;
+
+              productByNameMap.set(prodKey, updated);
+
+              const existingOpIdx = opIndexById.get(existingProduct.id);
+              if (existingOpIdx !== undefined) {
+                // Jika item baru dibuat/diupdate di baris sebelumnya pada file yang sama, gabungkan perubahannya
+                const prevOp = ops[existingOpIdx];
+                ops[existingOpIdx] = {
+                  ...prevOp,
+                  data: { ...prevOp.data, ...updateFields }
+                };
+              } else {
+                opIndexById.set(existingProduct.id, ops.length);
+                ops.push({
+                  type: 'update',
+                  collection: 'products',
+                  id: existingProduct.id,
+                  data: updateFields
+                });
+              }
+
+              if (newProductsMap.has(existingProduct.id)) {
+                newProductsMap.set(existingProduct.id, updated);
+              } else {
+                updatedProductsMap.set(existingProduct.id, updated);
+                if (!updatedIdTracker.has(existingProduct.id)) {
+                  updatedIdTracker.add(existingProduct.id);
+                  updatedProductsCount++;
                 }
-              });
-              updatedProductsMap.set(existingProduct.id, updated as Product);
+              }
+            } else {
+              skippedProductsCount++;
             }
           } else {
+            // Nama item belum ada -> Tambah item baru
             const id = generateId();
             const record = {
               id,
-              name: np.name,
-              unit: np.unit,
+              name: cleanName,
+              unit: cleanUnit,
               supplierId: supplierId,
-              bottomStock: newBottomStock,
+              bottomStock: np.bottomStock !== undefined ? np.bottomStock : null,
+              ...(np.stock !== undefined ? { stock: np.stock } : {}),
+              ...(cleanLocation ? { location: cleanLocation } : {}),
+              ...(cleanCategory ? { category: cleanCategory } : {}),
               userId
             } as Product;
+
+            opIndexById.set(id, ops.length);
             ops.push({
               type: 'set',
               collection: 'products',
               id,
               data: record
             });
-            newProductsList.push(record);
+            newProductsMap.set(id, record);
+            productByNameMap.set(prodKey, record);
+            addedProductsCount++;
           }
         } else {
           errors.push(`Could not find or create supplier "${np.supplierName}" for product "${np.name}".`);
         }
       }
+
+      const newProductsList = Array.from(newProductsMap.values());
 
       // Optimistic state update immediately (0ms UI latency!)
       setState(prev => ({
@@ -1049,12 +1223,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (ops.length > 0) {
         await executeBatch(ops);
       }
+
+      return {
+        errors,
+        addedSuppliers: newSuppliersList.length,
+        addedProducts: addedProductsCount,
+        updatedProducts: updatedProductsCount,
+        skippedProducts: skippedProductsCount
+      };
     } catch (e: any) {
       console.error("Import failed:", e);
       errors.push(`Critical import failure: ${e.message}`);
+      return {
+        errors,
+        addedSuppliers: 0,
+        addedProducts: addedProductsCount,
+        updatedProducts: updatedProductsCount,
+        skippedProducts: skippedProductsCount
+      };
     }
-
-    return errors;
   };
 
     const exportData = () => {
@@ -1063,6 +1250,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       products: state.products,
       reports: state.reports,
       stockOuts: state.stockOuts,
+      nearExpiredList: state.nearExpiredList,
       settings: state.settings,
       exportDate: new Date().toISOString()
     };
@@ -1097,6 +1285,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       queueOps('products', data.products);
       queueOps('reports', data.reports);
       queueOps('stock_outs', data.stockOuts);
+      queueOps('near_expired', data.nearExpiredList);
       
       if (data.settings) {
         ops.push({ type: 'set', collection: 'settings', id: 'public', data: data.settings });
@@ -1128,7 +1317,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (state.suppliers.length > 0) {
       const records = state.suppliers.map(s => ({
         id: s.id,
-        name: s.name,
+        name: s.name || 'Supplier Tanpa Nama',
         userId: s.userId || 'public'
       }));
       const chunks = chunkArray(records, BATCH_SIZE);
@@ -1143,10 +1332,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (state.products.length > 0) {
       const records = state.products.map(p => ({
         id: p.id,
-        name: p.name,
-        supplierId: p.supplierId,
+        name: p.name || 'Produk Tanpa Nama',
+        supplierId: p.supplierId || '',
         alternativeSupplierIds: p.alternativeSupplierIds || [],
-        unit: p.unit,
+        unit: p.unit || 'pcs',
         bottomStock: p.bottomStock ?? null,
         minStock: p.minStock ?? 5,
         isKosongPabrik: p.isKosongPabrik ?? false,
@@ -1166,10 +1355,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Reports
     if (state.reports.length > 0) {
+      const todayFallback = new Date().toISOString().split('T')[0];
       const records = state.reports.map(r => ({
         id: r.id,
-        date: r.date,
-        productId: r.productId,
+        date: r.date || todayFallback,
+        productId: r.productId || '',
         quantity: r.quantity ?? 0,
         createdAt: r.createdAt ?? Date.now(),
         isOrdered: r.isOrdered ?? false,
@@ -1199,11 +1389,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Stock outs
     if (state.stockOuts.length > 0) {
+      const todayFallback = new Date().toISOString().split('T')[0];
       const records = state.stockOuts.map(s => ({
         id: s.id,
-        date: s.date,
-        productId: s.productId,
-        quantity: s.quantity,
+        date: s.date || todayFallback,
+        productId: s.productId || '',
+        quantity: s.quantity ?? 0,
         notes: s.notes ?? null,
         createdAt: s.createdAt ?? Date.now(),
         userId: s.userId || 'public'
@@ -1218,20 +1409,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Near Expired
     if (state.nearExpiredList && state.nearExpiredList.length > 0) {
+      const todayFallback = new Date().toISOString().split('T')[0];
       const records = state.nearExpiredList.map(n => ({
         id: n.id,
         productId: n.productId ?? null,
-        productName: n.productName,
-        batch: n.batch,
-        expiredDate: n.expiredDate,
+        productName: n.productName || 'Produk',
+        batch: n.batch || '-',
+        expiredDate: n.expiredDate || todayFallback,
         supplierId: n.supplierId ?? null,
-        supplierName: n.supplierName,
+        supplierName: n.supplierName || '-',
         quantity: n.quantity ?? null,
         unit: n.unit || 'Pcs',
         notes: n.notes ?? null,
         status: n.status || 'pending',
         createdAt: n.createdAt ?? Date.now(),
-        userId: 'public'
+        userId: n.userId || 'public'
       }));
       const chunks = chunkArray(records, BATCH_SIZE);
       for (const chunk of chunks) {
@@ -1251,13 +1443,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       useLocalDb: false,
       dbProvider: 'supabase'
     };
-    if (state.settings.dbPinHash) {
-      settingsRecord.dbPinHash = state.settings.dbPinHash;
-    }
+    if (state.settings.dbPinHash) settingsRecord.dbPinHash = state.settings.dbPinHash;
+    if (state.settings.companyName !== undefined) settingsRecord.companyName = state.settings.companyName;
+    if (state.settings.companyTagline !== undefined) settingsRecord.companyTagline = state.settings.companyTagline;
+    if (state.settings.companyAddress !== undefined) settingsRecord.companyAddress = state.settings.companyAddress;
+    if (state.settings.companyPhone !== undefined) settingsRecord.companyPhone = state.settings.companyPhone;
+    if (state.settings.companyEmail !== undefined) settingsRecord.companyEmail = state.settings.companyEmail;
+    if (state.settings.companyIcon !== undefined) settingsRecord.companyIcon = state.settings.companyIcon;
     const { error: settingsErr } = await supabase.from('settings').upsert([settingsRecord]);
-    if (settingsErr && settingsRecord.dbPinHash) {
-      const { dbPinHash: _ignored, ...restSettings } = settingsRecord;
-      await supabase.from('settings').upsert([restSettings]);
+    if (settingsErr) {
+      // Fallback for older Supabase settings tables missing optional columns
+      await supabase.from('settings').upsert([{
+        id: 'public',
+        autoDeleteMode: state.settings.autoDeleteMode || 'none',
+        autoDeleteDays: state.settings.autoDeleteDays || 3,
+        navbarPosition: state.settings.navbarPosition || 'bottom',
+        theme: state.settings.theme || 'default',
+        useLocalDb: false,
+        dbProvider: 'supabase'
+      }]);
     }
 
     return {
@@ -1270,12 +1474,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const resetAllData = async () => {
     if (!userId) return;
     try {
-      const supplierPromises = state.suppliers.map(s => deleteRecord('suppliers', s.id));
-      const productPromises = state.products.map(p => deleteRecord('products', p.id));
-      const reportPromises = state.reports.map(r => deleteRecord('reports', r.id));
-      const nearExpiredPromises = (state.nearExpiredList || []).map(n => deleteRecord('near_expired', n.id));
-      
-      await Promise.all([...supplierPromises, ...productPromises, ...reportPromises, ...nearExpiredPromises]);
+      const ops: { type: 'delete'; collection: string; id: string }[] = [
+        ...state.suppliers.map(s => ({ type: 'delete' as const, collection: 'suppliers', id: s.id })),
+        ...state.products.map(p => ({ type: 'delete' as const, collection: 'products', id: p.id })),
+        ...state.reports.map(r => ({ type: 'delete' as const, collection: 'reports', id: r.id })),
+        ...state.stockOuts.map(s => ({ type: 'delete' as const, collection: 'stock_outs', id: s.id })),
+        ...(state.nearExpiredList || []).map(n => ({ type: 'delete' as const, collection: 'near_expired', id: n.id }))
+      ];
+
+      setState(prev => ({
+        ...prev,
+        suppliers: [],
+        products: [],
+        reports: [],
+        stockOuts: [],
+        nearExpiredList: []
+      }));
+
+      if (ops.length > 0) {
+        await executeBatch(ops);
+      }
     } catch (e) {
       console.error("Reset data failed:", e);
     }

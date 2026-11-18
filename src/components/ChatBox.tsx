@@ -8,7 +8,10 @@ import { isFirebaseDb } from '../lib/dbAdapter';
 
 export const ChatBox = () => {
   if (!isFirebaseDb()) return null; // Nonaktifkan chat Firestore jika menggunakan Supabase atau Local DB
+  return <ChatBoxInner />;
+};
 
+const ChatBoxInner = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -97,8 +100,10 @@ export const ChatBox = () => {
     const unsub = onSnapshot(q, (snapshot) => {
       const users: ChatUser[] = [];
       const now = Date.now();
-      snapshot.forEach(doc => {
-        const u = doc.data() as ChatUser;
+      snapshot.forEach(docSnap => {
+        if (docSnap.id.startsWith('_')) return;
+        const u = docSnap.data() as ChatUser;
+        if (!u.displayName) return;
         // consider offline if lastSeen > 1 minute ago
         if (now - u.lastSeen > 60000) {
           u.isOnline = false;
@@ -108,6 +113,8 @@ export const ChatBox = () => {
         }
       });
       setActiveUsers(users);
+    }, (error) => {
+      console.warn('[ChatBox chat_users listener]', error?.message || error);
     });
     return unsub;
   }, [localUserId]);
@@ -123,11 +130,14 @@ export const ChatBox = () => {
     
     const unsub = onSnapshot(q, (snapshot) => {
       const counts: Record<string, number> = {};
-      snapshot.forEach(doc => {
-        const msg = doc.data() as ChatMessage;
+      snapshot.forEach(docSnap => {
+        if (docSnap.id.startsWith('_')) return;
+        const msg = docSnap.data() as ChatMessage;
         counts[msg.senderId] = (counts[msg.senderId] || 0) + 1;
       });
       setUnreadCounts(counts);
+    }, (error) => {
+      console.warn('[ChatBox unread listener]', error?.message || error);
     });
     return unsub;
   }, [localUserId]);
@@ -149,8 +159,9 @@ export const ChatBox = () => {
     
     const unsub = onSnapshot(q, (snapshot) => {
       const msgs: ChatMessage[] = [];
-      snapshot.forEach(doc => {
-        msgs.push({ id: doc.id, ...doc.data() } as ChatMessage);
+      snapshot.forEach(docSnap => {
+        if (docSnap.id.startsWith('_')) return;
+        msgs.push({ id: docSnap.id, ...docSnap.data() } as ChatMessage);
       });
       msgs.reverse();
       setMessages(msgs);
@@ -165,6 +176,8 @@ export const ChatBox = () => {
           }
         }
       });
+    }, (error) => {
+      console.warn('[ChatBox messages listener]', error?.message || error);
     });
     return unsub;
   }, [localUserId, selectedUser]);

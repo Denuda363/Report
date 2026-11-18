@@ -51,7 +51,9 @@ export const Layout = () => {
   }, [nearExpiredList]);
 
   const lowStockCount = useMemo(() => {
-    return (products || []).filter(p => (p.stock ?? 0) <= (p.minStock ?? 5)).length;
+    return (products || []).filter(
+      p => p.stock !== undefined && p.stock !== null && p.bottomStock !== undefined && p.bottomStock !== null && p.stock < p.bottomStock
+    ).length;
   }, [products]);
 
   const kosongPabrikCount = useMemo(() => {
@@ -173,16 +175,35 @@ export const Layout = () => {
           ? "translate-x-0 shadow-2xl" 
           : (navPos === 'right' ? "translate-x-full md:translate-x-0" : "-translate-x-full md:translate-x-0")
       )}>
-        <div className={cn("flex items-center md:mb-8 mb-6", isDesktopSidebarCollapsed ? "md:justify-center justify-between" : "justify-between")}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-theme-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-md shrink-0 ring-2 ring-white/50">R</div>
-            <div className={cn("transition-opacity duration-300", isDesktopSidebarCollapsed ? "md:hidden" : "block")}>
-              <span className="font-bold text-lg tracking-tight block text-theme-900">ReportPro</span>
-              <span className="text-[10px] text-theme-600-text font-medium uppercase tracking-wider block">Manajemen Stok</span>
+        <div className={cn("flex items-start gap-2 md:mb-8 mb-6", isDesktopSidebarCollapsed ? "md:justify-center justify-between" : "justify-between")}>
+          <div className={cn("flex gap-3 min-w-0 flex-1", isDesktopSidebarCollapsed ? "md:justify-center items-center" : "items-start")}>
+            {settings.companyIcon ? (
+              <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center overflow-hidden shadow-md shrink-0 ring-2 ring-white/70 border border-theme-200 mt-0.5">
+                <img src={settings.companyIcon} alt={settings.companyName || 'Logo Perusahaan'} className="w-full h-full object-contain p-0.5" />
+              </div>
+            ) : (
+              <div className="w-10 h-10 bg-theme-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-md shrink-0 ring-2 ring-white/50 mt-0.5">
+                {(settings.companyName?.trim() || 'ReportPro').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className={cn("transition-opacity duration-300 min-w-0 flex-1", isDesktopSidebarCollapsed ? "md:hidden" : "block")}>
+              <span className={cn(
+                "font-bold tracking-tight block text-theme-900 whitespace-normal break-words leading-snug",
+                (settings.companyName?.trim() || 'ReportPro').length > 36
+                  ? "text-xs sm:text-sm"
+                  : (settings.companyName?.trim() || 'ReportPro').length > 22
+                    ? "text-sm sm:text-base"
+                    : "text-base sm:text-lg"
+              )}>
+                {settings.companyName?.trim() || 'ReportPro'}
+              </span>
+              <span className="text-[10px] text-theme-600-text font-medium uppercase tracking-wider block whitespace-normal break-words leading-tight mt-0.5">
+                {settings.companyTagline?.trim() || 'Manajemen Stok'}
+              </span>
             </div>
           </div>
           <button 
-            className="md:hidden p-2 rounded-xl text-neutral-500 hover:text-neutral-900 hover:bg-theme-200 transition-colors" 
+            className="md:hidden p-2 rounded-xl text-neutral-500 hover:text-neutral-900 hover:bg-theme-200 transition-colors shrink-0" 
             onClick={() => setIsSidebarOpen(false)}
           >
             <X className="w-5 h-5" />
@@ -453,13 +474,21 @@ export const Layout = () => {
           <div className="p-4 pb-2 border-b border-theme-200/80 bg-theme-50/70 shrink-0">
             <div className="w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-3" />
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-theme-500 text-white flex items-center justify-center font-bold text-base shadow-sm">
-                  <LayoutGrid className="w-5 h-5" />
-                </div>
-                <div>
+              <div className="flex items-start gap-2.5 min-w-0 flex-1 pr-2">
+                {settings.companyIcon ? (
+                  <div className="w-9 h-9 rounded-2xl bg-white border border-theme-200 flex items-center justify-center overflow-hidden shadow-sm shrink-0 mt-0.5">
+                    <img src={settings.companyIcon} alt={settings.companyName || 'Logo'} className="w-full h-full object-contain p-0.5" />
+                  </div>
+                ) : (
+                  <div className="w-9 h-9 rounded-2xl bg-theme-500 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0 mt-0.5">
+                    <LayoutGrid className="w-5 h-5" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
                   <h3 className="font-bold text-neutral-900 text-base leading-tight">Semua Fitur & Menu</h3>
-                  <p className="text-[11px] text-neutral-500">Pilih menu navigasi cepat ReportPro</p>
+                  <p className="text-[11px] text-neutral-600 font-semibold whitespace-normal break-words leading-snug mt-0.5">
+                    {settings.companyName?.trim() || 'ReportPro'}
+                  </p>
                 </div>
               </div>
               <button 
@@ -615,8 +644,8 @@ export const Layout = () => {
         navPos === 'bottom' ? 'pb-20 md:pb-0' : 'pb-16 md:pb-0'
       )}>
         {/* Header (Fully Responsive on Mobile & Desktop) */}
-        <header className="h-16 md:h-20 flex items-center justify-between px-3 md:px-8 border-b border-theme-200 bg-white shrink-0 shadow-xs z-20">
-          <div className="flex items-center gap-2 md:gap-4 min-w-0">
+        <header className="min-h-16 md:min-h-20 h-auto py-2.5 flex items-center justify-between gap-2 sm:gap-4 px-3 md:px-8 border-b border-theme-200 bg-white shrink-0 shadow-xs z-20">
+          <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
             {/* Hamburger / Menu button on mobile */}
             <button 
               className="md:hidden p-2 rounded-xl text-theme-800 bg-theme-100/70 hover:bg-theme-200 active:scale-95 transition-all shrink-0"
@@ -633,20 +662,31 @@ export const Layout = () => {
             </button>
             
             {/* Logo on desktop or when compact */}
-            <div className="hidden md:flex items-center gap-2 mr-1">
-              <div className="w-9 h-9 bg-theme-500 rounded-xl flex items-center justify-center text-white font-bold text-base shadow-sm">
-                R
-              </div>
+            <div className="hidden md:flex items-center gap-2 mr-1 shrink-0">
+              {settings.companyIcon ? (
+                <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-sm border border-theme-200 shrink-0">
+                  <img src={settings.companyIcon} alt={settings.companyName || 'Logo'} className="w-full h-full object-contain p-0.5" />
+                </div>
+              ) : (
+                <div className="w-9 h-9 bg-theme-500 rounded-xl flex items-center justify-center text-white font-bold text-base shadow-sm shrink-0">
+                  {(settings.companyName?.trim() || 'ReportPro').charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
 
-            {/* Current Active Page Title with proper Indonesian label and icon */}
-            <div className="flex items-center gap-2 min-w-0">
+            {/* Current Active Page Title & Unclipped Company Name */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <div className="p-1.5 bg-theme-100 text-theme-800 rounded-xl hidden sm:flex shrink-0">
                 <currentTab.icon className="w-4 h-4 md:w-5 md:h-5" />
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base sm:text-xl md:text-2xl font-bold text-neutral-900 truncate">
+              <div className="min-w-0 flex-1">
+                {settings.companyName?.trim() && (
+                  <span className="block text-[11px] sm:text-xs font-extrabold text-theme-700 leading-snug whitespace-normal break-words mb-0.5">
+                    {settings.companyName.trim()}
+                  </span>
+                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-base sm:text-xl md:text-2xl font-bold text-neutral-900 leading-tight break-words">
                     {currentTab.label}
                   </h1>
                   {currentTab.badge !== undefined && currentTab.badge > 0 && (
@@ -658,7 +698,7 @@ export const Layout = () => {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-neutral-500 hidden sm:block truncate">
+                <p className="text-xs text-neutral-500 hidden sm:block whitespace-normal break-words">
                   {currentTab.desc}
                 </p>
               </div>

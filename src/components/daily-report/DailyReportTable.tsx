@@ -91,7 +91,10 @@ export const DailyReportTable: React.FC<DailyReportTableProps> = ({
                 <td className="py-3.5 px-4 text-xs text-theme-700 whitespace-nowrap">
                   <div className="flex items-center gap-1.5 font-medium">
                     <CalendarIcon className="w-3.5 h-3.5 text-theme-400" />
-                    <span>{format(new Date(r.date), 'dd MMM yyyy')}</span>
+                    <span>{(() => {
+                      const d = r.date ? new Date(r.date) : null;
+                      return d && !isNaN(d.getTime()) ? format(d, 'dd MMM yyyy') : (r.date || '-');
+                    })()}</span>
                   </div>
                 </td>
 

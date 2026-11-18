@@ -20,9 +20,12 @@ export const exportReportsToTxt = (
       Unit: product?.unit || '',
       Quantity: report.quantity,
       BottomStock: product?.bottomStock,
-      'Sudah Order': report.isOrdered ? '[✓ Sudah Order]' : '[- Sudah Order]',
-      'Sudah Datang': report.isArrived ? '[✓ Sudah Datang]' : '[- Sudah Datang]',
+      'Sudah Order': report.isOrdered ? '✓' : '-',
+      'Sudah Datang': report.isArrived ? 'Sudah Datang' : '-',
       'Sudah Dicek': report.isChecked ? '[✓ Sudah Dicek]' : '[- Belum Dicek]',
+      IsOrdered: !!report.isOrdered,
+      IsArrived: !!report.isArrived,
+      IsChecked: !!report.isChecked,
       KosongPabrik: isKosongPabrik,
       ReorderQty: report.isReorder ? report.reorderQty : undefined,
       ReorderReason: report.isReorder ? report.reorderReason : undefined,
@@ -37,7 +40,7 @@ export const exportReportsToTxt = (
   const normalItems = joinedData.filter(item => !item.KosongPabrik && !item.IsArrivedOnly);
   const kosongItems = joinedData.filter(item => item.KosongPabrik && !item.IsArrivedOnly);
   const reorderItems = joinedData.filter(item => item.IsReorder && !item.KosongPabrik && !item.IsArrivedOnly);
-  const arrivedItems = joinedData.filter(item => item['Sudah Datang'] === '[✓ Sudah Datang]' && !item.KosongPabrik);
+  const arrivedItems = joinedData.filter(item => item.IsArrived && !item.KosongPabrik);
   const warningStockItems = joinedData.filter(item => item.IsWarningStock && !item.KosongPabrik && !item.IsArrivedOnly);
 
   // Group by supplier for normal order items
@@ -66,8 +69,9 @@ export const exportReportsToTxt = (
         ? ` ( ${item.BottomStock}${unitStr} )` 
         : '';
       const statuses = [
-        item['Sudah Order'] === '[✓ Sudah Order]' ? '✓ Sudah Order' : '',
-        item['Sudah Dicek'] === '[✓ Sudah Dicek]' ? '✓ Sudah Dicek' : '',
+        item.IsOrdered ? '✓' : '',
+        item.IsArrived ? 'Sudah Datang' : '',
+        item.IsChecked ? '✓ Sudah Dicek' : '',
       ].filter(Boolean).join(' | ');
       const statusStr = statuses ? ` [${statuses}]` : '';
       const notesStr = item.Notes ? ` (${item.Notes})` : '';
@@ -162,7 +166,7 @@ export const exportReportsToTxt = (
   normalItems.forEach(item => {
     if (Number(item.Quantity) === 0) {
       const cleanName = (item.Product || '').trim().toLowerCase();
-      const isArrived = item['Sudah Datang'] === '[✓ Sudah Datang]' || arrivedProductNames.has(cleanName);
+      const isArrived = item.IsArrived || arrivedProductNames.has(cleanName);
       if (cleanName && !isArrived) {
         zeroQtyProductSet.add(cleanName);
       }
@@ -348,6 +352,31 @@ export const exportArrivedToTxt = (
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+export const exportProductsToTxt = (
+  productsToExport: Product[],
+  _suppliers: Supplier[] = [],
+  filename: string = `Master_Data_Produk_${new Date().toISOString().split('T')[0]}`,
+  _filterInfo?: string
+) => {
+  const itemNames = productsToExport
+    .map(p => (p.name || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'id', { sensitivity: 'base' }));
+
+  const content = itemNames.map((name, idx) => `${idx + 1}. ${name}`).join('\n');
+
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filename}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
 
 export const downloadDailyReportTemplate = () => {
@@ -443,20 +472,24 @@ export const parseMasterDataImport = async (file: File) => {
         let parsedSuppliers: any[] = [];
         if (workbook.Sheets['Suppliers']) {
           parsedSuppliers = XLSX.utils.sheet_to_json(workbook.Sheets['Suppliers']);
-        } else {
-          errors.push('Missing "Suppliers" sheet.');
         }
 
         let parsedProducts: any[] = [];
         if (workbook.Sheets['Products']) {
           parsedProducts = XLSX.utils.sheet_to_json(workbook.Sheets['Products']);
+        } else if (!workbook.Sheets['Suppliers'] && workbook.SheetNames.length > 0) {
+          parsedProducts = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         } else {
-          errors.push('Missing "Products" sheet.');
+          errors.push('Sheet "Products" tidak ditemukan.');
+        }
+
+        if (!workbook.Sheets['Suppliers'] && !workbook.Sheets['Products'] && parsedProducts.length === 0) {
+          errors.push('Sheet "Suppliers" tidak ditemukan.');
         }
 
         const suppliers: { name: string }[] = [];
         parsedSuppliers.forEach((s, index) => {
-          const name = s.Name || s.name || '';
+          const name = String(s.Name ?? s.name ?? s['Nama Supplier'] ?? s.Supplier ?? s.Nama ?? '').trim();
           if (!name) {
             errors.push(`Row ${index + 2} in Suppliers sheet missing name.`);
           } else {
@@ -466,13 +499,13 @@ export const parseMasterDataImport = async (file: File) => {
 
         const products: { name: string, unit: string, supplierName: string, bottomStock?: number, stock?: number, location?: string, category?: string }[] = [];
         parsedProducts.forEach((p, index) => {
-          const name = p.Name || p.name || '';
-          const unit = p.Unit || p.unit || 'pcs';
-          const supplierName = p.Supplier || p.supplierName || p['Supplier Name'] || '';
-          const rawBottomStock = p['Butom Stok'] !== undefined ? p['Butom Stok'] : (p.bottomStock !== undefined ? p.bottomStock : (p.BottomStock !== undefined ? p.BottomStock : undefined));
-          const rawStock = p.Stok !== undefined ? p.Stok : (p.stock !== undefined ? p.stock : undefined);
-          const location = p.Lokasi || p.lokasi || p.location || '';
-          const category = p.Kategori || p.kategori || p.Category || p.category || '';
+          const name = String(p.Name ?? p.name ?? p['Nama Produk'] ?? p['Nama Barang'] ?? p['Nama Item'] ?? p.Nama ?? '').trim();
+          const unit = String(p.Unit ?? p.unit ?? p.Satuan ?? p.satuan ?? 'pcs').trim() || 'pcs';
+          const supplierName = String(p.Supplier ?? p.supplierName ?? p['Supplier Name'] ?? p['Nama Supplier'] ?? p.Pemasok ?? '').trim();
+          const rawBottomStock = p['Butom Stok'] !== undefined ? p['Butom Stok'] : (p['Bottom Stok'] !== undefined ? p['Bottom Stok'] : (p.bottomStock !== undefined ? p.bottomStock : (p.BottomStock !== undefined ? p.BottomStock : undefined)));
+          const rawStock = p.Stok !== undefined ? p.Stok : (p.stok !== undefined ? p.stok : (p.Stock !== undefined ? p.Stock : (p.stock !== undefined ? p.stock : undefined)));
+          const location = String(p.Lokasi ?? p.lokasi ?? p.Location ?? p.location ?? '').trim();
+          const category = String(p.Kategori ?? p.kategori ?? p.Category ?? p.category ?? '').trim();
           
           let bottomStock: number | undefined = undefined;
           if (rawBottomStock !== undefined && rawBottomStock !== '' && rawBottomStock !== null) {

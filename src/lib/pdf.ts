@@ -2,11 +2,21 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Product, ReportEntry, Supplier } from '../types';
 
+export interface PdfCompanyProfile {
+  name?: string;
+  tagline?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  icon?: string;
+}
+
 export const exportReportsToPdf = (
   reports: ReportEntry[],
   products: Product[],
   suppliers: Supplier[],
-  filename: string = 'Daily_Report'
+  filename: string = 'Daily_Report',
+  companyProfile?: PdfCompanyProfile
 ) => {
   const doc = new jsPDF();
   
@@ -49,10 +59,69 @@ export const exportReportsToPdf = (
     ? new Date(uniqueDates[0]).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
     : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
+  let currentY = 20;
+  const hasCompanyHeader = Boolean(
+    companyProfile?.name?.trim() ||
+    companyProfile?.address?.trim() ||
+    companyProfile?.phone?.trim() ||
+    companyProfile?.email?.trim() ||
+    companyProfile?.icon
+  );
+
+  if (hasCompanyHeader) {
+    let textStartX = 14;
+    if (companyProfile?.icon && companyProfile.icon.startsWith('data:image/')) {
+      try {
+        const formatType = companyProfile.icon.includes('image/jpeg') || companyProfile.icon.includes('image/jpg') ? 'JPEG' : 'PNG';
+        doc.addImage(companyProfile.icon, formatType, 14, 12, 16, 16);
+        textStartX = 34;
+      } catch {
+        // Skip image if unsupported format in jsPDF
+      }
+    }
+
+    const maxTextWidth = 196 - textStartX;
+    let lineY = 17;
+
+    doc.setFontSize(14);
+    doc.setTextColor(20, 20, 20);
+    const nameLines = doc.splitTextToSize(companyProfile?.name?.trim() || 'ReportPro', maxTextWidth);
+    doc.text(nameLines, textStartX, lineY);
+    lineY += nameLines.length * 5.5;
+
+    const contactParts = [
+      companyProfile?.tagline?.trim(),
+      companyProfile?.phone?.trim() ? `Telp: ${companyProfile.phone.trim()}` : '',
+      companyProfile?.email?.trim()
+    ].filter(Boolean);
+
+    if (contactParts.length > 0) {
+      doc.setFontSize(9);
+      doc.setTextColor(90, 90, 90);
+      const contactLines = doc.splitTextToSize(contactParts.join(' • '), maxTextWidth);
+      doc.text(contactLines, textStartX, lineY);
+      lineY += contactLines.length * 4.2;
+    }
+
+    if (companyProfile?.address?.trim()) {
+      doc.setFontSize(8.5);
+      doc.setTextColor(100, 100, 100);
+      const addressLines = doc.splitTextToSize(companyProfile.address.trim(), maxTextWidth);
+      doc.text(addressLines, textStartX, lineY);
+      lineY += addressLines.length * 4;
+    }
+
+    const dividerY = Math.max(31, lineY + 1);
+    doc.setDrawColor(210, 210, 210);
+    doc.line(14, dividerY, 196, dividerY);
+    currentY = dividerY + 8;
+  }
+
   doc.setFontSize(16);
-  doc.text(`Report Logistik tgl ${dateStr}`, 14, 20);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Report Logistik tgl ${dateStr}`, 14, currentY);
   
-  let currentY = 30;
+  currentY += 10;
 
   Object.keys(groupedBySupplier).sort().forEach(supplierName => {
     doc.setFontSize(12);

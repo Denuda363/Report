@@ -40,5 +40,10 @@ service cloud.firestore {
     match /messages/{messageId} {
       allow read, write: if true;
     }
+
+    // Firestore Connection Health Check
+    match /test/{testId} {
+      allow read, write: if true;
+    }
   }
 }

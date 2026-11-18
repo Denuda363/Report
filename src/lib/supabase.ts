@@ -56,15 +56,17 @@ CREATE TABLE IF NOT EXISTS public.suppliers (
   "userId" TEXT DEFAULT 'public',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS "userId" TEXT DEFAULT 'public';
 
 -- 2. Tabel Products
 CREATE TABLE IF NOT EXISTS public.products (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  "supplierId" TEXT NOT NULL,
+  "supplierId" TEXT NOT NULL DEFAULT '',
   "alternativeSupplierIds" JSONB DEFAULT '[]'::jsonb,
-  unit TEXT NOT NULL,
+  unit TEXT NOT NULL DEFAULT 'pcs',
   "bottomStock" NUMERIC,
+  "minStock" NUMERIC DEFAULT 5,
   "isKosongPabrik" BOOLEAN DEFAULT FALSE,
   "kosongPabrikDate" BIGINT,
   stock NUMERIC DEFAULT 0,
@@ -73,6 +75,15 @@ CREATE TABLE IF NOT EXISTS public.products (
   "userId" TEXT DEFAULT 'public',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "alternativeSupplierIds" JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "bottomStock" NUMERIC;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "minStock" NUMERIC DEFAULT 5;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "isKosongPabrik" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "kosongPabrikDate" BIGINT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS stock NUMERIC DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "userId" TEXT DEFAULT 'public';
 
 -- 3. Tabel Reports (Laporan Barang & Order)
 CREATE TABLE IF NOT EXISTS public.reports (
@@ -99,10 +110,24 @@ CREATE TABLE IF NOT EXISTS public.reports (
   "userId" TEXT DEFAULT 'public',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-ALTER TABLE public.products ADD COLUMN IF NOT EXISTS "minStock" NUMERIC DEFAULT 5;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS quantity NUMERIC DEFAULT 0;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "createdAt" BIGINT;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "isOrdered" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "isArrived" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "isKosongPabrik" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "isReorder" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "reorderQty" NUMERIC;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "reorderReason" TEXT;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "isWarningStock" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "isArrivedOnly" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "arrivedAt" BIGINT;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "arrivedSupplierId" TEXT;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "arrivedQty" NUMERIC;
 ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "isChecked" BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "checkedAt" BIGINT;
 ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "checkedBy" TEXT;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS "userId" TEXT DEFAULT 'public';
 
 -- 4. Tabel Stock Outs (Barang Keluar)
 CREATE TABLE IF NOT EXISTS public.stock_outs (
@@ -115,6 +140,9 @@ CREATE TABLE IF NOT EXISTS public.stock_outs (
   "userId" TEXT DEFAULT 'public',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.stock_outs ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.stock_outs ADD COLUMN IF NOT EXISTS "createdAt" BIGINT;
+ALTER TABLE public.stock_outs ADD COLUMN IF NOT EXISTS "userId" TEXT DEFAULT 'public';
 
 -- 5. Tabel Settings (Pengaturan Aplikasi)
 CREATE TABLE IF NOT EXISTS public.settings (
@@ -126,10 +154,29 @@ CREATE TABLE IF NOT EXISTS public.settings (
   "useLocalDb" BOOLEAN DEFAULT FALSE,
   "dbProvider" TEXT DEFAULT 'supabase',
   "dbPinHash" TEXT,
+  "companyName" TEXT,
+  "companyTagline" TEXT,
+  "companyAddress" TEXT,
+  "companyPhone" TEXT,
+  "companyEmail" TEXT,
+  "companyIcon" TEXT,
+  "updatedAt" BIGINT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "autoDeleteMode" TEXT DEFAULT 'none';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "autoDeleteDays" INTEGER DEFAULT 3;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "navbarPosition" TEXT DEFAULT 'bottom';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'default';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "useLocalDb" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "dbProvider" TEXT DEFAULT 'supabase';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "dbPinHash" TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "companyName" TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "companyTagline" TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "companyAddress" TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "companyPhone" TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "companyEmail" TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "companyIcon" TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "updatedAt" BIGINT;
 
 -- 6. Tabel Near Expired (Rekap Produk Expired Dekat)
 CREATE TABLE IF NOT EXISTS public.near_expired (
@@ -148,6 +195,14 @@ CREATE TABLE IF NOT EXISTS public.near_expired (
   "userId" TEXT DEFAULT 'public',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.near_expired ADD COLUMN IF NOT EXISTS "productId" TEXT;
+ALTER TABLE public.near_expired ADD COLUMN IF NOT EXISTS "supplierId" TEXT;
+ALTER TABLE public.near_expired ADD COLUMN IF NOT EXISTS quantity NUMERIC;
+ALTER TABLE public.near_expired ADD COLUMN IF NOT EXISTS unit TEXT DEFAULT 'Pcs';
+ALTER TABLE public.near_expired ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.near_expired ADD COLUMN IF NOT EXISTS "createdAt" BIGINT;
+ALTER TABLE public.near_expired ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE public.near_expired ADD COLUMN IF NOT EXISTS "userId" TEXT DEFAULT 'public';
 
 -- 7. Tabel Chat Users (Pengguna Chat Realtime)
 CREATE TABLE IF NOT EXISTS public.chat_users (
@@ -157,10 +212,13 @@ CREATE TABLE IF NOT EXISTS public.chat_users (
   "lastSeen" BIGINT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.chat_users ADD COLUMN IF NOT EXISTS "isOnline" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.chat_users ADD COLUMN IF NOT EXISTS "lastSeen" BIGINT;
 
 -- 8. Tabel Messages (Pesan Kolaborasi)
 CREATE TABLE IF NOT EXISTS public.messages (
   id TEXT PRIMARY KEY,
+  "chatId" TEXT,
   "senderId" TEXT NOT NULL,
   "receiverId" TEXT NOT NULL,
   text TEXT NOT NULL,
@@ -168,6 +226,17 @@ CREATE TABLE IF NOT EXISTS public.messages (
   read BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS "chatId" TEXT;
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS "createdAt" BIGINT;
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS read BOOLEAN DEFAULT FALSE;
+
+-- INDEX PERFORMA QUERY
+CREATE INDEX IF NOT EXISTS idx_products_supplier ON public.products("supplierId");
+CREATE INDEX IF NOT EXISTS idx_reports_date ON public.reports(date);
+CREATE INDEX IF NOT EXISTS idx_reports_product ON public.reports("productId");
+CREATE INDEX IF NOT EXISTS idx_stock_outs_date ON public.stock_outs(date);
+CREATE INDEX IF NOT EXISTS idx_near_expired_date ON public.near_expired("expiredDate");
+CREATE INDEX IF NOT EXISTS idx_messages_chat ON public.messages("chatId");
 
 -- AKTIFKAN ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
@@ -254,6 +323,36 @@ EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 `;
 
+export const REQUIRED_SUPABASE_COLUMNS: Record<keyof TableStatus, string[]> = {
+  suppliers: ['id', 'name', 'userId'],
+  products: [
+    'id', 'name', 'supplierId', 'alternativeSupplierIds', 'unit',
+    'bottomStock', 'minStock', 'isKosongPabrik', 'kosongPabrikDate',
+    'stock', 'location', 'category', 'userId'
+  ],
+  reports: [
+    'id', 'date', 'productId', 'quantity', 'createdAt',
+    'isOrdered', 'isArrived', 'isKosongPabrik', 'isReorder',
+    'reorderQty', 'reorderReason', 'notes', 'isWarningStock',
+    'isArrivedOnly', 'arrivedAt', 'arrivedSupplierId', 'arrivedQty',
+    'isChecked', 'checkedAt', 'checkedBy', 'userId'
+  ],
+  stock_outs: ['id', 'date', 'productId', 'quantity', 'notes', 'createdAt', 'userId'],
+  settings: [
+    'id', 'autoDeleteMode', 'autoDeleteDays', 'navbarPosition',
+    'theme', 'useLocalDb', 'dbProvider', 'dbPinHash',
+    'companyName', 'companyTagline', 'companyAddress', 'companyPhone', 'companyEmail', 'companyIcon',
+    'updatedAt'
+  ],
+  near_expired: [
+    'id', 'productId', 'productName', 'batch', 'expiredDate',
+    'supplierId', 'supplierName', 'quantity', 'unit', 'notes',
+    'createdAt', 'status', 'userId'
+  ],
+  chat_users: ['id', 'displayName', 'isOnline', 'lastSeen'],
+  messages: ['id', 'chatId', 'senderId', 'receiverId', 'text', 'createdAt', 'read']
+};
+
 export interface TableStatus {
   suppliers: boolean | null;
   products: boolean | null;
@@ -269,6 +368,8 @@ export const checkSupabaseTableStatus = async (): Promise<{
   connected: boolean;
   error?: string;
   tables: TableStatus;
+  existingTables: TableStatus;
+  missingColumns: Partial<Record<keyof TableStatus, string[]>>;
 }> => {
   const supabase = getSupabaseClient();
   const tables: TableStatus = {
@@ -281,49 +382,71 @@ export const checkSupabaseTableStatus = async (): Promise<{
     chat_users: null,
     messages: null
   };
+  const existingTables: TableStatus = { ...tables };
+  const missingColumns: Partial<Record<keyof TableStatus, string[]>> = {};
 
   try {
-    const checkTable = async (name: string): Promise<boolean> => {
-      const { error } = await supabase.from(name).select('id').limit(1);
-      if (!error) return true;
-      // PGRST205 or PGRST116 means table does not exist
-      if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
-        return false;
+    const checkTable = async (name: keyof TableStatus): Promise<{ tableExists: boolean; isComplete: boolean; missingCols: string[] }> => {
+      const { error: tableErr } = await supabase.from(name).select('id').limit(1);
+      if (tableErr) {
+        if (
+          tableErr.code === 'PGRST205' ||
+          tableErr.code === '42P01' ||
+          tableErr.message?.includes('schema cache') ||
+          tableErr.message?.includes('does not exist')
+        ) {
+          return { tableExists: false, isComplete: false, missingCols: [] };
+        }
       }
-      // If permission error or other error, table might exist but RLS blocked
-      if (error.code === '42P01') return false;
-      return true;
+
+      const requiredCols = REQUIRED_SUPABASE_COLUMNS[name];
+      const quotedSelect = requiredCols.map(c => `"${c}"`).join(',');
+      const { error: colsErr } = await supabase.from(name).select(quotedSelect).limit(0);
+      if (!colsErr) {
+        return { tableExists: true, isComplete: true, missingCols: [] };
+      }
+
+      // Check column-by-column to pinpoint exactly which columns are missing
+      const missingCols: string[] = [];
+      for (const col of requiredCols) {
+        const { error: singleErr } = await supabase.from(name).select(`"${col}"`).limit(0);
+        if (singleErr && (singleErr.code === '42703' || singleErr.code === 'PGRST204' || singleErr.message?.includes('does not exist'))) {
+          missingCols.push(col);
+        }
+      }
+
+      return {
+        tableExists: true,
+        isComplete: missingCols.length === 0,
+        missingCols
+      };
     };
 
-    const [sup, prod, rep, so, set, ne, cu, msg] = await Promise.all([
-      checkTable('suppliers'),
-      checkTable('products'),
-      checkTable('reports'),
-      checkTable('stock_outs'),
-      checkTable('settings'),
-      checkTable('near_expired'),
-      checkTable('chat_users'),
-      checkTable('messages')
-    ]);
+    const keys = Object.keys(tables) as (keyof TableStatus)[];
+    const results = await Promise.all(keys.map(k => checkTable(k)));
 
-    tables.suppliers = sup;
-    tables.products = prod;
-    tables.reports = rep;
-    tables.stock_outs = so;
-    tables.settings = set;
-    tables.near_expired = ne;
-    tables.chat_users = cu;
-    tables.messages = msg;
+    keys.forEach((key, idx) => {
+      const res = results[idx];
+      existingTables[key] = res.tableExists;
+      tables[key] = res.isComplete;
+      if (res.missingCols.length > 0) {
+        missingColumns[key] = res.missingCols;
+      }
+    });
 
     return {
       connected: true,
-      tables
+      tables,
+      existingTables,
+      missingColumns
     };
   } catch (err: any) {
     return {
       connected: false,
       error: err.message || 'Gagal tersambung ke Supabase',
-      tables
+      tables,
+      existingTables,
+      missingColumns
     };
   }
 };

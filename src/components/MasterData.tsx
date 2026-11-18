@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
-import { Plus, Trash2, Download, Upload, Search, ChevronDown, ChevronLeft, ChevronRight, Edit2, X, Filter, Check, Maximize2, Minimize2, Building2, Package, ChevronUp, SlidersHorizontal } from 'lucide-react';
+import { Plus, Trash2, Download, Upload, Search, ChevronDown, ChevronLeft, ChevronRight, Edit2, X, Filter, Check, Maximize2, Minimize2, Building2, Package, ChevronUp, SlidersHorizontal, FileText } from 'lucide-react';
 import { Supplier, Product } from '../types';
-import { downloadMasterDataTemplate, parseMasterDataImport } from '../lib/excel';
+import { downloadMasterDataTemplate, parseMasterDataImport, exportProductsToTxt } from '../lib/excel';
 import { OperationProgressModal } from './common/OperationProgressModal';
 import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../lib/searchHistory';
 import { PreviousSearchSection } from './PreviousSearchSection';
@@ -613,7 +613,7 @@ export const MasterData = () => {
           startTime
         });
 
-        dbErrors = await importMasterData(newSuppliers, newProducts, (current, total, itemName) => {
+        const importRes = await importMasterData(newSuppliers, newProducts, (current, total, itemName) => {
           setImportProgress({
             current,
             total,
@@ -621,10 +621,17 @@ export const MasterData = () => {
             startTime
           });
         });
+        dbErrors = importRes.errors;
 
         await new Promise(resolve => setTimeout(resolve, 400));
         setIsImporting(false);
-        alert(`Successfully imported ${newSuppliers.length} suppliers and ${newProducts.length} products.`);
+        alert(
+          `Import Master Data selesai!\n` +
+          `• Supplier baru ditambahkan: ${importRes.addedSuppliers}\n` +
+          `• Item baru ditambahkan: ${importRes.addedProducts}\n` +
+          `• Item sudah ada & diperbarui: ${importRes.updatedProducts}\n` +
+          `• Item sudah ada & tidak berubah (dilewati): ${importRes.skippedProducts}`
+        );
       }
 
       const allErrors = [...parseErrors, ...dbErrors];
@@ -640,6 +647,40 @@ export const MasterData = () => {
         fileInputRef.current.value = '';
       }
     }
+  };
+
+  const handleExportProductsTxt = () => {
+    if (filteredProductsList.length === 0) return;
+
+    const filterParts: string[] = [];
+    if (productListSearch.trim()) {
+      filterParts.push(`Pencarian: "${productListSearch.trim()}"`);
+    }
+    if (listSupplierFilter) {
+      const supName = suppliers.find(s => s.id === listSupplierFilter)?.name || listSupplierFilter;
+      filterParts.push(`Supplier: ${supName}`);
+    }
+    if (listCategoryFilter) {
+      filterParts.push(`Kategori: ${listCategoryFilter === '__none__' ? 'Tanpa Kategori' : listCategoryFilter}`);
+    }
+    if (listLocationFilter) {
+      filterParts.push(`Lokasi: ${listLocationFilter === '__none__' ? 'Tanpa Lokasi' : listLocationFilter}`);
+    }
+    if (listBottomStockFilter !== 'all') {
+      filterParts.push(`Butom Stok: ${listBottomStockFilter === 'has' ? 'Punya Butom' : 'Tanpa Butom'}`);
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const filename = filterParts.length > 0
+      ? `Master_Data_Produk_Filter_${todayStr}`
+      : `Master_Data_Produk_${todayStr}`;
+
+    exportProductsToTxt(
+      filteredProductsList,
+      suppliers,
+      filename,
+      filterParts.length > 0 ? filterParts.join(' | ') : undefined
+    );
   };
 
   const totalItems = activeTab === 'suppliers' ? filteredSuppliersList.length : filteredProductsList.length;
@@ -1093,6 +1134,16 @@ export const MasterData = () => {
                     title={isListFullscreen ? "Perkecil (Minimize)" : "Layar Penuh (Maximize)"}
                   >
                     {isListFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={handleExportProductsTxt}
+                    disabled={filteredProductsList.length === 0}
+                    className="px-2.5 py-1.5 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95 bg-white border border-emerald-200 shadow-sm flex items-center gap-1.5 text-xs font-bold"
+                    title={filteredProductsList.length === 0 ? "Tidak ada data produk untuk diexport" : `Export ${filteredProductsList.length} nama item produk ke file .txt`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Export TXT</span>
+                    <span className="sm:hidden">TXT</span>
                   </button>
                   <button
                     onClick={async () => {

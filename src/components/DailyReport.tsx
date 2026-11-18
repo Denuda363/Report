@@ -21,7 +21,7 @@ import { OperationProgressModal } from './common/OperationProgressModal';
 import { Product, ReportEntry } from '../types';
 
 export const DailyReport = () => {
-  const { reports, products, suppliers, addReport, addReportsBatch, updateReport, updateReportsBatch, deleteReport, deleteMultipleReports, deleteReportsByDateRange, updateProduct, updateProductsBatch, addSupplier, addProduct } = useAppContext();
+  const { reports, products, suppliers, settings, addReport, addReportsBatch, updateReport, updateReportsBatch, deleteReport, deleteMultipleReports, deleteReportsByDateRange, updateProduct, updateProductsBatch, addSupplier, addProduct } = useAppContext();
 
   // Mobile and responsive view mode
   const [mobileTab, setMobileTab] = useState<'list' | 'form'>('list');
@@ -259,7 +259,7 @@ export const DailyReport = () => {
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterDate, filterSupplier, productFilterQuery, bottomStockFilter, arrivedFilter, showDuplicatesOnly, showZeroStockOnly]);
+  }, [filterDate, filterSupplier, productFilterQuery, bottomStockFilter, arrivedFilter, checkedFilter, showDuplicatesOnly, showZeroStockOnly]);
 
   const selectedProduct = useMemo(() => products.find(p => p.id === productId), [products, productId]);
 
@@ -758,7 +758,20 @@ export const DailyReport = () => {
   };
 
   const handleExportPdf = () => {
-    exportReportsToPdf(reportsForExport, products, suppliers, `Report_${format(new Date(), 'yyyyMMdd')}`);
+    exportReportsToPdf(
+      reportsForExport,
+      products,
+      suppliers,
+      `Report_${format(new Date(), 'yyyyMMdd')}`,
+      {
+        name: settings.companyName,
+        tagline: settings.companyTagline,
+        address: settings.companyAddress,
+        phone: settings.companyPhone,
+        email: settings.companyEmail,
+        icon: settings.companyIcon
+      }
+    );
   };
 
   const handleBulkDelete = async () => {

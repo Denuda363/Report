@@ -1,6 +1,7 @@
 export interface Supplier {
   id: string;
   name: string;
+  userId?: string;
 }
 
 export interface Product {
@@ -10,11 +11,13 @@ export interface Product {
   alternativeSupplierIds?: string[];
   unit: string;
   bottomStock?: number;
+  minStock?: number;
   isKosongPabrik?: boolean;
   kosongPabrikDate?: number;
   stock?: number;
   location?: string;
   category?: string;
+  userId?: string;
 }
 
 export interface ReportEntry {
@@ -36,8 +39,9 @@ export interface ReportEntry {
   arrivedSupplierId?: string;
   arrivedQty?: number;
   isChecked?: boolean;
-  checkedAt?: number;
-  checkedBy?: string;
+  checkedAt?: number | null;
+  checkedBy?: string | null;
+  userId?: string;
 }
 
 export interface StockOutEntry {
@@ -63,6 +67,7 @@ export interface NearExpiredEntry {
   notes?: string;
   createdAt: number;
   status?: 'pending' | 'returned' | 'disposed' | 'resolved';
+  userId?: string;
 }
 
 export type AutoDeleteMode = 
@@ -87,6 +92,7 @@ export interface ChatUser {
 
 export interface ChatMessage {
   id: string;
+  chatId?: string;
   senderId: string;
   receiverId: string;
   text: string;
@@ -104,4 +110,13 @@ export interface UserSettings {
   supabaseUrl?: string;
   supabaseKey?: string;
   dbPinHash?: string;
+  companyName?: string;
+  companyTagline?: string;
+  companyAddress?: string;
+  companyPhone?: string;
+  companyEmail?: string;
+  companyIcon?: string;
+  updatedAt?: number;
+  initializedAt?: number;
+  isSystemConfig?: boolean;
 }

@@ -94,7 +94,7 @@
     },
     "Settings": {
       "title": "Settings",
-      "description": "Application preferences, auto-cleaner retention, and theme",
+      "description": "Application preferences, auto-cleaner retention, company profile, and theme",
       "type": "object",
       "properties": {
         "autoDeleteMode": { "type": "string" },
@@ -106,7 +106,15 @@
         "supabaseUrl": { "type": "string" },
         "supabaseKey": { "type": "string" },
         "dbPinHash": { "type": "string" },
-        "updatedAt": { "type": "number" }
+        "companyName": { "type": "string" },
+        "companyTagline": { "type": "string" },
+        "companyAddress": { "type": "string" },
+        "companyPhone": { "type": "string" },
+        "companyEmail": { "type": "string" },
+        "companyIcon": { "type": "string" },
+        "updatedAt": { "type": "number" },
+        "initializedAt": { "type": "number" },
+        "isSystemConfig": { "type": "boolean" }
       }
     },
     "ChatUser": {
@@ -125,13 +133,23 @@
       "description": "Team chat message entries",
       "type": "object",
       "properties": {
+        "chatId": { "type": "string" },
         "senderId": { "type": "string" },
         "receiverId": { "type": "string" },
         "text": { "type": "string" },
         "createdAt": { "type": "number" },
         "read": { "type": "boolean" }
       },
-      "required": ["senderId", "text", "createdAt"]
+      "required": ["senderId", "receiverId", "text", "createdAt"]
+    },
+    "ConnectionTest": {
+      "title": "ConnectionTest",
+      "description": "Firestore connectivity and quota health check record",
+      "type": "object",
+      "properties": {
+        "lastChecked": { "type": "number" },
+        "status": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -166,6 +184,10 @@
     "/messages/{messageId}": {
       "schema": "ChatMessage",
       "description": "Team collaboration chat messages"
+    },
+    "/test/{testId}": {
+      "schema": "ConnectionTest",
+      "description": "Firestore health check document"
     }
   }
 }
