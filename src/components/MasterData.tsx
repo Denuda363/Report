@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
-import { Plus, Trash2, Download, Upload, Search, ChevronDown, ChevronLeft, ChevronRight, Edit2, X, Filter, Check, Maximize2, Minimize2, Building2, Package, SlidersHorizontal, FileText } from 'lucide-react';
+import { Plus, Trash2, Download, Upload, Search, ChevronDown, ChevronLeft, ChevronRight, Edit2, X, Filter, Check, Maximize2, Minimize2, Building2, Package, SlidersHorizontal, FileText, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { Supplier, Product } from '../types';
 import { downloadMasterDataTemplate, parseMasterDataImport, exportProductsToTxt } from '../lib/excel';
 import { OperationProgressModal } from './common/OperationProgressModal';
 import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../lib/searchHistory';
 import { PreviousSearchSection } from './PreviousSearchSection';
 import { FloatingFormModal } from './common/FloatingFormModal';
+import { cn } from '../lib/utils';
 
 export const MasterData = () => {
   const { suppliers, products, addSupplier, updateSupplier, deleteSupplier, addProduct, updateProduct, deleteProduct, importMasterData, resetAllProductStocks } = useAppContext();
@@ -66,6 +67,16 @@ export const MasterData = () => {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isFormFullscreen, setIsFormFullscreen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSavingForm, setIsSavingForm] = useState(false);
+  const [toastBanner, setToastBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const showToast = (type: 'success' | 'error', text: string) => {
+    setToastBanner({ type, text });
+    setTimeout(() => {
+      setToastBanner((prev) => (prev?.text === text ? null : prev));
+    }, 4000);
+  };
 
   const [importErrors, setImportErrors] = useState<string[]>([]);
 
@@ -277,12 +288,15 @@ export const MasterData = () => {
 
   const handleSubmitSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     if (!supplierName.trim()) {
-      alert("Nama supplier wajib diisi.");
+      setFormError("Nama supplier wajib diisi.");
       return;
     }
     
+    setIsSavingForm(true);
     try {
+      const wasEditing = Boolean(editingSupplierId);
       if (editingSupplierId) {
         await updateSupplier({ id: editingSupplierId, name: supplierName.trim() });
         setEditingSupplierId(null);
@@ -292,15 +306,19 @@ export const MasterData = () => {
       setSupplierName('');
       setIsFormModalOpen(false);
       setIsFormFullscreen(false);
+      showToast('success', wasEditing ? 'Data supplier berhasil diperbarui.' : 'Supplier baru berhasil ditambahkan.');
     } catch (err: any) {
       console.error("Gagal menyimpan supplier:", err);
-      alert(`Gagal menyimpan supplier: ${err.message || 'Terjadi kesalahan'}`);
+      setFormError(`Gagal menyimpan supplier: ${err.message || 'Terjadi kesalahan'}`);
+    } finally {
+      setIsSavingForm(false);
     }
   };
 
   const handleEditSupplier = (supplier: Supplier) => {
     setEditingSupplierId(supplier.id);
     setSupplierName(supplier.name);
+    setFormError(null);
     setActiveTab('suppliers');
     setIsFormModalOpen(true);
   };
@@ -308,6 +326,7 @@ export const MasterData = () => {
   const handleCancelEditSupplier = () => {
     setEditingSupplierId(null);
     setSupplierName('');
+    setFormError(null);
     setIsFormModalOpen(false);
     setIsFormFullscreen(false);
   };
@@ -396,20 +415,25 @@ export const MasterData = () => {
 
   const handleSubmitProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     if (!productName.trim()) {
-      alert("Nama produk wajib diisi.");
+      setFormError("Nama produk wajib diisi.");
+      productNameInputRef.current?.focus();
       return;
     }
     if (!productSupplierId) {
-      alert("Supplier produk wajib dipilih.");
+      setFormError("Supplier utama produk wajib dipilih.");
+      supplierInputRef.current?.focus();
       return;
     }
     if (!productUnit.trim()) {
-      alert("Satuan produk wajib diisi.");
+      setFormError("Satuan produk wajib diisi.");
       return;
     }
     
+    setIsSavingForm(true);
     try {
+      const wasEditing = Boolean(editingProductId);
       if (editingProductId) {
         const existingProduct = products.find(p => p.id === editingProductId);
         await updateProduct({
@@ -447,11 +471,15 @@ export const MasterData = () => {
       setProductLocation('');
       setProductCategory('');
       setSupplierSearchQuery('');
+      setAltSupplierSearchQuery('');
       setIsFormModalOpen(false);
       setIsFormFullscreen(false);
+      showToast('success', wasEditing ? 'Data produk berhasil diperbarui.' : 'Produk baru berhasil ditambahkan.');
     } catch (err: any) {
       console.error("Gagal menyimpan produk:", err);
-      alert(`Gagal menyimpan produk: ${err.message || 'Terjadi kesalahan sistem'}`);
+      setFormError(`Gagal menyimpan produk: ${err.message || 'Terjadi kesalahan sistem'}`);
+    } finally {
+      setIsSavingForm(false);
     }
   };
 
@@ -583,9 +611,11 @@ export const MasterData = () => {
     setProductStock(product.stock ?? '');
     setProductLocation(product.location || '');
     setProductCategory(product.category || '');
+    setFormError(null);
     
     const sName = suppliers.find(s => s.id === product.supplierId)?.name || '';
     setSupplierSearchQuery(sName);
+    setAltSupplierSearchQuery('');
     setActiveTab('products');
     setIsFormModalOpen(true);
     setTimeout(() => {
@@ -593,8 +623,7 @@ export const MasterData = () => {
     }, 80);
   };
 
-  const handleCancelEditProduct = () => {
-    setEditingProductId(null);
+  const handleResetProductFields = () => {
     setProductName('');
     setProductSupplierId('');
     setProductAlternativeSupplierIds([]);
@@ -604,6 +633,13 @@ export const MasterData = () => {
     setProductLocation('');
     setProductCategory('');
     setSupplierSearchQuery('');
+    setAltSupplierSearchQuery('');
+    setFormError(null);
+  };
+
+  const handleCancelEditProduct = () => {
+    setEditingProductId(null);
+    handleResetProductFields();
     setIsFormModalOpen(false);
     setIsFormFullscreen(false);
   };
@@ -611,6 +647,7 @@ export const MasterData = () => {
   const handleCloseFormModal = () => {
     setIsSupplierDropdownOpen(false);
     setIsAltSupplierDropdownOpen(false);
+    setFormError(null);
     if (editingSupplierId) {
       handleCancelEditSupplier();
       return;
@@ -632,7 +669,7 @@ export const MasterData = () => {
       
       const totalItems = newSuppliers.length + newProducts.length;
       if (totalItems === 0 && parseErrors.length === 0) {
-        alert("No valid data found in template.");
+        showToast('error', "Tidak ada data valid di file template.");
         return;
       }
 
@@ -659,12 +696,9 @@ export const MasterData = () => {
 
         await new Promise(resolve => setTimeout(resolve, 400));
         setIsImporting(false);
-        alert(
-          `Import Master Data selesai!\n` +
-          `• Supplier baru ditambahkan: ${importRes.addedSuppliers}\n` +
-          `• Item baru ditambahkan: ${importRes.addedProducts}\n` +
-          `• Item sudah ada & diperbarui: ${importRes.updatedProducts}\n` +
-          `• Item sudah ada & tidak berubah (dilewati): ${importRes.skippedProducts}`
+        showToast(
+          'success',
+          `Impor selesai: ${importRes.addedSuppliers} supplier, ${importRes.addedProducts} item baru, ${importRes.updatedProducts} diperbarui.`
         );
       }
 
@@ -674,7 +708,7 @@ export const MasterData = () => {
       }
     } catch (err: any) {
       console.error(err);
-      alert("Failed to parse the file: " + (err?.message || "Format tidak sesuai."));
+      showToast('error', "Gagal membaca file: " + (err?.message || "Format tidak sesuai."));
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) {
@@ -785,8 +819,30 @@ export const MasterData = () => {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 p-3 sm:p-4 lg:p-6 flex flex-col gap-4 sm:overflow-hidden">
-        {/* Floating Input Modal matching DailyReport style */}
+      <div className="flex-1 min-h-0 p-3 sm:p-4 lg:p-6 flex flex-col gap-4 sm:overflow-hidden relative">
+        {/* Floating Toast Notification */}
+        {toastBanner && (
+          <div
+            className={cn(
+              "fixed bottom-5 right-5 z-[230] max-w-sm px-4 py-3 rounded-xl shadow-lg border flex items-center gap-2.5 text-xs font-semibold animate-in slide-in-from-bottom-3 fade-in duration-200",
+              toastBanner.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                : 'bg-rose-50 border-rose-200 text-rose-900'
+            )}
+          >
+            {toastBanner.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span className="flex-1">{toastBanner.text}</span>
+            <button type="button" onClick={() => setToastBanner(null)} className="opacity-70 hover:opacity-100 p-0.5">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Floating Input Modal */}
         <FloatingFormModal
           isOpen={isFormModalOpen || isFormFullscreen}
           onClose={handleCloseFormModal}
@@ -797,320 +853,476 @@ export const MasterData = () => {
           }
           subtitle={
             activeTab === 'suppliers'
-              ? 'Kelola data pemasok / vendor'
-              : 'Lengkapi informasi produk & supplier utama'
+              ? 'Kelola identitas pemasok atau distributor resmi'
+              : 'Lengkapi rincian produk, stok awal, batas minimum, dan pemasok'
           }
           icon={activeTab === 'suppliers' ? <Building2 className="w-5 h-5" /> : <Package className="w-5 h-5" />}
           isFullscreen={isFormFullscreen}
           onToggleFullscreen={() => setIsFormFullscreen(!isFormFullscreen)}
           disableEscapeClose={isSupplierDropdownOpen || isAltSupplierDropdownOpen}
-          maxWidthClass={activeTab === 'suppliers' ? 'max-w-md' : 'max-w-xl'}
+          maxWidthClass={activeTab === 'suppliers' ? 'max-w-md' : 'max-w-2xl'}
         >
           {activeTab === 'suppliers' ? (
-            <form onSubmit={handleSubmitSupplier} className="space-y-4">
+            <form onSubmit={handleSubmitSupplier} className="space-y-5">
+              {formError && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-900 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span className="font-semibold">{formError}</span>
+                  </div>
+                  <button type="button" onClick={() => setFormError(null)} className="text-rose-600 hover:text-rose-800 p-0.5">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5">Supplier Name</label>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Nama Pemasok / Supplier <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   autoFocus
                   value={supplierName}
-                  onChange={(e) => setSupplierName(e.target.value)}
-                  className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
-                  placeholder="e.g. PT Maju Bersama"
+                  onChange={(e) => {
+                    setSupplierName(e.target.value);
+                    if (formError) setFormError(null);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:text-neutral-400"
+                  placeholder="Contoh: PT Maju Bersama"
                 />
               </div>
-              <div className="flex gap-2 sm:shrink-0">
+
+              <div className="pt-4 border-t border-neutral-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleCloseFormModal}
+                  className="px-4 py-2.5 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 rounded-xl font-semibold text-sm transition-colors whitespace-nowrap"
+                >
+                  Batal
+                </button>
                 <button
                   type="submit"
-                  className="group flex-1 sm:flex-none lg:flex-1 flex items-center justify-center gap-2 bg-theme-500 hover:bg-theme-600 text-white px-4 sm:px-5 py-2.5 lg:py-3 rounded-2xl font-bold transition-all duration-300 text-sm hover:shadow-lg hover:shadow-theme-500/20 active:scale-[0.98] whitespace-nowrap"
+                  disabled={isSavingForm}
+                  className="px-5 py-2.5 bg-theme-600 hover:bg-theme-700 text-white rounded-xl font-semibold text-sm shadow-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-60 active:scale-[0.99]"
                 >
-                  {editingSupplierId ? <><Edit2 className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" /> Update</> : <><Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" /> Add</>} Supplier
+                  {isSavingForm ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : editingSupplierId ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Simpan Perubahan</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      <span>Simpan Supplier</span>
+                    </>
+                  )}
                 </button>
-                {editingSupplierId && (
-                  <button
-                    type="button"
-                    onClick={handleCancelEditSupplier}
-                    className="group flex-none flex items-center justify-center gap-2 bg-theme-100 hover:bg-theme-200 text-theme-600-text px-4 py-2.5 lg:py-3 rounded-2xl font-bold transition-all duration-300 text-sm active:scale-[0.98] whitespace-nowrap"
-                  >
-                    <X className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" /> Cancel
-                  </button>
-                )}
               </div>
             </form>
           ) : (
-            <form onSubmit={handleSubmitProduct} className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5">Product Name</label>
-                <input
-                  ref={productNameInputRef}
-                  type="text"
-                  required
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
-                  placeholder="e.g. Indomie Goreng"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Unit</label>
-                <input
-                  type="text"
-                  required
-                  value={productUnit}
-                  onChange={(e) => setProductUnit(e.target.value)}
-                  className="w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
-                  placeholder="e.g. pcs, Box, fls"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Butom Stok</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={productBottomStock}
-                  onChange={(e) => setProductBottomStock(e.target.value ? Number(e.target.value) : '')}
-                  className="w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
-                  placeholder="e.g. 30 (Opsional)"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Stok Awal</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={productStock}
-                  onChange={(e) => setProductStock(e.target.value ? Number(e.target.value) : '')}
-                  className="w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
-                  placeholder="e.g. 100 (Opsional)"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Lokasi Rak</label>
-                <input
-                  type="text"
-                  value={productLocation}
-                  onChange={(e) => setProductLocation(e.target.value)}
-                  className="w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
-                  placeholder="e.g. Rak A1 (Opsional)"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Kategori</label>
-                <input
-                  type="text"
-                  value={productCategory}
-                  onChange={(e) => setProductCategory(e.target.value)}
-                  className="w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
-                  placeholder="e.g. Minuman (Opsional)"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Supplier</label>
-                <div className="relative" ref={supplierDropdownRef}>
-                  <div 
-                    className={`flex items-center w-full px-4 py-2.5 lg:py-3 border rounded-2xl bg-white lg:bg-theme-50 transition-all cursor-text ${isSupplierDropdownOpen ? 'border-theme-500 ring-2 ring-theme-500' : 'border-theme-200'}`}
-                    onClick={() => {
-                      setIsSupplierDropdownOpen(true);
-                      setIsTypingNewSupplier(false);
-                      setHighlightedSupplierIndex(0);
-                      supplierInputRef.current?.select();
+            <form onSubmit={handleSubmitProduct} className="space-y-5">
+              {formError && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-900 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span className="font-semibold">{formError}</span>
+                  </div>
+                  <button type="button" onClick={() => setFormError(null)} className="text-rose-600 hover:text-rose-800 p-0.5">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Section 1: Informasi Utama Produk */}
+              <div className="space-y-3">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+                  1. Informasi Utama Produk
+                </h4>
+
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                    Nama Produk <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    ref={productNameInputRef}
+                    type="text"
+                    required
+                    value={productName}
+                    onChange={(e) => {
+                      setProductName(e.target.value);
+                      if (formError) setFormError(null);
                     }}
-                  >
-                    <Search className="w-4 h-4 text-theme-600-text mr-2 shrink-0" />
+                    className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:text-neutral-400"
+                    placeholder="Contoh: Paracetamol 500mg Strip"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Satuan <span className="text-rose-500">*</span>
+                    </label>
                     <input
-                      ref={supplierInputRef}
                       type="text"
-                      className="bg-transparent outline-none w-full text-sm text-theme-800"
-                      placeholder="Search supplier..."
-                      value={supplierSearchQuery}
-                      onChange={(e) => {
-                        setSupplierSearchQuery(e.target.value);
-                        setProductSupplierId('');
-                        setIsTypingNewSupplier(true);
-                        setHighlightedSupplierIndex(0);
-                        setIsSupplierDropdownOpen(true);
-                      }}
-                      onFocus={() => {
+                      required
+                      list="master-product-units"
+                      value={productUnit}
+                      onChange={(e) => setProductUnit(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:text-neutral-400"
+                      placeholder="Contoh: pcs, box, strip, fls"
+                    />
+                    <datalist id="master-product-units">
+                      <option value="pcs" />
+                      <option value="box" />
+                      <option value="strip" />
+                      <option value="botol" />
+                      <option value="fls" />
+                      <option value="tube" />
+                      <option value="sachet" />
+                      <option value="pack" />
+                      <option value="dus" />
+                      <option value="kg" />
+                      <option value="liter" />
+                    </datalist>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Kategori
+                    </label>
+                    <input
+                      type="text"
+                      value={productCategory}
+                      onChange={(e) => setProductCategory(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:text-neutral-400"
+                      placeholder="Contoh: Obat Bebas (opsional)"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Inventori & Lokasi */}
+              <div className="pt-4 border-t border-neutral-200/80 space-y-3">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+                  2. Inventori &amp; Lokasi Penyimpanan
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Stok Awal
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={productStock}
+                      onChange={(e) => setProductStock(e.target.value ? Number(e.target.value) : '')}
+                      className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-semibold text-neutral-900 tabular-nums focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:font-normal placeholder:text-neutral-400"
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Stok Minimum (Batas)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={productBottomStock}
+                      onChange={(e) => setProductBottomStock(e.target.value ? Number(e.target.value) : '')}
+                      className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-semibold text-neutral-900 tabular-nums focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:font-normal placeholder:text-neutral-400"
+                      placeholder="Opsional"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Lokasi Rak
+                    </label>
+                    <input
+                      type="text"
+                      value={productLocation}
+                      onChange={(e) => setProductLocation(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:text-neutral-400"
+                      placeholder="Contoh: Rak A1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Pemasok */}
+              <div className="pt-4 border-t border-neutral-200/80 space-y-3">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+                  3. Pemasok (Supplier)
+                </h4>
+
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                    Supplier Utama <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative" ref={supplierDropdownRef}>
+                    <div
+                      className={cn(
+                        "flex items-center w-full px-3.5 py-2.5 border rounded-xl bg-neutral-50 transition-all cursor-text",
+                        isSupplierDropdownOpen
+                          ? "bg-white border-theme-500 ring-2 ring-theme-500"
+                          : "border-neutral-300 focus-within:bg-white focus-within:border-theme-500 focus-within:ring-2 focus-within:ring-theme-500"
+                      )}
+                      onClick={() => {
                         setIsSupplierDropdownOpen(true);
                         setIsTypingNewSupplier(false);
                         setHighlightedSupplierIndex(0);
                         supplierInputRef.current?.select();
                       }}
-                      onKeyDown={handleSupplierKeyDown}
-                    />
-                    {supplierSearchQuery && (
-                      <X
-                        className="w-4 h-4 text-theme-600-text ml-1 shrink-0 cursor-pointer hover:text-rose-500 transition-colors"
+                    >
+                      <Search className="w-4 h-4 text-neutral-400 mr-2.5 shrink-0" />
+                      <input
+                        ref={supplierInputRef}
+                        type="text"
+                        className="bg-transparent outline-none w-full text-sm font-medium text-neutral-900 placeholder:text-neutral-400"
+                        placeholder="Cari dan pilih supplier utama..."
+                        value={supplierSearchQuery}
+                        onChange={(e) => {
+                          setSupplierSearchQuery(e.target.value);
+                          setProductSupplierId('');
+                          setIsTypingNewSupplier(true);
+                          setHighlightedSupplierIndex(0);
+                          setIsSupplierDropdownOpen(true);
+                        }}
+                        onFocus={() => {
+                          setIsSupplierDropdownOpen(true);
+                          setIsTypingNewSupplier(false);
+                          setHighlightedSupplierIndex(0);
+                          supplierInputRef.current?.select();
+                        }}
+                        onKeyDown={handleSupplierKeyDown}
+                      />
+                      {supplierSearchQuery && (
+                        <X
+                          className="w-4 h-4 text-neutral-400 ml-1.5 shrink-0 cursor-pointer hover:text-rose-500 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSupplierSearchQuery('');
+                            setProductSupplierId('');
+                            setIsTypingNewSupplier(false);
+                          }}
+                        />
+                      )}
+                      <ChevronDown
+                        className={cn(
+                          "w-4 h-4 text-neutral-400 ml-1.5 shrink-0 cursor-pointer transition-transform",
+                          isSupplierDropdownOpen && "rotate-180 text-theme-600"
+                        )}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSupplierSearchQuery('');
-                          setProductSupplierId('');
+                          setIsSupplierDropdownOpen(!isSupplierDropdownOpen);
                           setIsTypingNewSupplier(false);
                         }}
                       />
-                    )}
-                    <ChevronDown 
-                      className="w-4 h-4 text-theme-600-text ml-2 shrink-0 cursor-pointer" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsSupplierDropdownOpen(!isSupplierDropdownOpen);
-                        setIsTypingNewSupplier(false);
-                      }} 
-                    />
-                  </div>
-                  
-                  {isSupplierDropdownOpen && (
-                    <div className="absolute z-10 w-full mt-2 bg-white border border-theme-200 rounded-2xl shadow-xl max-h-72 overflow-y-auto">
-                      {(!isTypingNewSupplier || !supplierSearchQuery.trim()) && lastSupplierQuery && (
-                        <PreviousSearchSection
-                          lastQuery={lastSupplierQuery}
-                          results={previousSuppliersForSelect}
-                          history={supplierSearchHistory}
-                          highlightedIndex={highlightedSupplierIndex}
-                          onHighlightIndex={setHighlightedSupplierIndex}
-                          onSelectResult={(s) => handleSelectSupplierForProduct(s)}
-                          onSelectQuery={(term) => {
-                            setSupplierSearchQuery(term);
-                            setIsTypingNewSupplier(false);
-                            setHighlightedSupplierIndex(0);
-                            setIsSupplierDropdownOpen(true);
-                          }}
-                          onClearHistory={() => {
-                            clearSearchHistory('master_supplier');
-                            setLastSupplierQueryState('');
-                            setSupplierSearchHistory([]);
-                          }}
-                          renderTitle={(s) => s.name}
-                          keyExtractor={(s) => `prev-ms-${s.id}`}
-                        />
-                      )}
+                    </div>
 
-                      {isTypingNewSupplier && (supplierSearchQuery.trim() || !lastSupplierQuery) ? (
-                        filteredSuppliersForSelect.length > 0 ? (
-                          filteredSuppliersForSelect.map((s, idx) => (
-                            <div 
-                              key={s.id}
-                              data-highlighted={idx === highlightedSupplierIndex ? 'true' : undefined}
-                              onMouseEnter={() => setHighlightedSupplierIndex(idx)}
-                              className={`px-4 py-3 cursor-pointer text-sm font-bold text-theme-900 transition-colors border-b border-theme-50 last:border-0 ${
-                                idx === highlightedSupplierIndex ? 'bg-theme-100 text-theme-900' : 'hover:bg-theme-100'
-                              }`}
-                              onClick={() => handleSelectSupplierForProduct(s)}
-                            >
-                              {s.name}
+                    {isSupplierDropdownOpen && (
+                      <div className="absolute z-50 w-full mt-1.5 bg-white border border-neutral-200 rounded-xl shadow-xl max-h-60 overflow-y-auto py-1">
+                        {(!isTypingNewSupplier || !supplierSearchQuery.trim()) && lastSupplierQuery && (
+                          <PreviousSearchSection
+                            lastQuery={lastSupplierQuery}
+                            results={previousSuppliersForSelect}
+                            history={supplierSearchHistory}
+                            highlightedIndex={highlightedSupplierIndex}
+                            onHighlightIndex={setHighlightedSupplierIndex}
+                            onSelectResult={(s) => handleSelectSupplierForProduct(s)}
+                            onSelectQuery={(term) => {
+                              setSupplierSearchQuery(term);
+                              setIsTypingNewSupplier(false);
+                              setHighlightedSupplierIndex(0);
+                              setIsSupplierDropdownOpen(true);
+                            }}
+                            onClearHistory={() => {
+                              clearSearchHistory('master_supplier');
+                              setLastSupplierQueryState('');
+                              setSupplierSearchHistory([]);
+                            }}
+                            renderTitle={(s) => s.name}
+                            keyExtractor={(s) => `prev-ms-${s.id}`}
+                          />
+                        )}
+
+                        {isTypingNewSupplier && (supplierSearchQuery.trim() || !lastSupplierQuery) ? (
+                          filteredSuppliersForSelect.length > 0 ? (
+                            filteredSuppliersForSelect.map((s, idx) => (
+                              <div
+                                key={s.id}
+                                data-highlighted={idx === highlightedSupplierIndex ? 'true' : undefined}
+                                onMouseEnter={() => setHighlightedSupplierIndex(idx)}
+                                className={cn(
+                                  "px-3.5 py-2.5 cursor-pointer text-sm font-medium transition-colors border-b border-neutral-100 last:border-0",
+                                  idx === highlightedSupplierIndex ? "bg-theme-50 text-theme-900 font-semibold" : "hover:bg-neutral-50 text-neutral-800"
+                                )}
+                                onClick={() => handleSelectSupplierForProduct(s)}
+                              >
+                                {s.name}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="px-4 py-3 text-center text-xs text-neutral-500">
+                              Supplier tidak ditemukan.
                             </div>
-                          ))
+                          )
                         ) : (
-                          <div className="px-4 py-4 text-center text-sm text-theme-600-text">
-                            Tidak ditemukan supplier.
-                          </div>
-                        )
-                      ) : (
-                        !lastSupplierQuery && (
-                          <div className="px-4 py-4 text-center text-sm text-theme-600-text">
-                            Ketik nama supplier atau tekan panah bawah untuk memilih...
-                          </div>
-                        )
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Alternative Suppliers */}
-              {productSupplierId && (
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5">Alternative Suppliers (Optional)</label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {productAlternativeSupplierIds.map(id => {
-                      const sName = suppliers.find(s => s.id === id)?.name || id;
-                      return (
-                        <div key={id} className="flex items-center gap-1 bg-theme-300 text-theme-700 px-2 py-1 rounded-md text-xs font-medium">
-                          {sName}
-                          <button
-                            type="button"
-                            onClick={() => setProductAlternativeSupplierIds(prev => prev.filter(x => x !== id))}
-                            className="hover:text-rose-500 transition-colors"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="relative" ref={altSupplierDropdownRef}>
-                    <div className="flex items-center w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500">
-                      <input
-                        type="text"
-                        className="bg-transparent outline-none w-full text-sm text-theme-800"
-                        placeholder="Search alternative supplier..."
-                        value={altSupplierSearchQuery}
-                        onChange={(e) => {
-                          setAltSupplierSearchQuery(e.target.value);
-                          setHighlightedAltSupplierIndex(0);
-                          setIsAltSupplierDropdownOpen(true);
-                        }}
-                        onFocus={() => {
-                          setIsAltSupplierDropdownOpen(true);
-                          setHighlightedAltSupplierIndex(0);
-                        }}
-                        onKeyDown={handleAltSupplierKeyDown}
-                      />
-                      <ChevronDown className="w-4 h-4 text-theme-600-text ml-2 shrink-0" />
-                    </div>
-                    {isAltSupplierDropdownOpen && (
-                      <div className="absolute z-50 w-full mt-2 bg-white border border-theme-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                        {filteredAltSuppliersForSelect.length > 0 ? (
-                          filteredAltSuppliersForSelect.map((s, idx) => (
-                            <div 
-                              key={s.id}
-                              data-highlighted={idx === highlightedAltSupplierIndex ? 'true' : undefined}
-                              onMouseEnter={() => setHighlightedAltSupplierIndex(idx)}
-                              className={`px-4 py-3 cursor-pointer text-sm font-bold text-theme-900 transition-colors border-b border-theme-50 last:border-0 ${
-                                idx === highlightedAltSupplierIndex ? 'bg-theme-100 text-theme-900' : 'hover:bg-theme-100'
-                              }`}
-                              onClick={() => {
-                                setProductAlternativeSupplierIds(prev => [...prev, s.id]);
-                                setAltSupplierSearchQuery('');
-                                setIsAltSupplierDropdownOpen(false);
-                              }}
-                            >
-                              {s.name}
+                          !lastSupplierQuery && (
+                            <div className="px-4 py-3 text-center text-xs text-neutral-500">
+                              Ketik nama supplier atau tekan panah bawah untuk memilih.
                             </div>
-                          ))
-                        ) : (
-                          <div className="px-4 py-3 text-center text-sm text-theme-600-text">
-                            No suppliers found.
-                          </div>
+                          )
                         )}
                       </div>
                     )}
                   </div>
                 </div>
-              )}
 
-              <div className="flex gap-2 sm:col-span-2 pt-0.5">
-                <button
-                  type="submit"
-                  className="group flex-1 flex items-center justify-center gap-2 bg-theme-500 hover:bg-theme-600 text-white px-4 py-2.5 rounded-2xl font-bold transition-all duration-300 text-sm hover:shadow-lg hover:shadow-theme-500/20 active:scale-[0.98] whitespace-nowrap"
-                  disabled={suppliers.length === 0 || !productSupplierId}
-                >
-                  {editingProductId ? <><Edit2 className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" /> Update</> : <><Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" /> Add</>} Product
-                </button>
-                {editingProductId && (
-                  <button
-                    type="button"
-                    onClick={handleCancelEditProduct}
-                    className="group flex-none flex items-center justify-center gap-2 bg-theme-100 hover:bg-theme-200 text-theme-600-text px-4 py-2.5 rounded-2xl font-bold transition-all duration-300 text-sm active:scale-[0.98] whitespace-nowrap"
-                  >
-                    <X className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" /> Cancel
-                  </button>
+                {productSupplierId && (
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Supplier Alternatif (Opsional)
+                    </label>
+                    {productAlternativeSupplierIds.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {productAlternativeSupplierIds.map(id => {
+                          const sName = suppliers.find(s => s.id === id)?.name || id;
+                          return (
+                            <span
+                              key={id}
+                              className="inline-flex items-center gap-1.5 bg-theme-50 border border-theme-200 text-theme-800 px-2.5 py-1 rounded-lg text-xs font-medium"
+                            >
+                              <span>{sName}</span>
+                              <button
+                                type="button"
+                                onClick={() => setProductAlternativeSupplierIds(prev => prev.filter(x => x !== id))}
+                                className="text-theme-500 hover:text-rose-600 transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="relative" ref={altSupplierDropdownRef}>
+                      <div className="flex items-center w-full px-3.5 py-2.5 border border-neutral-300 rounded-xl bg-neutral-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500 transition-all">
+                        <input
+                          type="text"
+                          className="bg-transparent outline-none w-full text-sm font-medium text-neutral-900 placeholder:text-neutral-400"
+                          placeholder="Cari supplier alternatif untuk ditambahkan..."
+                          value={altSupplierSearchQuery}
+                          onChange={(e) => {
+                            setAltSupplierSearchQuery(e.target.value);
+                            setHighlightedAltSupplierIndex(0);
+                            setIsAltSupplierDropdownOpen(true);
+                          }}
+                          onFocus={() => {
+                            setIsAltSupplierDropdownOpen(true);
+                            setHighlightedAltSupplierIndex(0);
+                          }}
+                          onKeyDown={handleAltSupplierKeyDown}
+                        />
+                        <ChevronDown className={cn("w-4 h-4 text-neutral-400 ml-1.5 shrink-0 transition-transform", isAltSupplierDropdownOpen && "rotate-180")} />
+                      </div>
+                      {isAltSupplierDropdownOpen && (
+                        <div className="absolute z-50 w-full mt-1.5 bg-white border border-neutral-200 rounded-xl shadow-xl max-h-48 overflow-y-auto py-1">
+                          {filteredAltSuppliersForSelect.length > 0 ? (
+                            filteredAltSuppliersForSelect.map((s, idx) => (
+                              <div
+                                key={s.id}
+                                data-highlighted={idx === highlightedAltSupplierIndex ? 'true' : undefined}
+                                onMouseEnter={() => setHighlightedAltSupplierIndex(idx)}
+                                className={cn(
+                                  "px-3.5 py-2.5 cursor-pointer text-sm font-medium transition-colors border-b border-neutral-100 last:border-0",
+                                  idx === highlightedAltSupplierIndex ? "bg-theme-50 text-theme-900 font-semibold" : "hover:bg-neutral-50 text-neutral-800"
+                                )}
+                                onClick={() => {
+                                  setProductAlternativeSupplierIds(prev => [...prev, s.id]);
+                                  setAltSupplierSearchQuery('');
+                                  setIsAltSupplierDropdownOpen(false);
+                                }}
+                              >
+                                {s.name}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="px-4 py-3 text-center text-xs text-neutral-500">
+                              Tidak ada supplier lain tersedia.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {suppliers.length === 0 && (
+                  <p className="text-xs text-rose-600 font-medium">
+                    Belum ada data supplier. Tambahkan supplier terlebih dahulu pada tab Suppliers.
+                  </p>
                 )}
               </div>
-              {suppliers.length === 0 && (
-                <p className="text-xs text-rose-500 sm:col-span-2">Please add a supplier first.</p>
-              )}
+
+              {/* Action Footer */}
+              <div className="pt-4 border-t border-neutral-200 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5">
+                {!editingProductId ? (
+                  <button
+                    type="button"
+                    onClick={handleResetProductFields}
+                    className="px-3.5 py-2.5 text-xs font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-xl transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Reset Form</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleCloseFormModal}
+                    className="px-4 py-2.5 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 rounded-xl font-semibold text-sm transition-colors whitespace-nowrap"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingForm || suppliers.length === 0}
+                    className="px-5 py-2.5 bg-theme-600 hover:bg-theme-700 text-white rounded-xl font-semibold text-sm shadow-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
+                  >
+                    {isSavingForm ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Menyimpan...</span>
+                      </>
+                    ) : editingProductId ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Simpan Perubahan</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        <span>Simpan Produk</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </form>
           )}
         </FloatingFormModal>

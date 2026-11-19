@@ -11,6 +11,7 @@ import { formatExcelDate } from '../../lib/excel';
 import { cn } from '../../lib/utils';
 import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, clearSearchHistory } from '../../lib/searchHistory';
 import { PreviousSearchSection } from '../PreviousSearchSection';
+import { FloatingFormModal } from '../common/FloatingFormModal';
 
 export interface PendingReportItem {
   id: string;
@@ -410,96 +411,98 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
     return () => window.removeEventListener('keydown', handleEsc);
   }, [isFormCollapsed, isDropdownOpen]);
 
-  // Do not render anything when floating form is closed
-  if (isFormCollapsed && !isFormFullscreen) {
-    return null;
-  }
-
   return (
-    <div
-      className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-5 bg-neutral-950/55 backdrop-blur-xs animate-in fade-in duration-150"
-      onClick={handleCloseFloatingModal}
+    <FloatingFormModal
+      isOpen={!isFormCollapsed || isFormFullscreen}
+      onClose={handleCloseFloatingModal}
+      title={editingReportId ? 'Edit Data Sales' : 'Input Sales Baru'}
+      subtitle={editingReportId ? 'Perbarui catatan penjualan harian' : 'Catat penjualan & barang keluar (Ctrl + S untuk simpan antrean)'}
+      icon={editingReportId ? <Edit2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+      isFullscreen={isFormFullscreen}
+      onToggleFullscreen={() => setIsFormFullscreen(!isFormFullscreen)}
+      disableEscapeClose={isDropdownOpen}
+      maxWidthClass="max-w-xl"
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className={
-          isFormFullscreen
-            ? "w-full h-full bg-white p-4 sm:p-6 md:p-8 overflow-y-auto animate-in zoom-in-95 duration-200 shadow-2xl flex flex-col rounded-none sm:rounded-3xl border border-theme-200"
-            : "w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-3xl border border-theme-200 shadow-2xl p-4 sm:p-6 animate-in zoom-in-95 duration-200"
-        }
-      >
-      {/* Header */}
-      <div className="flex items-center justify-between pb-3 mb-4 border-b border-theme-100">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-2xl bg-theme-500/10 border border-theme-500/20 flex items-center justify-center text-theme-700 shadow-2xs shrink-0">
-            {editingReportId ? <Edit2 className="w-4 h-4 text-theme-600" /> : <Plus className="w-4 h-4 text-theme-600" />}
+      <form onSubmit={onAddReport} className="space-y-5">
+        {/* Error & Duplicate Notices */}
+        {errorMsg && (
+          <div className="px-3.5 py-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between gap-2 text-xs text-rose-800">
+            <div className="flex items-center gap-2 font-medium">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setErrorMsg(null)}
+              className="text-rose-500 hover:text-rose-800 p-0.5 rounded"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <div>
-            <h3 className="font-bold text-neutral-900 text-sm sm:text-base leading-tight">
-              {editingReportId ? 'Edit Data Sales' : 'Input Sales Baru'}
-            </h3>
-            <p className="text-[11px] text-theme-500 font-medium">
-              {editingReportId ? 'Perbarui rekaman harian' : 'Catat penjualan & barang keluar'}
-            </p>
-          </div>
-        </div>
+        )}
 
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsFormFullscreen(!isFormFullscreen)}
-            className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-theme-100 rounded-xl transition-colors"
-            title={isFormFullscreen ? "Perkecil Modal" : "Perbesar Layar Penuh"}
-          >
-            {isFormFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
-          <button
-            type="button"
-            onClick={handleCloseFloatingModal}
-            className="p-1.5 text-neutral-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-            title="Tutup Form Input"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      <form onSubmit={onAddReport} className="space-y-4">
-        {/* 1. Date Selection with Quick Chips */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider flex items-center gap-1.5">
-              <CalendarIcon className="w-3.5 h-3.5 text-theme-500" /> Tanggal
-            </label>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={setToday}
-                className={cn(
-                  "px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors",
-                  date === format(new Date(), 'yyyy-MM-dd')
-                    ? "bg-theme-500 text-white"
-                    : "bg-theme-50 text-neutral-600 hover:bg-theme-100"
-                )}
-              >
-                Hari Ini
-              </button>
-              <button
-                type="button"
-                onClick={setYesterday}
-                className={cn(
-                  "px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors",
-                  date === format(subDays(new Date(), 1), 'yyyy-MM-dd')
-                    ? "bg-theme-500 text-white"
-                    : "bg-theme-50 text-neutral-600 hover:bg-theme-100"
-                )}
-              >
-                Kemarin
-              </button>
+        {existingReportInDate && existingReportInDate.isArrived && (existingReportInDate.quantity === 0 || existingReportInDate.isArrivedOnly) ? (
+          <div className="px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-xs text-emerald-800">
+            <PackageCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="leading-snug">
+              <strong>Barang Datang terdeteksi:</strong> Produk ini sudah masuk di daftar Barang Datang tanggal ini. Status <strong>Sudah Datang</strong> otomatis dicentang.
             </div>
           </div>
+        ) : existingReportInDate ? (
+          <div className="px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-xs text-amber-800">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="leading-snug">
+              <strong>Data sudah tercatat pada tanggal ini</strong> (Qty saat ini: <strong className="tabular-nums">{existingReportInDate.quantity} {unit}</strong>). Menyimpan akan memperbarui kuantitas tersebut.
+            </div>
+          </div>
+        ) : null}
 
-          <div className="relative">
+        {/* SECTION 1: TANGGAL & PRODUK */}
+        <div className="space-y-3.5">
+          <div className="flex items-center justify-between border-b border-neutral-100 pb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+              1. Tanggal &amp; Identitas Produk
+            </span>
+            {formattedDateLabel && (
+              <span className="text-[11px] font-medium text-neutral-500 truncate max-w-[200px]">
+                {formattedDateLabel}
+              </span>
+            )}
+          </div>
+
+          {/* Date Selection */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-neutral-700">
+                Tanggal Laporan <span className="text-rose-500">*</span>
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={setToday}
+                  className={cn(
+                    "px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors",
+                    date === format(new Date(), 'yyyy-MM-dd')
+                      ? "bg-theme-600 text-white"
+                      : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                  )}
+                >
+                  Hari Ini
+                </button>
+                <button
+                  type="button"
+                  onClick={setYesterday}
+                  className={cn(
+                    "px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors",
+                    date === format(subDays(new Date(), 1), 'yyyy-MM-dd')
+                      ? "bg-theme-600 text-white"
+                      : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                  )}
+                >
+                  Kemarin
+                </button>
+              </div>
+            </div>
             <input
               type="date"
               required
@@ -508,42 +511,34 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
                 setDate(e.target.value);
                 setErrorMsg(null);
               }}
-              className="w-full px-3.5 py-2.5 border border-theme-200 rounded-xl bg-theme-50/50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-xs sm:text-sm font-semibold text-neutral-800 shadow-2xs"
+              className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-xl bg-neutral-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm font-medium text-neutral-900 tabular-nums"
             />
           </div>
-          {formattedDateLabel && (
-            <p className="text-[11px] text-theme-600 font-medium mt-1 px-1">
-              {formattedDateLabel}
-            </p>
-          )}
-        </div>
 
-        {/* 2. Product Search & Autocomplete */}
-        <div className="relative" ref={dropdownRef}>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider flex items-center gap-1.5">
-              <Package className="w-3.5 h-3.5 text-theme-500" /> Produk
-            </label>
-            {productId && (
-              <button
-                type="button"
-                onClick={() => {
-                  setProductId('');
-                  setSearchQuery('');
-                  setShowBottomStockInput(false);
-                  setTimeout(() => searchInputRef.current?.focus(), 50);
-                }}
-                className="text-[10px] text-rose-500 hover:text-rose-700 font-bold flex items-center gap-0.5"
-              >
-                <X className="w-3 h-3" /> Ganti Produk
-              </button>
-            )}
-          </div>
+          {/* Product Search & Autocomplete */}
+          <div className="relative" ref={dropdownRef}>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-neutral-700">
+                Nama Produk <span className="text-rose-500">*</span>
+              </label>
+              {productId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductId('');
+                    setSearchQuery('');
+                    setShowBottomStockInput(false);
+                    setTimeout(() => searchInputRef.current?.focus(), 50);
+                  }}
+                  className="text-[11px] text-neutral-500 hover:text-rose-600 font-medium inline-flex items-center gap-1"
+                >
+                  <X className="w-3 h-3" /> Ganti Produk
+                </button>
+              )}
+            </div>
 
-          {/* Search Input Field */}
-          <div className="relative">
-            <div className="relative flex items-center w-full px-3.5 py-2.5 border border-theme-200 rounded-xl bg-theme-50/50 hover:bg-white focus-within:bg-white focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500 transition-all shadow-2xs">
-              <Search className="w-4 h-4 text-theme-500 mr-2 shrink-0" />
+            <div className="relative flex items-center w-full px-3.5 py-2.5 border border-neutral-300 rounded-xl bg-neutral-50 hover:bg-white focus-within:bg-white focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500 transition-all">
+              <Search className="w-4 h-4 text-neutral-400 mr-2 shrink-0" />
               <input
                 ref={searchInputRef}
                 type="text"
@@ -569,8 +564,8 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
                   searchInputRef.current?.select();
                 }}
                 onKeyDown={handleSearchKeyDown}
-                className="w-full outline-none bg-transparent text-xs sm:text-sm font-medium text-neutral-800 placeholder:text-neutral-400"
-                placeholder="Ketik nama produk untuk mencari..."
+                className="w-full outline-none bg-transparent text-sm font-medium text-neutral-900 placeholder:text-neutral-400"
+                placeholder="Ketik atau pilih produk dari master data..."
               />
               {searchQuery && (
                 <X
@@ -593,58 +588,26 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
               />
             </div>
 
-            {/* Selected Product Badge below search bar */}
+            {/* Clean inline metadata strip when product is selected */}
             {selectedProduct && (
-              <div className="mt-2 p-2.5 bg-theme-50/80 border border-theme-300 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-theme-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                    <Package className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-theme-600 uppercase tracking-wider">Terpilih:</span>
-                      <span className="font-bold text-neutral-900 text-xs truncate">
-                        {selectedProduct.name}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-neutral-500">
-                      <span className="flex items-center gap-1 text-theme-700 font-medium">
-                        <Building2 className="w-3 h-3" />
-                        {selectedProductSupplier?.name || 'Tanpa Supplier'}
-                      </span>
-                      <span>•</span>
-                      <span className="bg-white border border-theme-200 px-1.5 py-0.2 rounded font-bold text-neutral-700">
-                        {selectedProduct.unit || 'pcs'}
-                      </span>
-                      {selectedProduct.bottomStock !== undefined && selectedProduct.bottomStock !== null && selectedProduct.bottomStock > 0 && (
-                        <span className="text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-semibold text-[10px]">
-                          Min: {selectedProduct.bottomStock}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProductId('');
-                    setSearchQuery('');
-                    setIsTypingNew(false);
-                    setShowBottomStockInput(false);
-                    setTimeout(() => searchInputRef.current?.focus(), 50);
-                  }}
-                  className="p-1 text-neutral-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
-                  title="Batalkan pilihan produk"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1 text-[11px] text-neutral-500">
+                <span className="font-semibold text-emerald-700">Master Data</span>
+                <span aria-hidden="true">·</span>
+                <span>Supplier: <strong className="text-neutral-700">{selectedProductSupplier?.name || 'Tanpa Supplier'}</strong></span>
+                <span aria-hidden="true">·</span>
+                <span>Satuan: <strong className="text-neutral-700">{selectedProduct.unit || 'pcs'}</strong></span>
+                {selectedProduct.bottomStock !== undefined && selectedProduct.bottomStock !== null && selectedProduct.bottomStock > 0 && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>Batas Min: <strong className="text-amber-700 tabular-nums">{selectedProduct.bottomStock}</strong></span>
+                  </>
+                )}
               </div>
             )}
 
             {/* Dropdown Menu */}
             {isDropdownOpen && (
-              <div className="absolute z-50 w-full mt-1.5 bg-white border border-theme-200 rounded-2xl shadow-xl max-h-72 overflow-y-auto overflow-x-hidden animate-in fade-in slide-in-from-top-1 duration-150">
-                {/* Previous Search Results when clicking search bar without active new typing */}
+              <div className="absolute z-50 w-full mt-1.5 bg-white border border-neutral-200 rounded-2xl shadow-xl max-h-72 overflow-y-auto overflow-x-hidden animate-in fade-in slide-in-from-top-1 duration-150">
                 {(!isTypingNew || !searchQuery.trim()) && lastSearchQuery && (
                   <PreviousSearchSection
                     lastQuery={lastSearchQuery}
@@ -674,99 +637,98 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
                 )}
 
                 {isTypingNew && (searchQuery.trim() || !lastSearchQuery) ? (
-                    filteredProducts.length === 0 ? (
-                      <div className="p-4 text-center">
-                        <p className="text-xs font-semibold text-neutral-700">
-                          Produk &quot;{searchQuery}&quot; tidak ditemukan.
-                        </p>
-                        <p className="text-[11px] text-neutral-500 mt-1">
-                          Akan otomatis didaftarkan sebagai produk baru saat disimpan.
-                        </p>
-                        {/* Optional supplier selection for new product */}
-                        <div className="mt-3 pt-2 border-t border-theme-100 text-left">
-                          <label className="text-[10px] font-bold text-neutral-500 uppercase">
-                            Pilih Supplier (Opsional):
-                          </label>
-                          <select
-                            value={selectedSupplierForNew}
-                            onChange={(e) => setSelectedSupplierForNew(e.target.value)}
-                            className="mt-1 w-full text-xs p-1.5 border border-theme-200 rounded-lg outline-none bg-white font-medium text-neutral-800"
-                          >
-                            <option value="">Tanpa Supplier (Default)</option>
-                            {suppliers.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                  filteredProducts.length === 0 ? (
+                    <div className="p-4 text-center">
+                      <p className="text-xs font-semibold text-neutral-700">
+                        Produk &quot;{searchQuery}&quot; tidak ditemukan.
+                      </p>
+                      <p className="text-[11px] text-neutral-500 mt-1">
+                        Akan otomatis didaftarkan sebagai produk baru saat disimpan.
+                      </p>
+                      <div className="mt-3 pt-2 border-t border-neutral-100 text-left">
+                        <label className="text-[11px] font-semibold text-neutral-600 block mb-1">
+                          Pilih Supplier (Opsional)
+                        </label>
+                        <select
+                          value={selectedSupplierForNew}
+                          onChange={(e) => setSelectedSupplierForNew(e.target.value)}
+                          className="w-full text-xs px-3 py-2 border border-neutral-300 rounded-xl outline-none bg-neutral-50 font-medium text-neutral-800"
+                        >
+                          <option value="">Tanpa Supplier (Default)</option>
+                          {suppliers.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    ) : (
-                      <div className="p-1 space-y-0.5">
-                        <div className="px-3 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-                          Hasil Pencarian ({filteredProducts.length})
-                        </div>
-                        {filteredProducts.map((p, idx) => {
-                          const sup = suppliers.find((s) => s.id === p.supplierId);
-                          const isHighlighted = idx === highlightedIndex;
-                          return (
-                            <div
-                              key={p.id}
-                              data-highlighted={isHighlighted ? 'true' : undefined}
-                              onClick={() => handleSelectProduct(p)}
-                              onMouseEnter={() => setHighlightedIndex(idx)}
-                              className={cn(
-                                "px-3 py-2 rounded-xl cursor-pointer transition-colors flex items-center justify-between gap-2 text-xs",
-                                isHighlighted ? "bg-theme-100 text-theme-900 font-bold" : "hover:bg-theme-50 text-neutral-800"
-                              )}
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="font-bold text-neutral-900 truncate">
-                                  {p.name}
-                                </div>
-                                <div className="text-[10px] text-neutral-500 flex items-center gap-1.5 mt-0.5">
-                                  <span className="truncate">{sup?.name || 'Tanpa Supplier'}</span>
-                                  {p.bottomStock !== undefined && p.bottomStock !== null && p.bottomStock > 0 && (
-                                    <>
-                                      <span>•</span>
-                                      <span className="text-amber-600 font-semibold">Min: {p.bottomStock}</span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-neutral-100 rounded text-neutral-600 shrink-0">
-                                {p.unit || 'pcs'}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )
+                    </div>
                   ) : (
-                    !lastSearchQuery && (
-                      <div className="p-4 text-center text-xs text-neutral-500">
-                        Ketik nama produk atau tekan panah bawah untuk memilih...
+                    <div className="p-1.5 space-y-0.5">
+                      <div className="px-3 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                        Hasil Pencarian ({filteredProducts.length})
                       </div>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
+                      {filteredProducts.map((p, idx) => {
+                        const sup = suppliers.find((s) => s.id === p.supplierId);
+                        const isHighlighted = idx === highlightedIndex;
+                        return (
+                          <div
+                            key={p.id}
+                            data-highlighted={isHighlighted ? 'true' : undefined}
+                            onClick={() => handleSelectProduct(p)}
+                            onMouseEnter={() => setHighlightedIndex(idx)}
+                            className={cn(
+                              "px-3 py-2 rounded-xl cursor-pointer transition-colors flex items-center justify-between gap-2 text-xs",
+                              isHighlighted ? "bg-theme-100 text-theme-900 font-semibold" : "hover:bg-neutral-50 text-neutral-800"
+                            )}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold text-neutral-900 truncate">
+                                {p.name}
+                              </div>
+                              <div className="text-[11px] text-neutral-500 flex items-center gap-1.5 mt-0.5">
+                                <span className="truncate">{sup?.name || 'Tanpa Supplier'}</span>
+                                {p.bottomStock !== undefined && p.bottomStock !== null && p.bottomStock > 0 && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-amber-700 font-medium tabular-nums">Min: {p.bottomStock}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 bg-neutral-100 rounded text-neutral-600 shrink-0">
+                              {p.unit || 'pcs'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : (
+                  !lastSearchQuery && (
+                    <div className="p-4 text-center text-xs text-neutral-500">
+                      Ketik nama produk atau tekan panah bawah untuk memilih...
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* 3. Quantity & Unit */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider flex items-center gap-1.5">
-              <Hash className="w-3.5 h-3.5 text-theme-500" /> Jumlah (Qty) & Satuan
-            </label>
+        {/* SECTION 2: KUANTITAS & STOK MINIMUM */}
+        <div className="space-y-3.5 pt-1">
+          <div className="flex items-center justify-between border-b border-neutral-100 pb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+              2. Kuantitas &amp; Satuan
+            </span>
             <div className="flex items-center gap-1">
               {QUICK_QTY_ADDITIONS.map((val) => (
                 <button
                   key={val}
                   type="button"
                   onClick={() => handleAddQty(val)}
-                  className="px-1.5 py-0.5 text-[10px] font-bold bg-theme-50 hover:bg-theme-200/80 text-theme-800 rounded-md transition-colors active:scale-95"
+                  className="px-1.5 py-0.5 text-[10px] font-semibold bg-neutral-100 hover:bg-theme-100 text-neutral-700 hover:text-theme-800 rounded transition-colors"
                   title={`Tambah ${val}`}
                 >
                   +{val}
@@ -775,8 +737,11 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <div className="relative flex-1">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5">
+            <div className="sm:col-span-7">
+              <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                Jumlah (Qty) <span className="text-rose-500">*</span>
+              </label>
               <input
                 ref={quantityInputRef}
                 type="number"
@@ -789,13 +754,15 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
                 }}
                 onKeyDown={handleQuantityKeyDown}
                 onFocus={(e) => e.target.select()}
-                className="w-full px-3.5 py-2.5 border border-theme-200 rounded-xl bg-theme-50/50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm font-bold text-neutral-900 shadow-2xs placeholder:text-neutral-400 placeholder:font-normal"
+                className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-xl bg-neutral-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm font-semibold text-neutral-900 tabular-nums placeholder:text-neutral-400 placeholder:font-normal"
                 placeholder="0"
               />
             </div>
 
-            {/* Unit selector */}
-            <div className="w-28 shrink-0">
+            <div className="sm:col-span-5">
+              <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                Satuan
+              </label>
               {isCustomUnit ? (
                 <div className="relative">
                   <input
@@ -803,16 +770,16 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
                     value={unit}
                     onChange={(e) => setUnit(e.target.value)}
                     onKeyDown={handleQuantityKeyDown}
-                    placeholder="Satuan"
-                    className="w-full px-2.5 py-2.5 border border-theme-200 rounded-xl bg-theme-50/50 focus:bg-white focus:ring-2 focus:ring-theme-500 outline-none text-xs font-semibold text-neutral-800 shadow-2xs"
+                    placeholder="Ketik satuan..."
+                    className="w-full px-3.5 pr-8 py-2.5 border border-neutral-300 rounded-xl bg-neutral-50 focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none text-sm font-medium text-neutral-900"
                   />
                   <button
                     type="button"
                     onClick={() => setIsCustomUnit(false)}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-0.5"
                     title="Pilih dari daftar"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ) : (
@@ -826,7 +793,7 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
                       setUnit(e.target.value);
                     }
                   }}
-                  className="w-full px-2.5 py-2.5 border border-theme-200 rounded-xl bg-theme-50/50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-theme-500 outline-none text-xs font-bold text-neutral-800 shadow-2xs cursor-pointer"
+                  className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-xl bg-neutral-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none text-sm font-medium text-neutral-900 cursor-pointer"
                 >
                   {COMMON_UNITS.map((u) => (
                     <option key={u} value={u}>
@@ -838,161 +805,127 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
               )}
             </div>
           </div>
+
+          {/* Bottom Stock Setup (inline, clean) */}
+          {(showBottomStockInput || (selectedProduct && (selectedProduct.bottomStock === undefined || selectedProduct.bottomStock === null))) && (
+            <div className="px-3.5 py-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-amber-900">
+                  Stok Minimum (Bottom Stock)
+                </label>
+                <span className="text-[11px] font-medium text-amber-700">Disarankan isi sekali</span>
+              </div>
+              <input
+                type="number"
+                min="0"
+                value={bottomStock}
+                onChange={(e) => setBottomStock(e.target.value ? Number(e.target.value) : '')}
+                onKeyDown={handleQuantityKeyDown}
+                className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all text-sm font-medium text-amber-950 tabular-nums placeholder:text-amber-400"
+                placeholder="Batas minimum stok produk..."
+              />
+            </div>
+          )}
         </div>
 
-        {/* 4. Bottom Stock Setup (when not set or new product) */}
-        {(showBottomStockInput || (selectedProduct && (selectedProduct.bottomStock === undefined || selectedProduct.bottomStock === null))) && (
-          <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-2xl animate-in fade-in slide-in-from-top-1 duration-200 shadow-2xs">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                Stok Minimum (Bottom Stock)
-              </label>
-              <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-1.5 py-0.2 rounded">
-                Wajib diisi sekali
-              </span>
-            </div>
-            <input
-              type="number"
-              min="0"
-              value={bottomStock}
-              onChange={(e) => setBottomStock(e.target.value ? Number(e.target.value) : '')}
-              onKeyDown={handleQuantityKeyDown}
-              className="w-full px-3 py-2 border border-amber-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all text-xs font-semibold text-amber-900 placeholder:text-amber-400"
-              placeholder="Masukkan batas minimum stok produk..."
-            />
-            <p className="text-[10px] text-amber-700 mt-1 leading-tight">
-              Sistem akan otomatis memicu peringatan saat sisa stok berada di bawah batas ini.
-            </p>
+        {/* SECTION 3: KETERANGAN & PRIORITAS */}
+        <div className="space-y-3 pt-1">
+          <div className="border-b border-neutral-100 pb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+              3. Keterangan &amp; Prioritas
+            </span>
           </div>
-        )}
 
-        {/* 5. Notes / Keterangan with Quick Chips */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider">
+          <div>
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
               Keterangan (Opsional)
             </label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onKeyDown={handleQuantityKeyDown}
+              className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-xl bg-neutral-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm font-medium text-neutral-900 placeholder:text-neutral-400"
+              placeholder="Tambahkan catatan khusus..."
+            />
+            <div className="flex flex-wrap items-center gap-1 mt-1.5">
+              {QUICK_NOTE_SUGGESTIONS.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => {
+                    setNotes(notes ? `${notes}, ${tag}` : tag);
+                  }}
+                  className="px-2 py-0.5 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 text-neutral-600 rounded-md text-[11px] font-medium transition-colors"
+                >
+                  +{tag}
+                </button>
+              ))}
+            </div>
           </div>
-          <input
-            type="text"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onKeyDown={handleQuantityKeyDown}
-            className="w-full px-3.5 py-2.5 border border-theme-200 rounded-xl bg-theme-50/50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-xs sm:text-sm font-medium text-neutral-800 shadow-2xs placeholder:text-neutral-400"
-            placeholder="Tambahkan catatan khusus..."
-          />
-          {/* Quick Note Chips */}
-          <div className="flex flex-wrap items-center gap-1 mt-1.5">
-            {QUICK_NOTE_SUGGESTIONS.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => {
-                  setNotes(notes ? `${notes}, ${tag}` : tag);
-                }}
-                className="px-2 py-0.5 bg-theme-50 hover:bg-theme-100 text-theme-700 rounded-md text-[10px] font-semibold transition-colors"
-              >
-                +{tag}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        {/* 6. Warning Stok Switch */}
-        <div>
-          <label className="flex items-center justify-between p-2.5 border border-theme-200 rounded-xl bg-theme-50/40 hover:bg-theme-50 transition-colors cursor-pointer shadow-2xs">
-            <div className="flex items-center gap-2">
+          <label className="flex items-center justify-between px-3.5 py-2.5 border border-neutral-200 rounded-xl bg-neutral-50/60 hover:bg-neutral-100/70 transition-colors cursor-pointer">
+            <div className="flex items-center gap-2.5">
               <input
                 type="checkbox"
                 checked={isWarningStock}
                 onChange={(e) => setIsWarningStock(e.target.checked)}
-                className="w-4 h-4 text-rose-500 bg-white border-neutral-300 rounded focus:ring-rose-500 focus:ring-2 cursor-pointer"
+                className="w-4 h-4 text-rose-600 bg-white border-neutral-300 rounded focus:ring-rose-500 cursor-pointer"
               />
-              <span className="text-xs font-bold text-rose-700">Tandai Warning Stok</span>
+              <span className="text-xs font-semibold text-neutral-800">Tandai Warning Stok</span>
             </div>
-            <span className="text-[10px] text-neutral-400 font-medium">Prioritas Tinggi</span>
+            <span className="text-[11px] text-rose-600 font-medium">Prioritas Tinggi</span>
           </label>
         </div>
 
-        {/* Duplicate or Arrived Notice Alert */}
-        {existingReportInDate && existingReportInDate.isArrived && (existingReportInDate.quantity === 0 || existingReportInDate.isArrivedOnly) ? (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-xs text-emerald-800 animate-in fade-in duration-200">
-            <PackageCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            <div className="leading-tight">
-              <span className="font-bold">Barang Datang terdeteksi:</span> Produk ini sudah masuk di daftar Barang Datang pada tanggal ini. Status <span className="font-bold text-emerald-900">Sudah Datang</span> akan otomatis terceklis.
-            </div>
-          </div>
-        ) : existingReportInDate ? (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-xs text-amber-800 animate-in fade-in duration-200">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div className="leading-tight">
-              <span className="font-bold">Data sudah ada pada tanggal ini:</span> Qty saat ini:{' '}
-              <span className="font-bold text-amber-900">{existingReportInDate.quantity} {unit}</span>.
-              Menyimpan akan memperbarui kuantitas tersebut.
-            </div>
-          </div>
-        ) : null}
-
-        {/* Error Alert */}
-        {errorMsg && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-700 animate-in fade-in duration-200">
-            <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-            <div className="font-medium leading-relaxed">{errorMsg}</div>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="pt-2 space-y-2">
+        {/* STRUCTURED ACTION FOOTER */}
+        <div className="pt-4 border-t border-neutral-200">
           {editingReportId ? (
-            <div className="space-y-2">
-              <button
-                type="submit"
-                className="w-full flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white px-4 py-3 rounded-xl font-bold transition-all duration-200 text-xs sm:text-sm shadow-sm active:scale-[0.98]"
-              >
-                <Check className="w-4 h-4" /> Simpan Perubahan
-              </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={onCancelEdit}
-                className="w-full flex items-center justify-center gap-2 bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 text-xs sm:text-sm"
+                className="px-4 py-2.5 rounded-xl text-xs font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
               >
-                <X className="w-4 h-4" /> Batalkan Edit
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white px-5 py-2.5 rounded-xl font-bold transition-all text-xs sm:text-sm shadow-sm active:scale-[0.98]"
+              >
+                <Check className="w-4 h-4" />
+                <span>Simpan Perubahan</span>
               </button>
             </div>
           ) : (
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <button
+                type="button"
+                onClick={handleResetForm}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-neutral-600 hover:bg-neutral-100 transition-colors self-start sm:self-auto"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Form</span>
+              </button>
+
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={onAddToList}
-                  className="flex items-center justify-center gap-1.5 bg-white border-2 border-theme-500 text-theme-700 hover:bg-theme-50 px-3 py-2.5 rounded-xl font-bold transition-all duration-200 text-xs sm:text-sm active:scale-[0.98] shadow-2xs"
-                  title="Tambahkan ke antrean list input (bisa input banyak sekaligus)"
+                  className="inline-flex items-center justify-center gap-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 px-4 py-2.5 rounded-xl font-semibold transition-colors text-xs active:scale-[0.98] whitespace-nowrap"
+                  title="Tambahkan ke antrean list (Enter di kolom Qty)"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Ke List</span>
+                  <Plus className="w-4 h-4 text-theme-600" />
+                  <span>Tambah ke Antrean</span>
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center justify-center gap-1.5 bg-theme-500 hover:bg-theme-600 text-white px-3 py-2.5 rounded-xl font-bold transition-all duration-200 text-xs sm:text-sm active:scale-[0.98] shadow-md shadow-theme-500/20"
+                  className="inline-flex items-center justify-center gap-1.5 bg-theme-600 hover:bg-theme-700 text-white px-5 py-2.5 rounded-xl font-bold transition-all text-xs shadow-sm active:scale-[0.98] whitespace-nowrap"
                   title="Simpan langsung ke database"
                 >
                   <Check className="w-4 h-4" />
-                  <span>Simpan</span>
+                  <span>Simpan Sales</span>
                 </button>
-              </div>
-
-              <div className="flex items-center justify-between px-1">
-                <button
-                  type="button"
-                  onClick={handleResetForm}
-                  className="text-[11px] text-neutral-500 hover:text-neutral-800 font-medium flex items-center gap-1 transition-colors"
-                >
-                  <RotateCcw className="w-3 h-3" /> Bersihkan Form
-                </button>
-                <span className="text-[10px] text-neutral-400 font-medium">
-                  Enter di Qty = Tambah ke List
-                </span>
               </div>
             </div>
           )}
@@ -1001,56 +934,51 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
 
       {/* Pending Items List (Batch Queue) */}
       {pendingItems.length > 0 && !editingReportId && (
-        <div className="mt-5 pt-4 border-t border-theme-200 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="mt-5 pt-4 border-t border-neutral-200">
           <div className="flex items-center justify-between mb-2.5">
-            <div className="flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-theme-500" />
-              <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">
-                Antrean Input
-              </h4>
-              <span className="px-1.5 py-0.5 rounded-full bg-theme-500 text-white font-bold text-[10px]">
-                {pendingItems.length}
-              </span>
-            </div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-neutral-600">
-                Total: {totalPendingQty}
+              <h4 className="text-xs sm:text-sm font-bold text-neutral-900">
+                Antrean Input ({pendingItems.length} Item)
+              </h4>
+              <span className="text-xs font-medium text-neutral-500 tabular-nums">
+                · Total Qty: {totalPendingQty}
               </span>
-              <button
-                type="button"
-                onClick={() => setPendingItems([])}
-                className="text-[10px] text-rose-500 hover:text-rose-700 font-bold"
-                title="Hapus semua antrean"
-              >
-                Kosongkan
-              </button>
             </div>
+            <button
+              type="button"
+              onClick={() => setPendingItems([])}
+              className="text-xs text-neutral-500 hover:text-rose-600 font-medium px-2 py-1 rounded-lg hover:bg-neutral-100 transition-colors"
+              title="Hapus semua antrean"
+            >
+              Kosongkan
+            </button>
           </div>
 
-          <div className="space-y-1.5 mb-3 max-h-56 overflow-y-auto pr-1">
+          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 divide-y divide-neutral-200 mb-3 max-h-56 overflow-y-auto">
             {pendingItems.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between bg-theme-50/70 p-2.5 rounded-xl border border-theme-200/80 text-xs hover:bg-theme-50 transition-colors"
+                className="flex items-center justify-between px-3.5 py-2.5 text-xs hover:bg-white transition-colors"
               >
-                <div className="flex-1 truncate pr-2">
-                  <div className="font-bold text-neutral-900 truncate">
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="font-semibold text-neutral-900 truncate">
                     {item.productName}
                   </div>
-                  <div className="text-[10px] text-neutral-500 truncate flex items-center gap-1.5 mt-0.5">
-                    <span className="font-bold text-theme-700">
+                  <div className="text-[11px] text-neutral-500 truncate flex items-center gap-1.5 mt-0.5 tabular-nums">
+                    <span className="font-semibold text-theme-700">
                       {item.quantity} {item.unit}
                     </span>
                     {item.notes && (
                       <>
-                        <span>•</span>
+                        <span>·</span>
                         <span className="italic truncate">{item.notes}</span>
                       </>
                     )}
                     {item.isWarningStock && (
-                      <span className="text-rose-600 font-bold bg-rose-50 px-1 rounded">
-                        Warning
-                      </span>
+                      <>
+                        <span>·</span>
+                        <span className="text-rose-600 font-semibold">Warning Stok</span>
+                      </>
                     )}
                   </div>
                 </div>
@@ -1060,7 +988,7 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
                   <button
                     type="button"
                     onClick={() => handleUpdatePendingQty(item.id, -1)}
-                    className="w-5 h-5 flex items-center justify-center bg-white border border-neutral-200 rounded text-neutral-700 hover:bg-neutral-100 font-bold text-xs active:scale-95"
+                    className="w-6 h-6 flex items-center justify-center bg-white border border-neutral-200 rounded-md text-neutral-700 hover:bg-neutral-100 font-bold text-xs active:scale-95"
                     title="Kurangi 1"
                   >
                     -
@@ -1068,7 +996,7 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
                   <button
                     type="button"
                     onClick={() => handleUpdatePendingQty(item.id, 1)}
-                    className="w-5 h-5 flex items-center justify-center bg-white border border-neutral-200 rounded text-neutral-700 hover:bg-neutral-100 font-bold text-xs active:scale-95"
+                    className="w-6 h-6 flex items-center justify-center bg-white border border-neutral-200 rounded-md text-neutral-700 hover:bg-neutral-100 font-bold text-xs active:scale-95"
                     title="Tambah 1"
                   >
                     +
@@ -1076,7 +1004,7 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
                   <button
                     type="button"
                     onClick={() => setPendingItems(pendingItems.filter((i) => i.id !== item.id))}
-                    className="p-1 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-0.5"
+                    className="p-1.5 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-0.5"
                     title="Hapus dari antrean"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -1090,21 +1018,19 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
             type="button"
             onClick={onSaveAll}
             disabled={isSavingAll}
-            className="w-full flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white px-4 py-2.5 rounded-xl font-bold transition-all duration-200 text-xs sm:text-sm shadow-md active:scale-[0.98] disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white px-4 py-2.5 rounded-xl font-bold transition-all text-xs sm:text-sm shadow-sm active:scale-[0.98] disabled:opacity-50"
           >
             {isSavingAll ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                <span>Simpan Semua ({pendingItems.length} Item)</span>
-                <span className="text-[10px] bg-white/15 px-1.5 py-0.5 rounded font-medium ml-1">Ctrl+S</span>
+                <span>Simpan Semua Antrean ({pendingItems.length} Item) · Ctrl+S</span>
               </>
             )}
           </button>
         </div>
       )}
-      </div>
-    </div>
+    </FloatingFormModal>
   );
 };

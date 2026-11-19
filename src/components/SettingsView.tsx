@@ -1080,177 +1080,188 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
             )}
 
             <form onSubmit={handleSaveCompanyProfile} className="space-y-6">
-              {/* Upload Icon Perusahaan */}
-              <div className="p-5 rounded-2xl bg-theme-50/70 border border-theme-200 flex flex-col sm:flex-row items-center gap-5">
-                <div
-                  onClick={() => companyIconInputRef.current?.click()}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const file = e.dataTransfer.files?.[0];
-                    if (file) handleCompanyIconUpload(file);
-                  }}
-                  className="w-24 h-24 rounded-3xl bg-white border-2 border-dashed border-theme-300 hover:border-theme-500 flex items-center justify-center overflow-hidden cursor-pointer shadow-sm shrink-0 transition-all group relative"
-                  title="Klik atau seret gambar untuk upload icon perusahaan"
-                >
-                  {companyIcon ? (
-                    <img
-                      src={companyIcon}
-                      alt="Icon Perusahaan"
-                      className="w-full h-full object-contain p-1.5"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-theme-500 text-white flex flex-col items-center justify-center gap-1">
-                      <span className="text-2xl font-black leading-none">
-                        {previewCompanyName.charAt(0).toUpperCase()}
-                      </span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider opacity-85">
-                        Default
-                      </span>
+              {/* Section 1: Logo Perusahaan */}
+              <div className="space-y-3">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+                  1. Logo &amp; Identitas Visual
+                </h4>
+                <div className="p-4 sm:p-5 rounded-2xl bg-neutral-50 border border-neutral-200 flex flex-col sm:flex-row items-center gap-5">
+                  <div
+                    onClick={() => companyIconInputRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleCompanyIconUpload(file);
+                    }}
+                    className="w-24 h-24 rounded-2xl bg-white border-2 border-dashed border-neutral-300 hover:border-theme-500 flex items-center justify-center overflow-hidden cursor-pointer shadow-2xs shrink-0 transition-all group relative"
+                    title="Klik atau seret gambar untuk upload icon perusahaan"
+                  >
+                    {companyIcon ? (
+                      <img
+                        src={companyIcon}
+                        alt="Icon Perusahaan"
+                        className="w-full h-full object-contain p-1.5"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-theme-500 text-white flex flex-col items-center justify-center gap-1">
+                        <span className="text-2xl font-black leading-none">
+                          {previewCompanyName.charAt(0).toUpperCase()}
+                        </span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider opacity-85">
+                          Default
+                        </span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-neutral-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                      <ImagePlus className="w-6 h-6" />
                     </div>
-                  )}
-                  <div className="absolute inset-0 bg-neutral-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                    <ImagePlus className="w-6 h-6" />
                   </div>
-                </div>
 
-                <div className="flex-1 text-center sm:text-left">
-                  <h4 className="text-sm font-bold text-theme-900">Logo / Icon Perusahaan</h4>
-                  <p className="text-xs text-theme-600-text mt-1 leading-relaxed">
-                    Unggah gambar logo (PNG, JPG, WebP, atau SVG). Gambar otomatis dioptimalkan ke ukuran 200×200px agar ringan & tetap tajam.
-                  </p>
-                  <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => companyIconInputRef.current?.click()}
-                      disabled={isUploadingCompanyIcon}
-                      className="px-4 py-2 bg-theme-600 hover:bg-theme-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{isUploadingCompanyIcon ? 'Memproses...' : (companyIcon ? 'Ganti Icon' : 'Upload Icon')}</span>
-                    </button>
-
-                    {companyIcon && (
+                  <div className="flex-1 text-center sm:text-left">
+                    <h4 className="text-sm font-bold text-neutral-900">Logo / Icon Perusahaan</h4>
+                    <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
+                      Unggah gambar logo (PNG, JPG, WebP, atau SVG). Gambar otomatis dioptimalkan ke ukuran 200×200px agar ringan &amp; tetap tajam.
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
                       <button
                         type="button"
-                        onClick={handleRemoveCompanyIcon}
-                        className="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-xs"
+                        onClick={() => companyIconInputRef.current?.click()}
+                        disabled={isUploadingCompanyIcon}
+                        className="px-4 py-2 bg-theme-600 hover:bg-theme-700 text-white font-semibold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Hapus Icon</span>
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{isUploadingCompanyIcon ? 'Memproses...' : (companyIcon ? 'Ganti Icon' : 'Upload Icon')}</span>
                       </button>
-                    )}
+
+                      {companyIcon && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveCompanyIcon}
+                          className="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 font-semibold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Hapus Icon</span>
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      ref={companyIconInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleCompanyIconUpload(e.target.files?.[0])}
+                      className="hidden"
+                    />
                   </div>
-                  <input
-                    ref={companyIconInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleCompanyIconUpload(e.target.files?.[0])}
-                    className="hidden"
-                  />
                 </div>
               </div>
 
-              {/* Form Fields */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-theme-900 mb-1.5">
-                    Nama Perusahaan / Toko
-                  </label>
-                  <div className="relative">
-                    <Building2 className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
+              {/* Section 2: Detail Perusahaan & Kontak */}
+              <div className="pt-5 border-t border-neutral-200/80 space-y-3.5">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+                  2. Informasi &amp; Kontak Perusahaan
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Nama Perusahaan / Toko
+                    </label>
+                    <div className="relative">
+                      <Building2 className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
+                      <input
+                        type="text"
+                        maxLength={150}
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        placeholder="Contoh: PT Maju Jaya / ReportPro"
+                        className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium text-neutral-900 bg-neutral-50 border border-neutral-300 rounded-xl focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500 outline-none transition-all placeholder:text-neutral-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Slogan / Bidang Usaha
+                    </label>
                     <input
                       type="text"
-                      maxLength={150}
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder="Contoh: PT Maju Jaya / ReportPro"
-                      className="w-full pl-10 pr-3.5 py-2.5 text-sm font-semibold text-theme-900 bg-neutral-50 border border-theme-200 rounded-xl focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500/20 outline-none transition-all"
+                      maxLength={120}
+                      value={companyTagline}
+                      onChange={(e) => setCompanyTagline(e.target.value)}
+                      placeholder="Contoh: Manajemen Stok & Gudang"
+                      className="w-full px-3.5 py-2.5 text-sm font-medium text-neutral-900 bg-neutral-50 border border-neutral-300 rounded-xl focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500 outline-none transition-all placeholder:text-neutral-400"
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-theme-900 mb-1.5">
-                    Slogan / Bidang Usaha
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={120}
-                    value={companyTagline}
-                    onChange={(e) => setCompanyTagline(e.target.value)}
-                    placeholder="Contoh: Manajemen Stok & Gudang"
-                    className="w-full px-3.5 py-2.5 text-sm font-medium text-theme-900 bg-neutral-50 border border-theme-200 rounded-xl focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500/20 outline-none transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-theme-900 mb-1.5">
-                    No. Telepon / WhatsApp
-                  </label>
-                  <div className="relative">
-                    <Phone className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
-                    <input
-                      type="text"
-                      maxLength={40}
-                      value={companyPhone}
-                      onChange={(e) => setCompanyPhone(e.target.value)}
-                      placeholder="Contoh: 0812-3456-7890"
-                      className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium text-theme-900 bg-neutral-50 border border-theme-200 rounded-xl focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500/20 outline-none transition-all"
-                    />
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      No. Telepon / WhatsApp
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
+                      <input
+                        type="text"
+                        maxLength={40}
+                        value={companyPhone}
+                        onChange={(e) => setCompanyPhone(e.target.value)}
+                        placeholder="Contoh: 0812-3456-7890"
+                        className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium text-neutral-900 bg-neutral-50 border border-neutral-300 rounded-xl focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500 outline-none transition-all placeholder:text-neutral-400 tabular-nums"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-theme-900 mb-1.5">
-                    Email Perusahaan
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
-                    <input
-                      type="email"
-                      maxLength={80}
-                      value={companyEmail}
-                      onChange={(e) => setCompanyEmail(e.target.value)}
-                      placeholder="Contoh: admin@perusahaan.co.id"
-                      className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium text-theme-900 bg-neutral-50 border border-theme-200 rounded-xl focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500/20 outline-none transition-all"
-                    />
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Email Perusahaan
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
+                      <input
+                        type="email"
+                        maxLength={80}
+                        value={companyEmail}
+                        onChange={(e) => setCompanyEmail(e.target.value)}
+                        placeholder="Contoh: admin@perusahaan.co.id"
+                        className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium text-neutral-900 bg-neutral-50 border border-neutral-300 rounded-xl focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500 outline-none transition-all placeholder:text-neutral-400"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-theme-900 mb-1.5">
-                    Alamat Perusahaan / Cabang
-                  </label>
-                  <div className="relative">
-                    <MapPin className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
-                    <textarea
-                      rows={2}
-                      maxLength={300}
-                      value={companyAddress}
-                      onChange={(e) => setCompanyAddress(e.target.value)}
-                      placeholder="Contoh: Jl. Sudirman No. 123, Jakarta Selatan"
-                      className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium text-theme-900 bg-neutral-50 border border-theme-200 rounded-xl focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500/20 outline-none transition-all resize-none"
-                    />
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Alamat Perusahaan / Cabang
+                    </label>
+                    <div className="relative">
+                      <MapPin className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
+                      <textarea
+                        rows={2}
+                        maxLength={300}
+                        value={companyAddress}
+                        onChange={(e) => setCompanyAddress(e.target.value)}
+                        placeholder="Contoh: Jl. Sudirman No. 123, Jakarta Selatan"
+                        className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium text-neutral-900 bg-neutral-50 border border-neutral-300 rounded-xl focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500 outline-none transition-all resize-none placeholder:text-neutral-400"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Save & Reset Actions */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-neutral-100">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-neutral-200">
                 <button
                   type="button"
                   onClick={handleResetCompanyProfile}
-                  className="px-4 py-2.5 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-200 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-xs"
+                  className="px-4 py-2.5 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 font-semibold rounded-xl text-sm flex items-center gap-1.5 transition-colors whitespace-nowrap"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <RotateCcw className="w-4 h-4" />
                   <span>Reset Default</span>
                 </button>
 
                 <button
                   type="submit"
                   disabled={isSavingCompanyProfile}
-                  className="px-6 py-2.5 bg-theme-600 hover:bg-theme-700 text-white font-bold rounded-xl text-sm flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
+                  className="px-5 py-2.5 bg-theme-600 hover:bg-theme-700 text-white font-semibold rounded-xl text-sm flex items-center gap-2 transition-all shadow-sm disabled:opacity-50 whitespace-nowrap"
                 >
                   <Save className="w-4 h-4" />
                   <span>{isSavingCompanyProfile ? 'Menyimpan...' : 'Simpan Profil Perusahaan'}</span>
@@ -2808,38 +2819,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
           onClick={() => setShowChangePinModal(false)}
         >
           <div
-            className="w-full max-w-md bg-white rounded-[2rem] border border-theme-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+            className="w-full max-w-md bg-white rounded-3xl border border-neutral-200/90 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-5 sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6 pb-4 border-b border-neutral-100 flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-neutral-900 text-emerald-400 flex items-center justify-center shrink-0 shadow-xs">
-                  <KeyRound className="w-6 h-6" />
+            <div className="pb-3.5 mb-5 border-b border-neutral-200/80 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-neutral-900 text-emerald-400 flex items-center justify-center shrink-0">
+                  <KeyRound className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-black text-theme-900 tracking-tight">
-                    Pengaturan Ubah PIN Database
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-bold text-neutral-900 leading-tight truncate">
+                    Ubah PIN Keamanan Database
                   </h3>
-                  <p className="text-xs font-medium text-neutral-500 mt-0.5">
-                    Perbarui PIN keamanan untuk perpindahan sumber database
+                  <p className="text-xs font-medium text-neutral-500 mt-0.5 truncate">
+                    Perbarui PIN untuk otorisasi perpindahan sumber data
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowChangePinModal(false)}
-                className="p-2 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+                className="p-2 rounded-xl text-neutral-500 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0"
                 title="Tutup"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleChangePinSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleChangePinSubmit} className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-neutral-700">
-                    PIN Saat Ini
+                  <label className="block text-xs font-semibold text-neutral-700">
+                    PIN Saat Ini <span className="text-rose-500">*</span>
                   </label>
                   <button
                     type="button"
@@ -2861,14 +2872,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                     setPinChangeError(null);
                   }}
                   placeholder="Masukkan PIN lama"
-                  className="w-full px-3.5 py-2.5 text-sm font-bold tracking-widest rounded-xl border border-neutral-200 bg-neutral-50 focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500/20 outline-none transition-all"
+                  className="w-full px-3.5 py-2.5 text-sm font-mono font-bold tracking-widest tabular-nums rounded-xl border border-neutral-300 bg-neutral-50 focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500 outline-none transition-all placeholder:font-sans placeholder:tracking-normal placeholder:font-normal placeholder:text-neutral-400"
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-neutral-700 mb-1.5">
-                  PIN Baru (4 - 8 Digit Angka)
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  PIN Baru (4 - 8 Digit Angka) <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type={showPinFields ? 'text' : 'password'}
@@ -2881,13 +2892,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                     setPinChangeError(null);
                   }}
                   placeholder="Masukkan PIN baru"
-                  className="w-full px-3.5 py-2.5 text-sm font-bold tracking-widest rounded-xl border border-neutral-200 bg-neutral-50 focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500/20 outline-none transition-all"
+                  className="w-full px-3.5 py-2.5 text-sm font-mono font-bold tracking-widest tabular-nums rounded-xl border border-neutral-300 bg-neutral-50 focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500 outline-none transition-all placeholder:font-sans placeholder:tracking-normal placeholder:font-normal placeholder:text-neutral-400"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-neutral-700 mb-1.5">
-                  Konfirmasi PIN Baru
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Konfirmasi PIN Baru <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type={showPinFields ? 'text' : 'password'}
@@ -2900,12 +2911,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                     setPinChangeError(null);
                   }}
                   placeholder="Ulangi PIN baru"
-                  className="w-full px-3.5 py-2.5 text-sm font-bold tracking-widest rounded-xl border border-neutral-200 bg-neutral-50 focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500/20 outline-none transition-all"
+                  className="w-full px-3.5 py-2.5 text-sm font-mono font-bold tracking-widest tabular-nums rounded-xl border border-neutral-300 bg-neutral-50 focus:bg-white focus:border-theme-500 focus:ring-2 focus:ring-theme-500 outline-none transition-all placeholder:font-sans placeholder:tracking-normal placeholder:font-normal placeholder:text-neutral-400"
                 />
               </div>
 
               {pinChangeError && (
-                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
                   <span>{pinChangeError}</span>
                 </div>
@@ -2918,18 +2929,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                 </div>
               )}
 
-              <div className="flex items-center gap-3 pt-2">
+              <div className="pt-4 border-t border-neutral-200 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowChangePinModal(false)}
-                  className="flex-1 py-2.5 px-4 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-bold transition-colors"
+                  className="px-4 py-2.5 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 text-sm font-semibold transition-colors whitespace-nowrap"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingPin}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-neutral-900 hover:bg-neutral-800 active:scale-[0.98] disabled:opacity-50 text-white text-xs font-bold transition-all shadow-sm"
+                  className="px-5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 active:scale-[0.99] disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-sm whitespace-nowrap"
                 >
                   {isSavingPin ? 'Menyimpan...' : 'Simpan PIN Baru'}
                 </button>

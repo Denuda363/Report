@@ -48,16 +48,16 @@ export const FloatingFormModal: React.FC<FloatingFormModalProps> = ({
       <div
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          "bg-white border border-theme-200 shadow-2xl overflow-y-auto animate-in zoom-in-95 duration-200 flex flex-col",
+          "bg-white border border-neutral-200/90 shadow-2xl overflow-y-auto animate-in zoom-in-95 duration-200 flex flex-col",
           isFullscreen
-            ? "w-full h-full p-4 sm:p-6 md:p-8 rounded-none sm:rounded-3xl"
-            : cn("w-full max-h-[90vh] rounded-3xl p-4 sm:p-6", maxWidthClass)
+            ? "w-full h-full p-5 sm:p-6 md:p-8 rounded-none sm:rounded-3xl"
+            : cn("w-full max-h-[90vh] rounded-3xl p-5 sm:p-6", maxWidthClass)
         )}
       >
-        {/* Header matching DailyReportForm floating modal */}
-        <div className="flex items-center justify-between pb-3 mb-4 border-b border-theme-100 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-2xl bg-theme-500/10 border border-theme-500/20 flex items-center justify-center text-theme-700 shadow-2xs shrink-0">
+        {/* Clean Header */}
+        <div className="flex items-center justify-between gap-3 pb-3.5 mb-5 border-b border-neutral-200/80 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-theme-50 border border-theme-200/80 flex items-center justify-center text-theme-700 shrink-0">
               {icon}
             </div>
             <div className="min-w-0">
@@ -65,7 +65,7 @@ export const FloatingFormModal: React.FC<FloatingFormModalProps> = ({
                 {title}
               </h3>
               {subtitle && (
-                <p className="text-[11px] text-theme-500 font-medium truncate">
+                <p className="text-xs text-neutral-500 font-medium truncate mt-0.5">
                   {subtitle}
                 </p>
               )}
@@ -77,7 +77,7 @@ export const FloatingFormModal: React.FC<FloatingFormModalProps> = ({
               <button
                 type="button"
                 onClick={onToggleFullscreen}
-                className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-theme-100 rounded-xl transition-colors"
+                className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-xl transition-colors"
                 title={isFullscreen ? 'Perkecil Modal' : 'Perbesar Layar Penuh'}
               >
                 {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -86,7 +86,7 @@ export const FloatingFormModal: React.FC<FloatingFormModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-neutral-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+              className="p-2 text-neutral-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
               title="Tutup Form Input"
             >
               <X className="w-4 h-4" />

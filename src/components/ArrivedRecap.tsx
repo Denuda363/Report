@@ -117,6 +117,28 @@ export const ArrivedRecap = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [formErrorMsg, setFormErrorMsg] = useState<string | null>(null);
+  const [toastBanner, setToastBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const showToast = (type: 'success' | 'error', text: string) => {
+    setToastBanner({ type, text });
+    setTimeout(() => {
+      setToastBanner((prev) => (prev?.text === text ? null : prev));
+    }, 3500);
+  };
+
+  const handleResetArrivedForm = () => {
+    setCurrentProductId('');
+    setCurrentSearchQuery('');
+    setCurrentArrivedQty('');
+    setCurrentNotes('');
+    setCurrentIsReorder(false);
+    setCurrentReorderQty('');
+    setCurrentReorderReason('');
+    setArrivedSupplierId('');
+    setSupplierSearchQuery('');
+    setFormErrorMsg(null);
+    setTimeout(() => productInputRef.current?.focus(), 60);
+  };
 
   // Helper function for consistent date display (immune to UTC/timezone offset)
   const formatDateDisplay = (dateStr: string) => {
@@ -836,7 +858,7 @@ export const ArrivedRecap = () => {
       setSaveSuccessMsg("Perubahan data barang datang berhasil disimpan.");
       setTimeout(() => setSaveSuccessMsg(null), 3000);
     } catch (err: any) {
-      alert("Gagal mengupdate data: " + (err?.message || "Terjadi kesalahan."));
+      showToast('error', "Gagal mengupdate data: " + (err?.message || "Terjadi kesalahan."));
     }
   };
 
@@ -876,7 +898,7 @@ export const ArrivedRecap = () => {
       setSaveSuccessMsg("Data barang datang berhasil dihapus.");
       setTimeout(() => setSaveSuccessMsg(null), 3000);
     } catch (err: any) {
-      alert("Gagal menghapus data: " + (err?.message || "Terjadi kesalahan."));
+      showToast('error', "Gagal menghapus data: " + (err?.message || "Terjadi kesalahan."));
     }
   };
 
@@ -894,7 +916,7 @@ export const ArrivedRecap = () => {
       const result = await parseArrivedImport(file);
       if (result.items.length === 0) {
         setIsImporting(false);
-        alert("File Excel tidak memiliki baris data barang datang yang valid.");
+        showToast('error', "File Excel tidak memiliki baris data barang datang yang valid.");
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
@@ -1047,7 +1069,7 @@ export const ArrivedRecap = () => {
       });
     } catch (err: any) {
       setIsImporting(false);
-      alert("Gagal mengimpor file: " + err.message);
+      showToast('error', "Gagal mengimpor file: " + (err?.message || "Format tidak sesuai."));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -1192,181 +1214,257 @@ export const ArrivedRecap = () => {
     return 'custom';
   }, [startDate, endDate]);
 
+  const selectedProductObj = useMemo(() => {
+    if (!currentProductId) return undefined;
+    return products.find(p => p.id === currentProductId);
+  }, [currentProductId, products]);
+
+  const selectedProductSupplierName = useMemo(() => {
+    if (!selectedProductObj?.supplierId) return 'Tanpa Supplier';
+    return suppliers.find(s => s.id === selectedProductObj.supplierId)?.name || 'Tanpa Supplier';
+  }, [selectedProductObj, suppliers]);
+
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+  const pendingPlusCurrentCount = arrivedItems.length + ((currentProductId || currentSearchQuery.trim()) && currentArrivedQty ? 1 : 0);
+
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-300">
-      {/* Floating Input Barang Datang Modal matching DailyReport style */}
+    <div className="flex flex-col h-full animate-in fade-in duration-300 relative">
+      {/* Floating Toast Notification */}
+      {toastBanner && (
+        <div
+          className={cn(
+            "fixed bottom-5 right-5 z-[230] max-w-sm px-4 py-3 rounded-xl shadow-lg border flex items-center gap-2.5 text-xs font-semibold animate-in slide-in-from-bottom-3 fade-in duration-200",
+            toastBanner.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : 'bg-rose-50 border-rose-200 text-rose-900'
+          )}
+        >
+          {toastBanner.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          )}
+          <span className="flex-1">{toastBanner.text}</span>
+          <button type="button" onClick={() => setToastBanner(null)} className="opacity-70 hover:opacity-100 p-0.5">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Floating Input Barang Datang Modal */}
       <FloatingFormModal
         isOpen={!isFormCollapsed || isFormFullscreen}
         onClose={handleCloseFormModal}
         title="Input Barang Datang"
-        subtitle="Tambah riwayat penerimaan & perbarui stok"
+        subtitle="Catat penerimaan barang fisik dan perbarui stok otomatis"
         icon={<PackageOpen className="w-5 h-5" />}
         isFullscreen={isFormFullscreen}
         onToggleFullscreen={() => setIsFormFullscreen(!isFormFullscreen)}
         disableEscapeClose={isSupplierDropdownOpen || isProductDropdownOpen}
-        maxWidthClass="max-w-lg"
+        maxWidthClass="max-w-2xl"
       >
-        <div className="space-y-4">
-          {/* 1. TANGGAL DI PALING ATAS */}
-          <div>
-            <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Tanggal</label>
-            <input
-              type="date"
-              required
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
-            />
-          </div>
-
-          {/* 2. SUPPLIER DI PALING ATAS SETELAH TANGGAL */}
-          <div className="relative" ref={supplierDropdownRef}>
-            <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Datang Dari Supplier</label>
-            <div className="relative flex items-center w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500 transition-all">
-              <input
-                ref={supplierInputRef}
-                type="text"
-                value={supplierSearchQuery}
-                onChange={(e) => {
-                  setSupplierSearchQuery(e.target.value);
-                  setArrivedSupplierId('');
-                  setIsTypingNewSupplier(true);
-                  setHighlightedSupplierIndex(0);
-                  setIsSupplierDropdownOpen(true);
-                }}
-                onClick={() => {
-                  setIsSupplierDropdownOpen(true);
-                  setIsTypingNewSupplier(false);
-                  setHighlightedSupplierIndex(0);
-                  supplierInputRef.current?.select();
-                }}
-                onFocus={() => {
-                  setIsSupplierDropdownOpen(true);
-                  setIsTypingNewSupplier(false);
-                  setHighlightedSupplierIndex(0);
-                  supplierInputRef.current?.select();
-                }}
-                onKeyDown={handleSupplierKeyDown}
-                className="w-full outline-none bg-transparent text-sm text-theme-800"
-                placeholder="Pilih supplier (opsional)..."
-              />
-              {supplierSearchQuery && (
-                <X 
-                  className="w-4 h-4 text-theme-600-text ml-2 shrink-0 cursor-pointer hover:text-rose-500 transition-colors" 
-                  onClick={() => {
-                    setSupplierSearchQuery('');
-                    setArrivedSupplierId('');
-                    setIsTypingNewSupplier(false);
-                  }} 
-                />
-              )}
-              <ChevronDown className="w-4 h-4 text-theme-600-text ml-2 shrink-0 cursor-pointer hover:text-theme-800 transition-colors" onClick={() => {
-                setIsSupplierDropdownOpen(!isSupplierDropdownOpen);
-                setIsTypingNewSupplier(false);
-              }} />
-            </div>
-
-            {isSupplierDropdownOpen && (
-              <div className="absolute z-50 w-full mt-2 bg-white border border-theme-200 rounded-xl shadow-xl max-h-72 overflow-y-auto py-1">
-                {(!isTypingNewSupplier || !supplierSearchQuery.trim()) && lastSupplierQuery && (
-                  <PreviousSearchSection
-                    lastQuery={lastSupplierQuery}
-                    results={previousFormSuppliers}
-                    history={supplierSearchHistory}
-                    highlightedIndex={highlightedSupplierIndex}
-                    onHighlightIndex={setHighlightedSupplierIndex}
-                    onSelectResult={(s) => handleSelectSupplierForForm(s)}
-                    onSelectQuery={(term) => {
-                      setSupplierSearchQuery(term);
-                      setIsTypingNewSupplier(false);
-                      setHighlightedSupplierIndex(0);
-                      setIsSupplierDropdownOpen(true);
-                    }}
-                    onClearHistory={() => {
-                      clearSearchHistory('arrived_supplier');
-                      setLastSupplierQueryState('');
-                      setSupplierSearchHistory([]);
-                    }}
-                    renderTitle={(s) => s.name}
-                    keyExtractor={(s) => `prev-as-${s.id}`}
-                  />
-                )}
-
-                {isTypingNewSupplier && (supplierSearchQuery.trim() || !lastSupplierQuery) ? (
-                  filteredSuppliersForForm.length > 0 ? (
-                    filteredSuppliersForForm.map((s, idx) => (
-                      <div 
-                        key={s.id}
-                        data-highlighted={idx === highlightedSupplierIndex ? 'true' : undefined}
-                        onMouseEnter={() => setHighlightedSupplierIndex(idx)}
-                        className={cn(
-                          "px-4 py-3 cursor-pointer text-sm font-bold transition-colors border-b border-theme-50 last:border-0",
-                          idx === highlightedSupplierIndex
-                            ? "bg-theme-100 text-theme-900"
-                            : "hover:bg-theme-100 text-theme-900"
-                        )}
-                        onClick={() => handleSelectSupplierForForm(s)}
-                      >
-                        {s.name}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="px-4 py-3 text-sm text-theme-600-text text-center">
-                      Tidak ada supplier ditemukan.
-                    </div>
-                  )
-                ) : (
-                  !lastSupplierQuery && (
-                    <div className="px-4 py-3 text-sm text-theme-600-text text-center">
-                      Ketik nama supplier atau tekan panah bawah untuk memilih...
-                    </div>
-                  )
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Alert / Notification Banners */}
+        <div className="space-y-5">
           {saveSuccessMsg && (
-            <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between shadow-2xs">
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span className="font-semibold">{saveSuccessMsg}</span>
               </div>
-              <button onClick={() => setSaveSuccessMsg(null)} className="text-emerald-600 hover:text-emerald-800 p-0.5">
+              <button type="button" onClick={() => setSaveSuccessMsg(null)} className="text-emerald-600 hover:text-emerald-800 p-0.5">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
 
           {formErrorMsg && (
-            <div className="bg-rose-50 border border-rose-300 text-rose-900 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between shadow-2xs">
+            <div className="bg-rose-50 border border-rose-200 text-rose-900 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span className="font-semibold">{formErrorMsg}</span>
               </div>
-              <button onClick={() => setFormErrorMsg(null)} className="text-rose-600 hover:text-rose-800 p-0.5">
+              <button type="button" onClick={() => setFormErrorMsg(null)} className="text-rose-600 hover:text-rose-800 p-0.5">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
 
-          {/* 3. INPUT PRODUK & DETAIL BARANG DATANG */}
-          <div className="space-y-3 bg-theme-50 p-3 rounded-2xl border border-theme-200 border-dashed">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider">
-                Pilih Produk <span className="text-rose-500">*</span>
-              </label>
-              {currentProductId && (
-                <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  Produk Terpilih
-                </span>
-              )}
+          {/* Section 1: Tanggal & Supplier */}
+          <div className="space-y-3">
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+              1. Tanggal &amp; Pemasok
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-neutral-700">
+                    Tanggal Datang <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setDate(todayStr)}
+                      className={cn(
+                        "text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors",
+                        date === todayStr
+                          ? "bg-theme-100 border-theme-300 text-theme-800"
+                          : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                      )}
+                    >
+                      Hari Ini
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDate(yesterdayStr)}
+                      className={cn(
+                        "text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors",
+                        date === yesterdayStr
+                          ? "bg-theme-100 border-theme-300 text-theme-800"
+                          : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                      )}
+                    >
+                      Kemarin
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="date"
+                  required
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 tabular-nums focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all"
+                />
+              </div>
+
+              <div className="relative" ref={supplierDropdownRef}>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Datang dari Supplier
+                </label>
+                <div className="relative flex items-center w-full px-3.5 py-2.5 border border-neutral-300 rounded-xl bg-neutral-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500 transition-all">
+                  <input
+                    ref={supplierInputRef}
+                    type="text"
+                    value={supplierSearchQuery}
+                    onChange={(e) => {
+                      setSupplierSearchQuery(e.target.value);
+                      setArrivedSupplierId('');
+                      setIsTypingNewSupplier(true);
+                      setHighlightedSupplierIndex(0);
+                      setIsSupplierDropdownOpen(true);
+                    }}
+                    onClick={() => {
+                      setIsSupplierDropdownOpen(true);
+                      setIsTypingNewSupplier(false);
+                      setHighlightedSupplierIndex(0);
+                      supplierInputRef.current?.select();
+                    }}
+                    onFocus={() => {
+                      setIsSupplierDropdownOpen(true);
+                      setIsTypingNewSupplier(false);
+                      setHighlightedSupplierIndex(0);
+                      supplierInputRef.current?.select();
+                    }}
+                    onKeyDown={handleSupplierKeyDown}
+                    className="w-full outline-none bg-transparent text-sm font-medium text-neutral-900 placeholder:text-neutral-400"
+                    placeholder="Pilih supplier (opsional)..."
+                  />
+                  {supplierSearchQuery && (
+                    <X
+                      className="w-4 h-4 text-neutral-400 ml-1.5 shrink-0 cursor-pointer hover:text-rose-500 transition-colors"
+                      onClick={() => {
+                        setSupplierSearchQuery('');
+                        setArrivedSupplierId('');
+                        setIsTypingNewSupplier(false);
+                      }}
+                    />
+                  )}
+                  <ChevronDown
+                    className={cn(
+                      "w-4 h-4 text-neutral-400 ml-1.5 shrink-0 cursor-pointer transition-transform",
+                      isSupplierDropdownOpen && "rotate-180 text-theme-600"
+                    )}
+                    onClick={() => {
+                      setIsSupplierDropdownOpen(!isSupplierDropdownOpen);
+                      setIsTypingNewSupplier(false);
+                    }}
+                  />
+                </div>
+
+                {isSupplierDropdownOpen && (
+                  <div className="absolute z-50 w-full mt-1.5 bg-white border border-neutral-200 rounded-xl shadow-xl max-h-64 overflow-y-auto py-1">
+                    {(!isTypingNewSupplier || !supplierSearchQuery.trim()) && lastSupplierQuery && (
+                      <PreviousSearchSection
+                        lastQuery={lastSupplierQuery}
+                        results={previousFormSuppliers}
+                        history={supplierSearchHistory}
+                        highlightedIndex={highlightedSupplierIndex}
+                        onHighlightIndex={setHighlightedSupplierIndex}
+                        onSelectResult={(s) => handleSelectSupplierForForm(s)}
+                        onSelectQuery={(term) => {
+                          setSupplierSearchQuery(term);
+                          setIsTypingNewSupplier(false);
+                          setHighlightedSupplierIndex(0);
+                          setIsSupplierDropdownOpen(true);
+                        }}
+                        onClearHistory={() => {
+                          clearSearchHistory('arrived_supplier');
+                          setLastSupplierQueryState('');
+                          setSupplierSearchHistory([]);
+                        }}
+                        renderTitle={(s) => s.name}
+                        keyExtractor={(s) => `prev-as-${s.id}`}
+                      />
+                    )}
+
+                    {isTypingNewSupplier && (supplierSearchQuery.trim() || !lastSupplierQuery) ? (
+                      filteredSuppliersForForm.length > 0 ? (
+                        filteredSuppliersForForm.map((s, idx) => (
+                          <div
+                            key={s.id}
+                            data-highlighted={idx === highlightedSupplierIndex ? 'true' : undefined}
+                            onMouseEnter={() => setHighlightedSupplierIndex(idx)}
+                            className={cn(
+                              "px-3.5 py-2.5 cursor-pointer text-sm font-medium transition-colors border-b border-neutral-100 last:border-0",
+                              idx === highlightedSupplierIndex
+                                ? "bg-theme-50 text-theme-900 font-semibold"
+                                : "hover:bg-neutral-50 text-neutral-800"
+                            )}
+                            onClick={() => handleSelectSupplierForForm(s)}
+                          >
+                            {s.name}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-xs text-neutral-500 text-center">
+                          Tidak ada supplier ditemukan.
+                        </div>
+                      )
+                    ) : (
+                      !lastSupplierQuery && (
+                        <div className="px-4 py-3 text-xs text-neutral-500 text-center">
+                          Ketik nama supplier atau tekan panah bawah untuk memilih.
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
+          </div>
+
+          {/* Section 2: Produk & Jumlah Datang */}
+          <div className="pt-4 border-t border-neutral-200/80 space-y-3">
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+              2. Produk &amp; Kuantitas Diterima
+            </h4>
 
             <div className="relative" ref={productDropdownRef}>
-              <div className="relative flex items-center w-full px-3 py-2.5 border border-theme-200 rounded-xl bg-white focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500 transition-all">
-                <Search className="w-4 h-4 text-theme-600-text mr-2 shrink-0" />
+              <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                Produk <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative flex items-center w-full px-3.5 py-2.5 border border-neutral-300 rounded-xl bg-neutral-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500 transition-all">
+                <Search className="w-4 h-4 text-neutral-400 mr-2.5 shrink-0" />
                 <input
                   ref={productInputRef}
                   type="text"
@@ -1391,23 +1489,39 @@ export const ArrivedRecap = () => {
                     productInputRef.current?.select();
                   }}
                   onKeyDown={handleProductKeyDown}
-                  className="w-full outline-none bg-transparent text-xs sm:text-sm text-theme-900 font-medium"
-                  placeholder="Ketik untuk mencari produk..."
+                  className="w-full outline-none bg-transparent text-sm font-medium text-neutral-900 placeholder:text-neutral-400"
+                  placeholder="Ketik untuk mencari atau mendaftarkan produk..."
                 />
                 {currentSearchQuery && (
-                  <X 
-                    className="w-4 h-4 text-theme-600-text ml-1 shrink-0 cursor-pointer hover:text-rose-500" 
+                  <X
+                    className="w-4 h-4 text-neutral-400 ml-1.5 shrink-0 cursor-pointer hover:text-rose-500"
                     onClick={() => {
                       setCurrentSearchQuery('');
                       setCurrentProductId('');
                       setIsTypingNewProduct(false);
-                    }} 
+                    }}
                   />
                 )}
               </div>
 
+              {selectedProductObj && (
+                <div className="mt-1.5 px-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-500">
+                  <span className="text-emerald-700 font-semibold">Master Data</span>
+                  <span>·</span>
+                  <span>Supplier: <strong className="font-medium text-neutral-700">{selectedProductSupplierName}</strong></span>
+                  <span>·</span>
+                  <span>Stok: <strong className="font-medium text-neutral-700 tabular-nums">{selectedProductObj.stock ?? 0} {selectedProductObj.unit || 'pcs'}</strong></span>
+                </div>
+              )}
+
+              {!selectedProductObj && currentSearchQuery.trim() && (
+                <p className="mt-1.5 px-1 text-[11px] text-theme-700 font-medium">
+                  Produk baru akan otomatis didaftarkan ke Master Data saat disimpan.
+                </p>
+              )}
+
               {isProductDropdownOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-theme-200 rounded-xl shadow-xl max-h-72 overflow-y-auto py-1">
+                <div className="absolute z-50 w-full mt-1.5 bg-white border border-neutral-200 rounded-xl shadow-xl max-h-64 overflow-y-auto py-1">
                   {(!isTypingNewProduct || !currentSearchQuery.trim()) && lastProductQuery && (
                     <PreviousSearchSection
                       lastQuery={lastProductQuery}
@@ -1430,7 +1544,7 @@ export const ArrivedRecap = () => {
                       renderTitle={(p) => p.name}
                       renderSubtitle={(p) => {
                         const s = suppliers.find(sup => sup.id === p.supplierId);
-                        return `${s?.name || 'Tanpa Supplier'} • Stok: ${p.stock || 0} ${p.unit || 'pcs'}`;
+                        return `${s?.name || 'Tanpa Supplier'} · Stok: ${p.stock || 0} ${p.unit || 'pcs'}`;
                       }}
                       keyExtractor={(p) => `prev-ap-${p.id}`}
                     />
@@ -1442,47 +1556,47 @@ export const ArrivedRecap = () => {
                         const s = suppliers.find(sup => sup.id === p.supplierId);
                         const isHighlighted = idx === highlightedProductIndex;
                         return (
-                          <div 
+                          <div
                             key={p.id}
                             data-highlighted={isHighlighted ? 'true' : undefined}
                             onMouseEnter={() => setHighlightedProductIndex(idx)}
                             className={cn(
-                              "px-3 py-2 border-b border-theme-50 last:border-0 flex items-center justify-between gap-2 transition-colors cursor-pointer",
-                              isHighlighted ? "bg-theme-100 text-theme-900" : "hover:bg-theme-100"
+                              "px-3.5 py-2.5 border-b border-neutral-100 last:border-0 flex items-center justify-between gap-2 transition-colors cursor-pointer",
+                              isHighlighted ? "bg-theme-50 text-theme-900" : "hover:bg-neutral-50"
                             )}
                             onClick={() => handleSelectProductForForm(p)}
                           >
                             <div className="flex-1 min-w-0">
-                              <div className="font-bold text-xs text-theme-900 truncate">{p.name}</div>
-                              <div className="flex items-center gap-2 text-[10px] text-theme-600-text mt-0.5">
+                              <div className="font-semibold text-sm text-neutral-900 truncate">{p.name}</div>
+                              <div className="flex items-center gap-2 text-[11px] text-neutral-500 mt-0.5">
                                 <span>{s?.name || 'Tanpa Supplier'}</span>
-                                <span>•</span>
-                                <span>Stok: <strong className="text-theme-800">{p.stock || 0} {p.unit || 'pcs'}</strong></span>
+                                <span>·</span>
+                                <span className="tabular-nums">Stok: <strong className="text-neutral-700">{p.stock || 0} {p.unit || 'pcs'}</strong></span>
                               </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                               <button
-                                 type="button"
-                                 onClick={() => handleProductSelect(p.id, p.name, 1)}
-                                 className="px-2 py-1 bg-theme-100 hover:bg-theme-200 text-theme-800 font-bold rounded text-[11px] transition-colors"
-                                 title="Langsung tambah 1 ke daftar"
-                               >
-                                 +1 Qty
-                               </button>
+                              <button
+                                type="button"
+                                onClick={() => handleProductSelect(p.id, p.name, 1)}
+                                className="px-2.5 py-1 bg-theme-100 hover:bg-theme-200 text-theme-800 font-semibold rounded-lg text-xs transition-colors"
+                                title="Langsung tambah 1 ke daftar"
+                              >
+                                +1 Qty
+                              </button>
                             </div>
                           </div>
                         );
                       })
                     ) : (
-                      <div className="px-3 py-3 text-xs text-theme-600-text text-center">
+                      <div className="px-4 py-3 text-xs text-neutral-500 text-center">
                         <p>Tidak ada produk &quot;{currentSearchQuery}&quot;.</p>
-                        <p className="text-[10px] text-theme-400 mt-0.5">Akan otomatis didaftarkan saat disimpan.</p>
+                        <p className="text-[11px] text-neutral-400 mt-0.5">Akan otomatis didaftarkan saat disimpan.</p>
                       </div>
                     )
                   ) : (
                     !lastProductQuery && (
-                      <div className="px-3 py-3 text-xs text-theme-600-text text-center">
-                        Ketik nama produk atau tekan panah bawah untuk memilih...
+                      <div className="px-4 py-3 text-xs text-neutral-500 text-center">
+                        Ketik nama produk atau tekan panah bawah untuk memilih.
                       </div>
                     )
                   )}
@@ -1490,36 +1604,9 @@ export const ArrivedRecap = () => {
               )}
             </div>
 
-            {/* Selected Product Info Badge */}
-            {currentProductId && (
-              <div className="flex items-center justify-between bg-theme-100/80 border border-theme-300/80 px-3 py-2 rounded-xl text-xs">
-                <div className="min-w-0 flex-1">
-                  <span className="text-[10px] font-bold text-theme-600 uppercase tracking-wider block">Produk Terpilih</span>
-                  <span className="font-bold text-theme-900 truncate block">
-                    {products.find(p => p.id === currentProductId)?.name || currentSearchQuery}
-                  </span>
-                  <span className="text-[10px] text-theme-700">
-                    Stok saat ini: <strong>{products.find(p => p.id === currentProductId)?.stock ?? 0} {products.find(p => p.id === currentProductId)?.unit || 'pcs'}</strong>
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentProductId('');
-                    setCurrentSearchQuery('');
-                  }}
-                  className="p-1 text-theme-400 hover:text-rose-500 rounded-lg transition-colors"
-                  title="Ganti Produk"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            
-            {/* Input Qty and Notes */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="sm:col-span-1">
-                <label className="block text-[11px] font-bold text-theme-600 uppercase mb-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                   Qty Datang <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1531,12 +1618,12 @@ export const ArrivedRecap = () => {
                   onChange={(e) => setCurrentArrivedQty(e.target.value ? Number(e.target.value) : '')}
                   onKeyDown={handleFormInputKeyDown}
                   onFocus={(e) => e.target.select()}
-                  className="w-full px-3 py-2 border border-theme-200 rounded-xl bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-xs font-bold text-theme-900"
-                  placeholder="Qty..."
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-semibold text-neutral-900 tabular-nums focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:font-normal placeholder:text-neutral-400"
+                  placeholder="0"
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-[11px] font-bold text-theme-600 uppercase mb-1">
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                   Catatan / Keterangan
                 </label>
                 <input
@@ -1544,86 +1631,87 @@ export const ArrivedRecap = () => {
                   value={currentNotes}
                   onChange={(e) => setCurrentNotes(e.target.value)}
                   onKeyDown={handleFormInputKeyDown}
-                  className="w-full px-3 py-2 border border-theme-200 rounded-xl bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-xs text-theme-800"
-                  placeholder="Keterangan (opsional)..."
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:text-neutral-400"
+                  placeholder="Catatan penerimaan (opsional)..."
                 />
               </div>
             </div>
-            
-            {/* Reorder Request Checkbox */}
-            <div className="flex flex-col gap-2 p-2.5 bg-white border border-theme-200 rounded-xl">
-              <label className="flex items-center gap-2 text-xs font-bold text-theme-600 cursor-pointer select-none">
+          </div>
+
+          {/* Section 3: Permintaan Order Ulang */}
+          <div className="pt-4 border-t border-neutral-200/80 space-y-3">
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+              3. Opsi Tindak Lanjut
+            </h4>
+
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-3 space-y-2.5">
+              <label className="flex items-center gap-2.5 text-xs font-semibold text-neutral-800 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={currentIsReorder}
                   onChange={(e) => setCurrentIsReorder(e.target.checked)}
-                  className="w-4 h-4 text-amber-500 rounded border-theme-200 focus:ring-amber-500 cursor-pointer"
+                  className="w-4 h-4 text-theme-600 rounded border-neutral-300 focus:ring-theme-500 cursor-pointer"
                 />
-                Ajukan Permintaan Order Ulang
+                <span>Ajukan Permintaan Order Ulang sekaligus</span>
               </label>
-              
+
               {currentIsReorder && (
-                <div className="flex gap-2 mt-1">
-                  <input
-                    type="number"
-                    min="1"
-                    value={currentReorderQty}
-                    onChange={(e) => setCurrentReorderQty(e.target.value ? parseInt(e.target.value) : '')}
-                    onKeyDown={handleFormInputKeyDown}
-                    className="w-20 px-2 py-1 border border-theme-200 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs"
-                    placeholder="Qty"
-                  />
-                  <input
-                    type="text"
-                    value={currentReorderReason}
-                    onChange={(e) => setCurrentReorderReason(e.target.value)}
-                    onKeyDown={handleFormInputKeyDown}
-                    className="flex-1 px-2 py-1 border border-theme-200 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs"
-                    placeholder="Alasan / Ket order ulang..."
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-neutral-600 mb-1">Qty Reorder</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={currentReorderQty}
+                      onChange={(e) => setCurrentReorderQty(e.target.value ? parseInt(e.target.value) : '')}
+                      onKeyDown={handleFormInputKeyDown}
+                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-xl text-sm font-semibold tabular-nums focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none"
+                      placeholder="Qty"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-semibold text-neutral-600 mb-1">Alasan Order Ulang</label>
+                    <input
+                      type="text"
+                      value={currentReorderReason}
+                      onChange={(e) => setCurrentReorderReason(e.target.value)}
+                      onKeyDown={handleFormInputKeyDown}
+                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-xl text-sm focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none"
+                      placeholder="Contoh: Sisa kurang, barang cepat laku..."
+                    />
+                  </div>
                 </div>
               )}
             </div>
-
-            {/* Button: Add to List */}
-            <button
-              type="button"
-              onClick={handleAddToArrivedItems}
-              className="w-full flex items-center justify-center gap-1.5 bg-white hover:bg-theme-100 text-theme-800 border border-theme-300/80 py-2 px-3 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-2xs"
-            >
-              <Plus className="w-4 h-4 text-theme-600" />
-              <span>+ Masukkan ke Daftar Penerimaan</span>
-            </button>
           </div>
-          
-          {/* Daftar Produk Terpilih */}
-          <div className="pt-2 border-t border-theme-200">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-bold text-theme-600 uppercase tracking-wider">
-                Daftar Barang Masuk ({arrivedItems.length})
-              </h4>
-              {arrivedItems.length > 1 && (
+
+          {/* Antrean Daftar Barang Masuk */}
+          {arrivedItems.length > 0 && (
+            <div className="pt-4 border-t border-neutral-200/80 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-600">
+                  Antrean Penerimaan ({arrivedItems.length})
+                </h4>
                 <button
                   type="button"
                   onClick={() => setArrivedItems([])}
-                  className="text-[11px] text-rose-500 hover:text-rose-700 font-medium transition-colors"
+                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 transition-colors"
                 >
-                  Hapus Semua
+                  Kosongkan Antrean
                 </button>
-              )}
-            </div>
-            
-            {arrivedItems.length > 0 ? (
-              <div className={`mb-3 space-y-2 overflow-y-auto pr-1 scrollbar-thin ${isFormFullscreen ? 'max-h-[40vh]' : 'max-h-52'}`}>
-                {arrivedItems.map(item => (
-                  <div key={item.id} className="flex items-center justify-between bg-theme-50 p-2 rounded-xl border border-theme-200 text-xs hover:border-theme-300 transition-colors">
-                    <div className="flex-1 truncate pr-2">
-                      <div className="font-bold text-theme-900 truncate mb-1">{item.productName}</div>
+              </div>
+
+              <div className={cn("space-y-2 overflow-y-auto pr-1 scrollbar-thin", isFormFullscreen ? "max-h-[38vh]" : "max-h-48")}>
+                {arrivedItems.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2.5 bg-neutral-50 px-3 py-2 rounded-xl border border-neutral-200">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-xs text-neutral-900 truncate mb-1.5">{item.productName}</div>
                       <div className="flex gap-2">
-                        <input 
-                          type="number" 
-                          placeholder="Qty" 
-                          value={item.arrivedQty || ''} 
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="Qty"
+                          value={item.arrivedQty || ''}
                           onChange={(e) => {
                             const newItems = [...arrivedItems];
                             const idx = newItems.findIndex(i => i.id === item.id);
@@ -1632,12 +1720,12 @@ export const ArrivedRecap = () => {
                               setArrivedItems(newItems);
                             }
                           }}
-                          className="w-16 px-2 py-1 text-xs font-bold border border-theme-200 rounded bg-white"
+                          className="w-20 px-2.5 py-1 text-xs font-semibold tabular-nums border border-neutral-300 rounded-lg bg-white focus:ring-1 focus:ring-theme-500 outline-none"
                         />
-                        <input 
-                          type="text" 
-                          placeholder="Keterangan" 
-                          value={item.notes || ''} 
+                        <input
+                          type="text"
+                          placeholder="Keterangan..."
+                          value={item.notes || ''}
                           onChange={(e) => {
                             const newItems = [...arrivedItems];
                             const idx = newItems.findIndex(i => i.id === item.id);
@@ -1646,13 +1734,14 @@ export const ArrivedRecap = () => {
                               setArrivedItems(newItems);
                             }
                           }}
-                          className="flex-1 px-2 py-1 text-xs border border-theme-200 rounded bg-white"
+                          className="flex-1 min-w-0 px-2.5 py-1 text-xs border border-neutral-300 rounded-lg bg-white focus:ring-1 focus:ring-theme-500 outline-none"
                         />
                       </div>
                     </div>
-                    <button 
-                      onClick={() => handleRemoveItem(item.id)} 
-                      className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg shrink-0 transition-colors"
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(item.id)}
+                      className="p-1.5 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg shrink-0 transition-colors"
                       title="Hapus item"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1660,42 +1749,59 @@ export const ArrivedRecap = () => {
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="text-center text-xs text-theme-500 py-3 bg-theme-50/70 rounded-xl border border-theme-200 border-dashed mb-3">
-                Belum ada produk dalam daftar. Tekan tombol <strong className="text-theme-700">"+ Masukkan ke Daftar Penerimaan"</strong> atau langsung tekan tombol Simpan di bawah.
-              </div>
-            )}
+            </div>
+          )}
+
+          {/* Action Footer */}
+          <div className="pt-4 border-t border-neutral-200 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5">
+            <button
+              type="button"
+              onClick={handleResetArrivedForm}
+              className="px-3.5 py-2.5 text-xs font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-xl transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Reset Input</span>
+            </button>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              <button
+                type="button"
+                onClick={handleAddToArrivedItems}
+                className="px-4 py-2.5 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tambah ke Antrean</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveAllArrived}
+                disabled={isSaving}
+                className="px-5 py-2.5 bg-theme-600 hover:bg-theme-700 text-white rounded-xl font-semibold text-sm shadow-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99]"
+              >
+                {isSaving ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Menyimpan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>
+                      {pendingPlusCurrentCount > 0
+                        ? `Simpan Barang Datang (${pendingPlusCurrentCount})`
+                        : 'Simpan Barang Datang'}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
-          {/* Primary Save Button */}
-          <button 
-            onClick={handleSaveAllArrived}
-            disabled={isSaving}
-            className="group w-full flex items-center justify-center gap-2 bg-theme-500 hover:bg-theme-600 text-white px-4 py-3 rounded-2xl font-bold transition-all duration-300 text-sm shadow-lg shadow-theme-500/20 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {isSaving ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Menyimpan Data...</span>
-              </>
-            ) : (
-              <>
-                <Check className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" />
-                <span>
-                  {arrivedItems.length > 0 
-                    ? `Simpan Semua (${arrivedItems.length + ((currentProductId || currentSearchQuery.trim()) && currentArrivedQty ? 1 : 0)})`
-                    : (currentProductId || currentSearchQuery.trim()) && currentArrivedQty
-                      ? `Simpan Barang Datang`
-                      : `Simpan Data Barang Datang`
-                  }
-                </span>
-                <span className="text-[10px] bg-white/15 px-1.5 py-0.5 rounded font-medium ml-1">Ctrl+S</span>
-              </>
-            )}
-          </button>
-          
           {products.length === 0 && (
-            <p className="text-xs text-rose-500 mt-2 text-center">Belum ada produk di Master Data. Produk yang diketik baru akan didaftarkan otomatis.</p>
+            <p className="text-xs text-neutral-500 text-center">
+              Belum ada produk di Master Data. Produk baru akan didaftarkan otomatis saat disimpan.
+            </p>
           )}
         </div>
       </FloatingFormModal>
@@ -2295,52 +2401,55 @@ export const ArrivedRecap = () => {
                     className="bg-white rounded-2xl border border-theme-200 p-3 shadow-2xs hover:border-theme-300 transition-all"
                   >
                     {editingId === item.id ? (
-                      <div className="space-y-2.5">
-                        <div className="flex items-center justify-between border-b border-theme-100 pb-1.5">
-                          <span className="font-bold text-xs text-theme-900">Edit: {item.productName}</span>
-                          <span className="text-[10px] text-theme-500">{item.supplierName}</span>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
+                          <span className="font-semibold text-xs text-neutral-900 truncate">{item.productName}</span>
+                          <span className="text-[11px] text-neutral-500 shrink-0 ml-2">{item.supplierName}</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-2.5">
                           <div>
-                            <label className="text-[10px] font-bold text-theme-600 uppercase">Tanggal</label>
+                            <label className="block text-xs font-semibold text-neutral-700 mb-1">Tanggal</label>
                             <input
                               type="date"
                               value={editDate}
                               onChange={(e) => setEditDate(e.target.value)}
-                              className="w-full px-2 py-1.5 border border-theme-200 rounded-xl text-xs bg-theme-50 focus:bg-white outline-none"
+                              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-medium tabular-nums focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none"
                             />
                           </div>
                           <div>
-                            <label className="text-[10px] font-bold text-theme-600 uppercase">Qty Datang</label>
+                            <label className="block text-xs font-semibold text-neutral-700 mb-1">Qty Datang</label>
                             <input
                               type="number"
+                              min="1"
                               value={editArrivedQty}
                               onChange={(e) => setEditArrivedQty(e.target.value ? Number(e.target.value) : '')}
-                              className="w-full px-2 py-1.5 border border-theme-200 rounded-xl text-xs bg-theme-50 focus:bg-white outline-none"
+                              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-semibold tabular-nums focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none"
                               placeholder="Qty"
                             />
                           </div>
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-theme-600 uppercase">Catatan</label>
+                          <label className="block text-xs font-semibold text-neutral-700 mb-1">Catatan</label>
                           <input
                             type="text"
                             value={editNotes}
                             onChange={(e) => setEditNotes(e.target.value)}
-                            className="w-full px-2 py-1.5 border border-theme-200 rounded-xl text-xs bg-theme-50 focus:bg-white outline-none"
+                            className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none"
                             placeholder="Catatan..."
                           />
                         </div>
-                        <div className="flex justify-end gap-2 pt-1">
+                        <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100">
                           <button
+                            type="button"
                             onClick={handleCancelEdit}
-                            className="px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-100 rounded-xl transition-colors"
+                            className="px-3.5 py-2 text-xs font-semibold text-neutral-700 bg-white border border-neutral-300 hover:bg-neutral-50 rounded-xl transition-colors"
                           >
                             Batal
                           </button>
                           <button
+                            type="button"
                             onClick={handleSaveEdit}
-                            className="px-4 py-1.5 text-xs font-bold text-white bg-theme-500 hover:bg-theme-600 rounded-xl shadow-2xs transition-colors flex items-center gap-1"
+                            className="px-4 py-2 text-xs font-semibold text-white bg-theme-600 hover:bg-theme-700 rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
                           >
                             <Check className="w-3.5 h-3.5" /> Simpan
                           </button>

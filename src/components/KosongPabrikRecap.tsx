@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, X, Factory, Trash2, Maximize2, Minimize2, Edit2, Save, Plus } from 'lucide-react';
+import { Search, X, Factory, Trash2, Maximize2, Minimize2, Edit2, Plus, Check, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { format } from 'date-fns';
 import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../lib/searchHistory';
 import { PreviousSearchSection } from './PreviousSearchSection';
 import { FloatingFormModal } from './common/FloatingFormModal';
+import { cn } from '../lib/utils';
 
 export const KosongPabrikRecap = () => {
   const { products, suppliers, updateProduct, addProduct, reports, updateReport } = useAppContext();
@@ -29,10 +30,22 @@ export const KosongPabrikRecap = () => {
   // Floating Input Modal State
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isFormFullscreen, setIsFormFullscreen] = useState(false);
+  const [inputFormError, setInputFormError] = useState<string | null>(null);
+  const [editFormError, setEditFormError] = useState<string | null>(null);
+  const [toastBanner, setToastBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const showToast = (type: 'success' | 'error', text: string) => {
+    setToastBanner({ type, text });
+    setTimeout(() => {
+      setToastBanner((prev) => (prev?.text === text ? null : prev));
+    }, 3500);
+  };
+
   const handleCloseForm = () => {
     setIsFormOpen(false);
     setIsFormFullscreen(false);
     setIsDropdownOpen(false);
+    setInputFormError(null);
   };
 
   // Edit State
@@ -174,19 +187,33 @@ export const KosongPabrikRecap = () => {
 
     setIsDropdownOpen(false);
     handleCloseForm();
+    showToast('success', `${product.name} ditandai sebagai Kosong Pabrik.`);
   };
 
   const handleAddManualProduct = async (name: string) => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setInputFormError('Masukkan nama produk terlebih dahulu.');
+      return;
+    }
     try {
-      const queryToSave = name.trim();
-      setLastSearchQuery('kosong_product', queryToSave);
-      setLastSearchQueryState(queryToSave);
-      const updated = addSearchHistory('kosong_product', queryToSave);
+      const cleanName = name.trim();
+      const matchedExisting = products.find(p => (p.name || '').trim().toLowerCase() === cleanName.toLowerCase());
+      if (matchedExisting) {
+        if (matchedExisting.isKosongPabrik) {
+          setInputFormError(`Produk "${matchedExisting.name}" sudah ada di daftar Kosong Pabrik.`);
+          return;
+        }
+        await handleSelectProduct(matchedExisting);
+        return;
+      }
+
+      setLastSearchQuery('kosong_product', cleanName);
+      setLastSearchQueryState(cleanName);
+      const updated = addSearchHistory('kosong_product', cleanName);
       setSearchHistory(updated);
 
       await addProduct({
-        name: name.trim(),
+        name: cleanName,
         unit: 'Pcs',
         supplierId: '',
         isKosongPabrik: true,
@@ -195,8 +222,10 @@ export const KosongPabrikRecap = () => {
       setSearchQuery('');
       setIsDropdownOpen(false);
       handleCloseForm();
-    } catch (e) {
+      showToast('success', `${cleanName} ditambahkan ke daftar Kosong Pabrik.`);
+    } catch (e: any) {
       console.error('Failed to add manual product:', e);
+      setInputFormError(e?.message || 'Gagal menambahkan produk.');
     }
   };
 
@@ -208,162 +237,229 @@ export const KosongPabrikRecap = () => {
       isKosongPabrik: false,
       kosongPabrikDate: undefined
     });
+    showToast('success', `${product.name} dihapus dari daftar Kosong Pabrik.`);
   };
 
   const handleEditClick = (product: any) => {
     setEditingProduct(product);
     setEditName(product.name);
     setEditSupplierId(product.supplierId);
+    setEditFormError(null);
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!editingProduct) return;
+    if (!editName.trim()) {
+      setEditFormError('Nama produk wajib diisi.');
+      return;
+    }
     await updateProduct({
       ...editingProduct,
-      name: editName,
+      name: editName.trim(),
       supplierId: editSupplierId
     });
     setEditingProduct(null);
+    setEditFormError(null);
+    showToast('success', 'Perubahan produk berhasil disimpan.');
   };
 
   return (
-    <div className={`flex flex-col gap-6 h-full ${isListFullscreen ? 'fixed inset-0 z-50 bg-theme-50 p-4 md:p-8' : ''}`}>
+    <div className={`flex flex-col gap-6 h-full relative ${isListFullscreen ? 'fixed inset-0 z-50 bg-theme-50 p-4 md:p-8' : ''}`}>
+      {/* Floating Toast Notification */}
+      {toastBanner && (
+        <div
+          className={cn(
+            "fixed bottom-5 right-5 z-[230] max-w-sm px-4 py-3 rounded-xl shadow-lg border flex items-center gap-2.5 text-xs font-semibold animate-in slide-in-from-bottom-3 fade-in duration-200",
+            toastBanner.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : 'bg-rose-50 border-rose-200 text-rose-900'
+          )}
+        >
+          {toastBanner.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          )}
+          <span className="flex-1">{toastBanner.text}</span>
+          <button type="button" onClick={() => setToastBanner(null)} className="opacity-70 hover:opacity-100 p-0.5">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
       {/* Floating Input Kosong Pabrik Modal */}
       <FloatingFormModal
         isOpen={isFormOpen || isFormFullscreen}
         onClose={handleCloseForm}
         title="Input Kosong Pabrik"
-        subtitle="Tandai produk yang sedang kosong di pabrik"
-        icon={<Factory className="w-5 h-5 text-rose-500" />}
+        subtitle="Tandai produk yang sedang kosong dari pabrik"
+        icon={<Factory className="w-5 h-5 text-rose-600" />}
         isFullscreen={isFormFullscreen}
         onToggleFullscreen={() => setIsFormFullscreen(!isFormFullscreen)}
         disableEscapeClose={isDropdownOpen}
         maxWidthClass="max-w-lg"
       >
-        <div className={isDropdownOpen ? 'min-h-[300px]' : ''}>
-          <label className="block text-xs font-bold text-theme-700 mb-1.5">Cari atau Tambah Produk</label>
-          <div className="relative w-full" ref={dropdownRef}>
-            <div className="relative flex items-center w-full px-4 py-3 border border-rose-200 rounded-2xl bg-theme-50 focus-within:ring-2 focus-within:ring-rose-500 focus-within:border-rose-500 transition-all">
-              <Search className="w-4 h-4 text-rose-400 mr-2 shrink-0" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setIsTypingNew(true);
-                  setHighlightedIndex(0);
-                  setIsDropdownOpen(true);
-                }}
-                onClick={() => {
-                  setIsDropdownOpen(true);
-                  setIsTypingNew(false);
-                  setHighlightedIndex(0);
-                  searchInputRef.current?.select();
-                }}
-                onFocus={() => {
-                  setIsDropdownOpen(true);
-                  setIsTypingNew(false);
-                  setHighlightedIndex(0);
-                  searchInputRef.current?.select();
-                }}
-                onKeyDown={handleSearchKeyDown}
-                className="w-full outline-none bg-transparent text-sm text-theme-800"
-                placeholder="Cari nama produk..."
-              />
-              {searchQuery && (
-                <X 
-                  className="w-4 h-4 text-theme-600-text ml-2 shrink-0 cursor-pointer hover:text-rose-500 transition-colors" 
-                  onClick={() => {
-                    setSearchQuery('');
-                    setIsTypingNew(false);
-                  }} 
-                />
-              )}
+        <div className="space-y-4">
+          {inputFormError && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-900 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span className="font-semibold">{inputFormError}</span>
+              </div>
+              <button type="button" onClick={() => setInputFormError(null)} className="text-rose-600 hover:text-rose-800 p-0.5">
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
+          )}
 
-            {isDropdownOpen && (
-              <div className="absolute z-50 w-full mt-2 bg-white border border-theme-200 rounded-2xl shadow-xl max-h-60 overflow-y-auto py-1">
-                {(!isTypingNew || !searchQuery.trim()) && lastSearchQuery && (
-                  <PreviousSearchSection
-                    lastQuery={lastSearchQuery}
-                    results={previousProducts}
-                    history={searchHistory}
-                    highlightedIndex={highlightedIndex}
-                    onHighlightIndex={setHighlightedIndex}
-                    onSelectResult={(p) => handleSelectProduct(p)}
-                    onSelectQuery={(term) => {
-                      setSearchQuery(term);
+          <div>
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+              Cari Produk atau Ketik Nama Baru <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative w-full" ref={dropdownRef}>
+              <div className="relative flex items-center w-full px-3.5 py-2.5 border border-neutral-300 rounded-xl bg-neutral-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500 transition-all">
+                <Search className="w-4 h-4 text-neutral-400 mr-2.5 shrink-0" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setIsTypingNew(true);
+                    setHighlightedIndex(0);
+                    setIsDropdownOpen(true);
+                    if (inputFormError) setInputFormError(null);
+                  }}
+                  onClick={() => {
+                    setIsDropdownOpen(true);
+                    setIsTypingNew(false);
+                    setHighlightedIndex(0);
+                    searchInputRef.current?.select();
+                  }}
+                  onFocus={() => {
+                    setIsDropdownOpen(true);
+                    setIsTypingNew(false);
+                    setHighlightedIndex(0);
+                    searchInputRef.current?.select();
+                  }}
+                  onKeyDown={handleSearchKeyDown}
+                  className="w-full outline-none bg-transparent text-sm font-medium text-neutral-900 placeholder:text-neutral-400"
+                  placeholder="Ketik nama produk..."
+                />
+                {searchQuery && (
+                  <X
+                    className="w-4 h-4 text-neutral-400 ml-1.5 shrink-0 cursor-pointer hover:text-rose-500 transition-colors"
+                    onClick={() => {
+                      setSearchQuery('');
                       setIsTypingNew(false);
-                      setHighlightedIndex(0);
-                      setIsDropdownOpen(true);
                     }}
-                    onClearHistory={() => {
-                      clearSearchHistory('kosong_product');
-                      setLastSearchQueryState('');
-                      setSearchHistory([]);
-                    }}
-                    renderTitle={(p) => p.name}
-                    renderSubtitle={(p) => {
-                      const s = suppliers.find(sup => sup.id === p.supplierId);
-                      return s?.name || 'Tanpa Supplier';
-                    }}
-                    keyExtractor={(p) => `prev-kp-${p.id}`}
                   />
                 )}
-
-                {isTypingNew && (searchQuery.trim() || !lastSearchQuery) ? (
-                  <>
-                    {filteredProductsForSearch.length > 0 ? (
-                      filteredProductsForSearch.map((p, idx) => {
-                        const s = suppliers.find(sup => sup.id === p.supplierId);
-                        return (
-                          <div 
-                            key={p.id}
-                            data-highlighted={idx === highlightedIndex ? 'true' : undefined}
-                            onMouseEnter={() => setHighlightedIndex(idx)}
-                            className={`px-4 py-3 cursor-pointer border-b border-theme-50 last:border-0 transition-colors ${
-                              idx === highlightedIndex ? 'bg-theme-100 text-theme-900' : 'hover:bg-theme-100'
-                            }`}
-                            onClick={() => handleSelectProduct(p)}
-                          >
-                            <div className="font-bold text-sm text-theme-900">{p.name}</div>
-                            <div className="text-xs text-theme-600-text mt-0.5">{s?.name || 'Unknown Supplier'}</div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="px-4 py-4 text-sm text-theme-600-text text-center">
-                        Tidak ada produk ditemukan.
-                      </div>
-                    )}
-                    
-                    {searchQuery.trim().length > 0 && (
-                      <div
-                        className="px-4 py-3 hover:bg-theme-100 cursor-pointer border-t border-theme-200 flex items-center gap-2 text-theme-700"
-                        onClick={() => handleAddManualProduct(searchQuery.trim())}
-                      >
-                        <Plus className="w-4 h-4" />
-                        <div className="flex-1 text-left">
-                          <div className="font-bold text-sm">Tambah "{searchQuery.trim()}"</div>
-                          <div className="text-xs opacity-80 mt-0.5">Input manual ke daftar kosong pabrik</div>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  !lastSearchQuery && (
-                    <div className="px-4 py-3 text-sm text-theme-500 text-center">
-                      Ketik nama produk atau tekan panah bawah untuk memilih...
-                    </div>
-                  )
-                )}
               </div>
-            )}
+
+              {isDropdownOpen && (
+                <div className="mt-1.5 w-full bg-white border border-neutral-200 rounded-xl shadow-lg max-h-60 overflow-y-auto py-1">
+                  {(!isTypingNew || !searchQuery.trim()) && lastSearchQuery && (
+                    <PreviousSearchSection
+                      lastQuery={lastSearchQuery}
+                      results={previousProducts}
+                      history={searchHistory}
+                      highlightedIndex={highlightedIndex}
+                      onHighlightIndex={setHighlightedIndex}
+                      onSelectResult={(p) => handleSelectProduct(p)}
+                      onSelectQuery={(term) => {
+                        setSearchQuery(term);
+                        setIsTypingNew(false);
+                        setHighlightedIndex(0);
+                        setIsDropdownOpen(true);
+                      }}
+                      onClearHistory={() => {
+                        clearSearchHistory('kosong_product');
+                        setLastSearchQueryState('');
+                        setSearchHistory([]);
+                      }}
+                      renderTitle={(p) => p.name}
+                      renderSubtitle={(p) => {
+                        const s = suppliers.find(sup => sup.id === p.supplierId);
+                        return s?.name || 'Tanpa Supplier';
+                      }}
+                      keyExtractor={(p) => `prev-kp-${p.id}`}
+                    />
+                  )}
+
+                  {isTypingNew && (searchQuery.trim() || !lastSearchQuery) ? (
+                    <>
+                      {filteredProductsForSearch.length > 0 ? (
+                        filteredProductsForSearch.map((p, idx) => {
+                          const s = suppliers.find(sup => sup.id === p.supplierId);
+                          return (
+                            <div
+                              key={p.id}
+                              data-highlighted={idx === highlightedIndex ? 'true' : undefined}
+                              onMouseEnter={() => setHighlightedIndex(idx)}
+                              className={cn(
+                                "px-3.5 py-2.5 cursor-pointer border-b border-neutral-100 last:border-0 transition-colors",
+                                idx === highlightedIndex ? "bg-theme-50 text-theme-900" : "hover:bg-neutral-50"
+                              )}
+                              onClick={() => handleSelectProduct(p)}
+                            >
+                              <div className="font-semibold text-sm text-neutral-900">{p.name}</div>
+                              <div className="text-[11px] text-neutral-500 mt-0.5">{s?.name || 'Tanpa Supplier'}</div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="px-4 py-3 text-xs text-neutral-500 text-center">
+                          Tidak ada produk ditemukan.
+                        </div>
+                      )}
+
+                      {searchQuery.trim().length > 0 && (
+                        <div
+                          className="px-3.5 py-2.5 hover:bg-theme-50 cursor-pointer border-t border-neutral-200 flex items-center gap-2 text-theme-700"
+                          onClick={() => handleAddManualProduct(searchQuery.trim())}
+                        >
+                          <Plus className="w-4 h-4 shrink-0" />
+                          <div className="flex-1 text-left">
+                            <div className="font-semibold text-xs">Tambah &quot;{searchQuery.trim()}&quot;</div>
+                            <div className="text-[11px] text-neutral-500">Input manual ke daftar kosong pabrik</div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    !lastSearchQuery && (
+                      <div className="px-4 py-3 text-xs text-neutral-500 text-center">
+                        Ketik nama produk atau tekan panah bawah untuk memilih.
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-500 mt-2">
+              Pilih produk dari hasil pencarian atau ketik nama produk baru lalu klik tombol simpan di bawah.
+            </p>
           </div>
-          <p className="text-[11px] text-theme-500 mt-2">
-            Klik item pada hasil pencarian untuk menandai sebagai Kosong Pabrik, atau ketik nama baru lalu tekan Enter.
-          </p>
+
+          <div className="pt-4 border-t border-neutral-200 flex items-center justify-end gap-2.5">
+            <button
+              type="button"
+              onClick={handleCloseForm}
+              className="px-4 py-2.5 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 rounded-xl font-semibold text-sm transition-colors whitespace-nowrap"
+            >
+              Tutup
+            </button>
+            <button
+              type="button"
+              onClick={() => handleAddManualProduct(searchQuery)}
+              disabled={!searchQuery.trim()}
+              className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold text-sm shadow-sm transition-all flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Tandai Kosong Pabrik</span>
+            </button>
+          </div>
         </div>
       </FloatingFormModal>
 
@@ -544,53 +640,82 @@ export const KosongPabrikRecap = () => {
       {/* Edit Modal using FloatingFormModal */}
       <FloatingFormModal
         isOpen={Boolean(editingProduct)}
-        onClose={() => setEditingProduct(null)}
+        onClose={() => {
+          setEditingProduct(null);
+          setEditFormError(null);
+        }}
         title="Edit Produk Kosong Pabrik"
-        subtitle="Perbarui nama produk atau supplier"
+        subtitle="Perbarui nama produk atau pemasok utama"
         icon={<Edit2 className="w-4 h-4" />}
         maxWidthClass="max-w-md"
       >
-        <div className="space-y-4 mb-6">
+        <form onSubmit={handleSaveEdit} className="space-y-4">
+          {editFormError && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-900 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span className="font-semibold">{editFormError}</span>
+              </div>
+              <button type="button" onClick={() => setEditFormError(null)} className="text-rose-600 hover:text-rose-800 p-0.5">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           <div>
-            <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Nama Produk</label>
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+              Nama Produk <span className="text-rose-500">*</span>
+            </label>
             <input
               type="text"
+              required
+              autoFocus
               value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
+              onChange={(e) => {
+                setEditName(e.target.value);
+                if (editFormError) setEditFormError(null);
+              }}
+              className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all"
+              placeholder="Nama produk..."
             />
           </div>
+
           <div>
-            <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Supplier</label>
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+              Pemasok / Supplier
+            </label>
             <select
               value={editSupplierId}
               onChange={(e) => setEditSupplierId(e.target.value)}
-              className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
+              className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all"
             >
-              <option value="">Pilih Supplier</option>
+              <option value="">Tanpa Supplier</option>
               {suppliers.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           </div>
-        </div>
-        
-        <div className="flex gap-3">
-          <button 
-            type="button"
-            onClick={() => setEditingProduct(null)}
-            className="flex-1 flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition-colors"
-          >
-            <X className="w-4 h-4" /> Batal
-          </button>
-          <button 
-            type="button"
-            onClick={handleSaveEdit}
-            className="flex-1 flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-sm"
-          >
-            <Save className="w-4 h-4" /> Simpan
-          </button>
-        </div>
+
+          <div className="pt-4 border-t border-neutral-200 flex items-center justify-end gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingProduct(null);
+                setEditFormError(null);
+              }}
+              className="px-4 py-2.5 rounded-xl font-semibold text-sm bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors whitespace-nowrap"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-xl font-semibold text-sm bg-theme-600 hover:bg-theme-700 text-white transition-colors shadow-xs flex items-center gap-1.5 whitespace-nowrap active:scale-[0.99]"
+            >
+              <Check className="w-4 h-4" />
+              <span>Simpan Perubahan</span>
+            </button>
+          </div>
+        </form>
       </FloatingFormModal>
     </div>
   );
