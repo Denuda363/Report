@@ -4,6 +4,7 @@ import { useAppContext } from '../store/AppContext';
 import { format } from 'date-fns';
 import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../lib/searchHistory';
 import { PreviousSearchSection } from './PreviousSearchSection';
+import { FloatingFormModal } from './common/FloatingFormModal';
 
 export const KosongPabrikRecap = () => {
   const { products, suppliers, updateProduct, addProduct, reports, updateReport } = useAppContext();
@@ -24,6 +25,15 @@ export const KosongPabrikRecap = () => {
   const listSearchRef = useRef<HTMLDivElement>(null);
   const listSearchInputRef = useRef<HTMLInputElement>(null);
   const [isListFullscreen, setIsListFullscreen] = useState(false);
+
+  // Floating Input Modal State
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isFormFullscreen, setIsFormFullscreen] = useState(false);
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setIsFormFullscreen(false);
+    setIsDropdownOpen(false);
+  };
 
   // Edit State
   const [editingProduct, setEditingProduct] = useState<any>(null);
@@ -163,6 +173,7 @@ export const KosongPabrikRecap = () => {
     }
 
     setIsDropdownOpen(false);
+    handleCloseForm();
   };
 
   const handleAddManualProduct = async (name: string) => {
@@ -181,7 +192,9 @@ export const KosongPabrikRecap = () => {
         isKosongPabrik: true,
         kosongPabrikDate: Date.now()
       });
+      setSearchQuery('');
       setIsDropdownOpen(false);
+      handleCloseForm();
     } catch (e) {
       console.error('Failed to add manual product:', e);
     }
@@ -215,19 +228,21 @@ export const KosongPabrikRecap = () => {
 
   return (
     <div className={`flex flex-col gap-6 h-full ${isListFullscreen ? 'fixed inset-0 z-50 bg-theme-50 p-4 md:p-8' : ''}`}>
-      {!isListFullscreen && (
-        <div className="flex-none bg-white rounded-3xl border border-rose-200 shadow-sm p-4 lg:p-6 transition-all duration-300">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center">
-              <Factory className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-theme-900">Input Kosong Pabrik</h3>
-              <p className="text-xs text-theme-600-text">Tandai produk yang sedang kosong di pabrik</p>
-            </div>
-          </div>
-          
-          <div className="relative max-w-lg" ref={dropdownRef}>
+      {/* Floating Input Kosong Pabrik Modal */}
+      <FloatingFormModal
+        isOpen={isFormOpen || isFormFullscreen}
+        onClose={handleCloseForm}
+        title="Input Kosong Pabrik"
+        subtitle="Tandai produk yang sedang kosong di pabrik"
+        icon={<Factory className="w-5 h-5 text-rose-500" />}
+        isFullscreen={isFormFullscreen}
+        onToggleFullscreen={() => setIsFormFullscreen(!isFormFullscreen)}
+        disableEscapeClose={isDropdownOpen}
+        maxWidthClass="max-w-lg"
+      >
+        <div className={isDropdownOpen ? 'min-h-[300px]' : ''}>
+          <label className="block text-xs font-bold text-theme-700 mb-1.5">Cari atau Tambah Produk</label>
+          <div className="relative w-full" ref={dropdownRef}>
             <div className="relative flex items-center w-full px-4 py-3 border border-rose-200 rounded-2xl bg-theme-50 focus-within:ring-2 focus-within:ring-rose-500 focus-within:border-rose-500 transition-all">
               <Search className="w-4 h-4 text-rose-400 mr-2 shrink-0" />
               <input
@@ -268,7 +283,7 @@ export const KosongPabrikRecap = () => {
             </div>
 
             {isDropdownOpen && (
-              <div className="absolute z-50 w-full mt-2 bg-white border border-theme-200 rounded-2xl shadow-xl max-h-72 overflow-y-auto py-1">
+              <div className="absolute z-50 w-full mt-2 bg-white border border-theme-200 rounded-2xl shadow-xl max-h-60 overflow-y-auto py-1">
                 {(!isTypingNew || !searchQuery.trim()) && lastSearchQuery && (
                   <PreviousSearchSection
                     lastQuery={lastSearchQuery}
@@ -346,24 +361,53 @@ export const KosongPabrikRecap = () => {
               </div>
             )}
           </div>
+          <p className="text-[11px] text-theme-500 mt-2">
+            Klik item pada hasil pencarian untuk menandai sebagai Kosong Pabrik, atau ketik nama baru lalu tekan Enter.
+          </p>
         </div>
-      )}
+      </FloatingFormModal>
 
       {/* List */}
       <div className={
         isListFullscreen
           ? "flex-1 bg-white rounded-3xl border border-rose-200 shadow-xl overflow-hidden flex flex-col min-h-0"
-          : "flex-1 bg-white rounded-3xl border border-theme-200 shadow-sm overflow-hidden flex flex-col min-w-0"
+          : "flex-1 bg-white rounded-3xl border border-theme-200 shadow-sm overflow-x-clip sm:overflow-hidden flex flex-col min-w-0"
       }>
-        <div className="p-4 md:p-6 border-b border-theme-200 bg-theme-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
-          <div className="flex items-center gap-3">
-            <h3 className="font-bold text-lg text-theme-900">Daftar Kosong Pabrik</h3>
-            <span className="px-2.5 py-1 bg-rose-100 text-rose-600 text-xs font-bold rounded-lg">
-              {kosongProducts.length} Produk
-            </span>
+        <div className={`p-4 sm:p-5 lg:p-6 border-b border-theme-200 bg-theme-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 shrink-0 ${
+          isListFullscreen ? '' : 'sticky top-0 sm:static z-20 rounded-t-3xl sm:rounded-none'
+        }`}>
+          <div className="flex items-center justify-between w-full sm:w-auto gap-3">
+            <div className="flex items-center gap-3">
+              <h3 className="font-bold text-lg text-theme-900">Daftar Kosong Pabrik</h3>
+              <span className="px-2.5 py-1 bg-rose-100 text-rose-600 text-xs font-bold rounded-lg">
+                {kosongProducts.length} Produk
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsFormOpen(true);
+                setTimeout(() => searchInputRef.current?.focus(), 80);
+              }}
+              className="sm:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-theme-600 hover:bg-theme-700 text-white transition-all shadow-sm active:scale-95 whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Input Kosong</span>
+            </button>
           </div>
           
           <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setIsFormOpen(true);
+                setTimeout(() => searchInputRef.current?.focus(), 80);
+              }}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-theme-600 hover:bg-theme-700 text-white transition-all shadow-sm active:scale-95 whitespace-nowrap shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Input Kosong</span>
+            </button>
             <div className="relative w-full sm:w-64" ref={listSearchRef}>
               <Search className="w-4 h-4 text-theme-600-text absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input 
@@ -445,33 +489,33 @@ export const KosongPabrikRecap = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 md:p-6">
+        <div className="flex-1 min-h-0 overflow-auto p-4 sm:p-5 lg:p-6">
           {filteredKosongProducts.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-neutral-400 p-8 min-h-[300px]">
+            <div className="h-full flex flex-col items-center justify-center text-neutral-400 p-8 min-h-[260px]">
               <Factory className="w-16 h-16 mb-4 text-theme-300" />
               <p className="font-medium text-theme-600-text">Tidak ada produk kosong pabrik</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
               {filteredKosongProducts.map(p => {
                 const s = suppliers.find(sup => sup.id === p.supplierId);
                 return (
                   <div key={p.id} className="bg-white border border-theme-200 rounded-2xl p-4 flex flex-col relative overflow-hidden group hover:border-rose-300 hover:shadow-md transition-all">
                     <div className="absolute top-0 left-0 w-1 h-full bg-rose-400"></div>
                     
-                    <div className="flex justify-between items-start mb-2 pl-2">
-                      <h4 className="font-bold text-theme-900 line-clamp-2 pr-6 leading-tight">{p.name}</h4>
+                    <div className="flex justify-between items-start mb-2 pl-2 gap-2">
+                      <h4 className="font-bold text-theme-900 line-clamp-2 pr-2 leading-tight">{p.name}</h4>
                       <div className="flex gap-1 shrink-0 -mt-1 -mr-1">
                         <button 
                           onClick={() => handleEditClick(p)}
-                          className="text-theme-600-text hover:text-theme-700 hover:bg-theme-100 p-1.5 rounded-lg transition-colors"
+                          className="text-theme-600-text hover:text-theme-700 hover:bg-theme-100 p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg transition-colors"
                           title="Edit Produk"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button 
                           onClick={() => handleRemoveKosong(p)}
-                          className="text-theme-600-text hover:text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+                          className="text-theme-600-text hover:text-rose-500 hover:bg-rose-50 p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg transition-colors"
                           title="Hapus dari daftar"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -497,62 +541,57 @@ export const KosongPabrikRecap = () => {
         </div>
       </div>
 
-      {/* Edit Modal */}
-      {editingProduct && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl border border-theme-200 shadow-2xl p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-bold text-lg text-theme-900">Edit Produk</h3>
-              <button 
-                onClick={() => setEditingProduct(null)}
-                className="text-theme-600-text hover:text-rose-500 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="space-y-4 mb-8">
-              <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Nama Produk</label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Supplier</label>
-                <select
-                  value={editSupplierId}
-                  onChange={(e) => setEditSupplierId(e.target.value)}
-                  className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
-                >
-                  <option value="">Pilih Supplier</option>
-                  {suppliers.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setEditingProduct(null)}
-                className="flex-1 flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition-colors"
-              >
-                <X className="w-4 h-4" /> Batal
-              </button>
-              <button 
-                onClick={handleSaveEdit}
-                className="flex-1 flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
-              >
-                <Save className="w-4 h-4" /> Simpan
-              </button>
-            </div>
+      {/* Edit Modal using FloatingFormModal */}
+      <FloatingFormModal
+        isOpen={Boolean(editingProduct)}
+        onClose={() => setEditingProduct(null)}
+        title="Edit Produk Kosong Pabrik"
+        subtitle="Perbarui nama produk atau supplier"
+        icon={<Edit2 className="w-4 h-4" />}
+        maxWidthClass="max-w-md"
+      >
+        <div className="space-y-4 mb-6">
+          <div>
+            <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Nama Produk</label>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Supplier</label>
+            <select
+              value={editSupplierId}
+              onChange={(e) => setEditSupplierId(e.target.value)}
+              className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
+            >
+              <option value="">Pilih Supplier</option>
+              {suppliers.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
           </div>
         </div>
-      )}
+        
+        <div className="flex gap-3">
+          <button 
+            type="button"
+            onClick={() => setEditingProduct(null)}
+            className="flex-1 flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition-colors"
+          >
+            <X className="w-4 h-4" /> Batal
+          </button>
+          <button 
+            type="button"
+            onClick={handleSaveEdit}
+            className="flex-1 flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-sm"
+          >
+            <Save className="w-4 h-4" /> Simpan
+          </button>
+        </div>
+      </FloatingFormModal>
     </div>
   );
 };

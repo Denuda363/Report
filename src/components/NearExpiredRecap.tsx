@@ -3,15 +3,19 @@ import {
   Search, X, Trash2, Edit2, Save, Plus, CalendarClock, Download, 
   Copy, Printer, Check, AlertTriangle, Clock, Building2, Package, 
   Filter, CheckCircle2, ChevronDown, ArrowUpDown, RefreshCw, Sparkles,
-  ArrowRight, LayoutGrid, Table as TableIcon, Layers
+  ArrowRight, LayoutGrid, Table as TableIcon, Layers, FileSpreadsheet,
+  Upload, RotateCcw, AlertCircle
 } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { NearExpiredEntry, Product, Supplier } from '../types';
 import { format, differenceInDays, parseISO, isValid, isBefore, startOfDay, addMonths } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
-import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory } from '../lib/searchHistory';
+import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../lib/searchHistory';
 import { PreviousSearchSection } from './PreviousSearchSection';
+import { FloatingFormModal } from './common/FloatingFormModal';
+import { OperationProgressModal } from './common/OperationProgressModal';
+import { downloadNearExpiredTemplate, parseNearExpiredImport, NearExpiredImportRow } from '../lib/excel';
 
 interface PendingNearExpiredItem {
   id: string;
@@ -24,6 +28,14 @@ interface PendingNearExpiredItem {
   quantity?: number;
   unit?: string;
   notes?: string;
+}
+
+interface NearExpiredImportPreviewItem extends NearExpiredImportRow {
+  matchedProduct?: Product;
+  resolvedSupplierName: string;
+  resolvedSupplierId?: string;
+  resolvedUnit: string;
+  duplicateExisting?: NearExpiredEntry;
 }
 
 export const NearExpiredRecap: React.FC = () => {
@@ -104,10 +116,51 @@ export const NearExpiredRecap: React.FC = () => {
   const [editNotes, setEditNotes] = useState('');
   const [editStatus, setEditStatus] = useState<'pending' | 'returned' | 'disposed' | 'resolved'>('pending');
 
-  // Copy TXT Modal / Toast State
+  // Toast & Inline Form Feedback State
   const [copyToast, setCopyToast] = useState(false);
-  const [isFormExpanded, setIsFormExpanded] = useState(true);
+  const [toastBanner, setToastBanner] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [editFormError, setEditFormError] = useState<string | null>(null);
+  const [duplicatePromptItem, setDuplicatePromptItem] = useState<{
+    existing: NearExpiredEntry;
+    incoming: Omit<NearExpiredEntry, 'id'>;
+  } | null>(null);
+
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isFormFullscreen, setIsFormFullscreen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Excel Import States
+  const excelFileInputRef = useRef<HTMLInputElement>(null);
+  const [importPreviewRows, setImportPreviewRows] = useState<NearExpiredImportPreviewItem[]>([]);
+  const [importParseErrors, setImportParseErrors] = useState<string[]>([]);
+  const [isImportPreviewOpen, setIsImportPreviewOpen] = useState(false);
+  const [mergeDuplicateOnImport, setMergeDuplicateOnImport] = useState(true);
+  const [isExecutingImport, setIsExecutingImport] = useState(false);
+  const [importProgress, setImportProgress] = useState<{
+    current: number;
+    total: number;
+    currentItemName: string;
+    startTime: number;
+  }>({ current: 0, total: 0, currentItemName: '', startTime: 0 });
+
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToastBanner({ message, type });
+    setTimeout(() => {
+      setToastBanner(prev => (prev?.message === message ? null : prev));
+    }, 3800);
+  };
+
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setIsFormFullscreen(false);
+    setIsDropdownOpen(false);
+    setIsSupplierDropdownOpen(false);
+    setFormError(null);
+    setFormSuccess(null);
+    setDuplicatePromptItem(null);
+  };
 
   // Print Report States
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -334,30 +387,44 @@ export const NearExpiredRecap: React.FC = () => {
     setSupplierNameInput('');
     setSelectedSupplierId(undefined);
     setQuantityInput('');
+    setUnitInput('Pcs');
     setNotesInput('');
+    setFormError(null);
+    setDuplicatePromptItem(null);
     setIsDropdownOpen(false);
     setTimeout(() => {
       productInputRef.current?.focus();
     }, 50);
   };
 
+  const applyQuickExpiredDate = (months: number) => {
+    const target = addMonths(new Date(), months);
+    setExpiredDateInput(format(target, 'yyyy-MM-dd'));
+    setFormError(null);
+    setDuplicatePromptItem(null);
+  };
+
   // Add Item to Pending List (with duplicate merge protection so data is never clobbered)
   const handleAddPending = () => {
+    setFormError(null);
+    setFormSuccess(null);
+    setDuplicatePromptItem(null);
+
     const name = productNameInput.trim() || productSearchQuery.trim();
     if (!name) {
-      alert('Silakan pilih atau masukkan Nama Produk.');
+      setFormError('Silakan pilih atau masukkan Nama Produk terlebih dahulu.');
       productInputRef.current?.focus();
       return;
     }
 
     if (!batchInput.trim()) {
-      alert('Silakan masukkan Nomor Batch.');
+      setFormError('Nomor Batch wajib diisi.');
       batchInputRef.current?.focus();
       return;
     }
 
     if (!expiredDateInput.trim()) {
-      alert('Silakan pilih Tanggal Expired.');
+      setFormError('Tanggal Expired wajib dipilih.');
       expiredDateInputRef.current?.focus();
       return;
     }
@@ -389,7 +456,9 @@ export const NearExpiredRecap: React.FC = () => {
       }
       updated[existingIndex] = existing;
       setPendingItems(updated);
-      alert(`Produk "${currentItem.productName}" (Batch: ${currentItem.batch}) sudah ada di antrean. Jumlah digabungkan menjadi ${existing.quantity || 'ada'} ${existing.unit}!`);
+      setFormSuccess(
+        `Produk "${currentItem.productName}" (Batch ${currentItem.batch}) sudah ada di antrean — Qty digabungkan (${existing.quantity ?? '-'} ${existing.unit || 'Pcs'}).`
+      );
     } else {
       const newItem: PendingNearExpiredItem = {
         id: Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString(36),
@@ -404,6 +473,7 @@ export const NearExpiredRecap: React.FC = () => {
         notes: currentItem.notes
       };
       setPendingItems(prev => [newItem, ...prev]);
+      setFormSuccess(`"${currentItem.productName}" (${currentItem.batch}) ditambahkan ke antrean.`);
     }
 
     resetFormFields();
@@ -417,6 +487,7 @@ export const NearExpiredRecap: React.FC = () => {
   // Save All Pending Items (Ctrl + S) - guarantees all queued items + any active form item are fully saved
   const handleSaveAllPending = async () => {
     if (isSaving) return;
+    setFormError(null);
 
     const currentItem = resolveCurrentFormItem();
     const entriesToAdd: Omit<NearExpiredEntry, 'id'>[] = pendingItems.map(item => ({
@@ -438,7 +509,7 @@ export const NearExpiredRecap: React.FC = () => {
     }
 
     if (entriesToAdd.length === 0) {
-      alert('Daftar antrean masih kosong. Silakan lengkapi Nama Produk, Batch, dan Tanggal Expired terlebih dahulu.');
+      setFormError('Antrean masih kosong. Lengkapi Nama Produk, No. Batch, dan Tanggal Expired terlebih dahulu.');
       return;
     }
 
@@ -449,10 +520,55 @@ export const NearExpiredRecap: React.FC = () => {
       if (currentItem) {
         resetFormFields();
       }
-      alert(`Berhasil menyimpan ${entriesToAdd.length} data produk expired dekat tanpa tertimpa!`);
+      showToast(`Berhasil menyimpan ${entriesToAdd.length} data produk expired dekat.`);
+      handleCloseForm();
     } catch (e: any) {
       console.error('Gagal menyimpan batch:', e);
-      alert('Terjadi kesalahan saat menyimpan data: ' + (e?.message || e));
+      setFormError('Terjadi kesalahan saat menyimpan data: ' + (e?.message || e));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleConfirmDuplicateMerge = async () => {
+    if (!duplicatePromptItem || isSaving) return;
+    const { existing, incoming } = duplicatePromptItem;
+    setIsSaving(true);
+    setFormError(null);
+    try {
+      const mergedNotes = incoming.notes
+        ? (existing.notes ? `${existing.notes} | ${incoming.notes}` : incoming.notes)
+        : existing.notes;
+      await updateNearExpired(existing.id, {
+        quantity: (existing.quantity || 0) + (incoming.quantity || 0),
+        notes: mergedNotes,
+        expiredDate: incoming.expiredDate || existing.expiredDate,
+        supplierName: incoming.supplierName !== 'Tidak Diketahui' ? incoming.supplierName : existing.supplierName
+      });
+      setDuplicatePromptItem(null);
+      resetFormFields();
+      showToast(`Stok batch "${incoming.batch}" untuk "${incoming.productName}" berhasil digabungkan.`);
+      handleCloseForm();
+    } catch (e: any) {
+      setFormError('Gagal memperbarui data: ' + (e?.message || e));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleConfirmDuplicateInsertNew = async () => {
+    if (!duplicatePromptItem || isSaving) return;
+    const { incoming } = duplicatePromptItem;
+    setIsSaving(true);
+    setFormError(null);
+    try {
+      await addNearExpired(incoming);
+      setDuplicatePromptItem(null);
+      resetFormFields();
+      showToast(`Baris baru "${incoming.productName}" (${incoming.batch}) berhasil disimpan.`);
+      handleCloseForm();
+    } catch (e: any) {
+      setFormError('Gagal menyimpan data: ' + (e?.message || e));
     } finally {
       setIsSaving(false);
     }
@@ -461,6 +577,8 @@ export const NearExpiredRecap: React.FC = () => {
   // Direct Save: Saves cleanly without overwriting previous data. If there are pending items, saves everything together!
   const handleDirectSave = async () => {
     if (isSaving) return;
+    setFormError(null);
+    setFormSuccess(null);
 
     const currentItem = resolveCurrentFormItem();
 
@@ -491,10 +609,11 @@ export const NearExpiredRecap: React.FC = () => {
         if (currentItem) {
           resetFormFields();
         }
-        alert(`Berhasil menyimpan ${entriesToAdd.length} data produk expired dekat tanpa tertimpa!`);
+        showToast(`Berhasil menyimpan ${entriesToAdd.length} data produk expired dekat.`);
+        handleCloseForm();
       } catch (e: any) {
         console.error('Gagal menyimpan data:', e);
-        alert('Terjadi kesalahan saat menyimpan data: ' + (e?.message || e));
+        setFormError('Terjadi kesalahan saat menyimpan data: ' + (e?.message || e));
       } finally {
         setIsSaving(false);
       }
@@ -504,19 +623,19 @@ export const NearExpiredRecap: React.FC = () => {
     // No pending items: validate single current item
     const name = productNameInput.trim() || productSearchQuery.trim();
     if (!name) {
-      alert('Silakan pilih atau masukkan Nama Produk.');
+      setFormError('Silakan pilih atau masukkan Nama Produk terlebih dahulu.');
       productInputRef.current?.focus();
       return;
     }
 
     if (!batchInput.trim()) {
-      alert('Silakan masukkan Nomor Batch.');
+      setFormError('Nomor Batch wajib diisi.');
       batchInputRef.current?.focus();
       return;
     }
 
     if (!expiredDateInput.trim()) {
-      alert('Silakan pilih Tanggal Expired.');
+      setFormError('Tanggal Expired wajib dipilih.');
       expiredDateInputRef.current?.focus();
       return;
     }
@@ -531,35 +650,8 @@ export const NearExpiredRecap: React.FC = () => {
     );
 
     if (existingInDb && currentItem.quantity !== undefined && currentItem.quantity > 0) {
-      const confirmMerge = window.confirm(
-        `Produk "${currentItem.productName}" dengan No. Batch "${currentItem.batch}" sudah ada di data tersimpan.\n` +
-        `• Jumlah saat ini: ${existingInDb.quantity || 0} ${existingInDb.unit || 'Pcs'}\n` +
-        `• Tambahan baru: +${currentItem.quantity} ${currentItem.unit || 'Pcs'}\n\n` +
-        `Klik OK untuk MENAMBAH JUMLAH ke data yang sudah ada (Total: ${(existingInDb.quantity || 0) + currentItem.quantity} ${currentItem.unit}).\n` +
-        `Klik CANCEL untuk tetap menyimpan sebagai baris catatan baru (data lama tetap aman dan tidak akan tertimpa).`
-      );
-
-      if (confirmMerge) {
-        setIsSaving(true);
-        try {
-          const mergedNotes = currentItem.notes 
-            ? (existingInDb.notes ? `${existingInDb.notes} | ${currentItem.notes}` : currentItem.notes)
-            : existingInDb.notes;
-          await updateNearExpired(existingInDb.id, {
-            quantity: (existingInDb.quantity || 0) + currentItem.quantity,
-            notes: mergedNotes,
-            expiredDate: currentItem.expiredDate || existingInDb.expiredDate,
-            supplierName: currentItem.supplierName !== 'Tidak Diketahui' ? currentItem.supplierName : existingInDb.supplierName
-          });
-          resetFormFields();
-          alert(`Berhasil memperbarui jumlah stok expired produk "${currentItem.productName}"!`);
-        } catch (e: any) {
-          alert('Gagal memperbarui data: ' + (e?.message || e));
-        } finally {
-          setIsSaving(false);
-        }
-        return;
-      }
+      setDuplicatePromptItem({ existing: existingInDb, incoming: currentItem });
+      return;
     }
 
     // Save as distinct new entry (ensuring unique ID & timestamp so nothing is overwritten)
@@ -567,17 +659,177 @@ export const NearExpiredRecap: React.FC = () => {
     try {
       await addNearExpired(currentItem);
       resetFormFields();
-      alert('Berhasil menyimpan data produk expired dekat!');
+      showToast(`Data "${currentItem.productName}" berhasil disimpan.`);
+      handleCloseForm();
     } catch (e: any) {
-      alert('Gagal menyimpan data: ' + (e?.message || e));
+      setFormError('Gagal menyimpan data: ' + (e?.message || e));
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Ctrl + S Keyboard Shortcut Listener (intelligently saves all active and pending items)
+  // Excel File Import Parsing & Preview
+  const handleExcelFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    try {
+      const { items, errors } = await parseNearExpiredImport(file);
+
+      const enriched: NearExpiredImportPreviewItem[] = items.map(row => {
+        const matchedProduct = products.find(
+          p => p.name.trim().toLowerCase() === row.productName.trim().toLowerCase()
+        );
+
+        let resolvedSupplierName = row.supplierName.trim();
+        let resolvedSupplierId: string | undefined;
+
+        if (resolvedSupplierName) {
+          const matchedSup = suppliers.find(
+            s => s.name.trim().toLowerCase() === resolvedSupplierName.toLowerCase()
+          );
+          if (matchedSup) {
+            resolvedSupplierName = matchedSup.name;
+            resolvedSupplierId = matchedSup.id;
+          }
+        } else if (matchedProduct) {
+          const primarySup = suppliers.find(s => s.id === matchedProduct.supplierId);
+          if (primarySup) {
+            resolvedSupplierName = primarySup.name;
+            resolvedSupplierId = primarySup.id;
+          }
+        }
+
+        if (!resolvedSupplierName) {
+          resolvedSupplierName = 'Tidak Diketahui';
+        }
+
+        const resolvedUnit = row.unit || matchedProduct?.unit || 'Pcs';
+
+        const duplicateExisting = nearExpiredList.find(
+          r =>
+            r.productName.trim().toLowerCase() === row.productName.trim().toLowerCase() &&
+            r.batch.trim().toUpperCase() === row.batch.trim().toUpperCase() &&
+            (!r.status || r.status === 'pending')
+        );
+
+        return {
+          ...row,
+          matchedProduct,
+          resolvedSupplierName,
+          resolvedSupplierId,
+          resolvedUnit,
+          duplicateExisting
+        };
+      });
+
+      setImportPreviewRows(enriched);
+      setImportParseErrors(errors);
+      setIsImportPreviewOpen(true);
+    } catch (err: any) {
+      showToast('Gagal membaca file Excel: ' + (err?.message || err), 'error');
+    }
+  };
+
+  const handleRemoveImportPreviewRow = (rowNumber: number, index: number) => {
+    setImportPreviewRows(prev => prev.filter((r, i) => !(r.rowNumber === rowNumber && i === index)));
+  };
+
+  const handleExecuteImport = async () => {
+    if (importPreviewRows.length === 0 || isExecutingImport) return;
+
+    setIsExecutingImport(true);
+    const total = importPreviewRows.length;
+    setImportProgress({
+      current: 0,
+      total,
+      currentItemName: importPreviewRows[0]?.productName || '',
+      startTime: Date.now()
+    });
+
+    try {
+      const toMerge: NearExpiredImportPreviewItem[] = [];
+      const toCreate: Omit<NearExpiredEntry, 'id'>[] = [];
+
+      const now = Date.now();
+      importPreviewRows.forEach((row, idx) => {
+        if (mergeDuplicateOnImport && row.duplicateExisting && row.quantity !== undefined) {
+          toMerge.push(row);
+        } else {
+          toCreate.push({
+            productId: row.matchedProduct?.id,
+            productName: row.matchedProduct?.name || row.productName,
+            batch: row.batch,
+            expiredDate: row.expiredDate,
+            supplierId: row.resolvedSupplierId,
+            supplierName: row.resolvedSupplierName,
+            quantity: row.quantity,
+            unit: row.resolvedUnit,
+            notes: row.notes,
+            createdAt: now + idx,
+            status: row.status
+          });
+        }
+      });
+
+      let processed = 0;
+
+      for (const item of toMerge) {
+        if (!item.duplicateExisting) continue;
+        setImportProgress(prev => ({
+          ...prev,
+          current: processed,
+          currentItemName: item.productName
+        }));
+
+        const mergedNotes = item.notes
+          ? (item.duplicateExisting.notes ? `${item.duplicateExisting.notes} | ${item.notes}` : item.notes)
+          : item.duplicateExisting.notes;
+
+        await updateNearExpired(item.duplicateExisting.id, {
+          quantity: (item.duplicateExisting.quantity || 0) + (item.quantity || 0),
+          notes: mergedNotes,
+          expiredDate: item.expiredDate || item.duplicateExisting.expiredDate,
+          supplierName:
+            item.resolvedSupplierName !== 'Tidak Diketahui'
+              ? item.resolvedSupplierName
+              : item.duplicateExisting.supplierName
+        });
+
+        processed++;
+        setImportProgress(prev => ({ ...prev, current: processed }));
+      }
+
+      if (toCreate.length > 0) {
+        setImportProgress(prev => ({
+          ...prev,
+          current: processed,
+          currentItemName: `Menyimpan ${toCreate.length} item baru...`
+        }));
+        await addNearExpiredBatch(toCreate);
+        processed += toCreate.length;
+        setImportProgress(prev => ({ ...prev, current: processed }));
+      }
+
+      setIsImportPreviewOpen(false);
+      setImportPreviewRows([]);
+      setImportParseErrors([]);
+      handleCloseForm();
+      showToast(
+        `Berhasil mengimpor ${total} data expired dekat (${toCreate.length} baru${toMerge.length > 0 ? `, ${toMerge.length} digabungkan` : ''}).`
+      );
+    } catch (err: any) {
+      showToast('Gagal menyimpan data import: ' + (err?.message || err), 'error');
+    } finally {
+      setIsExecutingImport(false);
+    }
+  };
+
+  // Ctrl + S Keyboard Shortcut Listener when modal is open
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (!(isFormOpen || isFormFullscreen)) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleDirectSave();
@@ -585,7 +837,7 @@ export const NearExpiredRecap: React.FC = () => {
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [pendingItems, productNameInput, productSearchQuery, batchInput, expiredDateInput, supplierNameInput, selectedProduct, selectedSupplierId, quantityInput, unitInput, notesInput, isSaving]);
+  }, [isFormOpen, isFormFullscreen, pendingItems, productNameInput, productSearchQuery, batchInput, expiredDateInput, supplierNameInput, selectedProduct, selectedSupplierId, quantityInput, unitInput, notesInput, isSaving]);
 
   // Urgency Helper Calculation
   const today = useMemo(() => startOfDay(new Date()), []);
@@ -832,16 +1084,18 @@ export const NearExpiredRecap: React.FC = () => {
     setEditUnit(entry.unit || 'Pcs');
     setEditNotes(entry.notes || '');
     setEditStatus(entry.status || 'pending');
+    setEditFormError(null);
   };
 
   const handleSaveEdit = async () => {
     if (!editingEntry) return;
+    setEditFormError(null);
     if (!editBatch.trim()) {
-      alert('Nomor Batch tidak boleh kosong.');
+      setEditFormError('Nomor Batch tidak boleh kosong.');
       return;
     }
     if (!editExpiredDate.trim()) {
-      alert('Tanggal Expired tidak boleh kosong.');
+      setEditFormError('Tanggal Expired tidak boleh kosong.');
       return;
     }
 
@@ -856,8 +1110,9 @@ export const NearExpiredRecap: React.FC = () => {
         status: editStatus
       });
       setEditingEntry(null);
+      showToast('Perubahan data expired dekat berhasil disimpan.');
     } catch (e: any) {
-      alert('Gagal mengupdate data: ' + (e?.message || e));
+      setEditFormError('Gagal mengupdate data: ' + (e?.message || e));
     }
   };
 
@@ -1250,9 +1505,9 @@ export const NearExpiredRecap: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-4 sm:space-y-5 pb-4">
       {/* Top Banner & Header */}
-      <div className="bg-white rounded-3xl p-5 md:p-6 border border-theme-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
+      <div className="bg-white rounded-3xl p-4 sm:p-5 lg:p-6 border border-theme-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
         <div>
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
@@ -1270,10 +1525,57 @@ export const NearExpiredRecap: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={excelFileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={handleExcelFileChange}
+            className="hidden"
+          />
+
+          <button
+            type="button"
+            onClick={() => {
+              setFormError(null);
+              setFormSuccess(null);
+              setIsFormOpen(true);
+              setTimeout(() => productInputRef.current?.focus(), 80);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold bg-theme-600 hover:bg-theme-700 text-white transition-all shadow-sm active:scale-95 whitespace-nowrap shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Input Expired Dekat</span>
+            {pendingItems.length > 0 && (
+              <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.5 rounded-full font-extrabold tabular-nums">
+                {pendingItems.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => downloadNearExpiredTemplate(products, suppliers)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-800 transition-colors shadow-xs active:scale-95 whitespace-nowrap shrink-0"
+            title="Unduh Template Excel (.xlsx) untuk Import Data Expired Dekat"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+            <span>Template</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => excelFileInputRef.current?.click()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-xs active:scale-95 whitespace-nowrap shrink-0"
+            title="Import Data Expired Dekat dari file Excel (.xlsx / .xls / .csv)"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Import Excel</span>
+          </button>
+
           <button
             type="button"
             onClick={handleCopyTxt}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-800 transition-colors shadow-xs active:scale-95"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-800 transition-colors shadow-xs active:scale-95 whitespace-nowrap shrink-0"
             title="Salin ringkasan teks untuk WhatsApp"
           >
             <Copy className="w-4 h-4 text-neutral-600" />
@@ -1283,7 +1585,7 @@ export const NearExpiredRecap: React.FC = () => {
           <button
             type="button"
             onClick={handleExportExcel}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-xs active:scale-95"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-xs active:scale-95 whitespace-nowrap shrink-0"
             title="Export Excel (.xlsx)"
           >
             <Download className="w-4 h-4" />
@@ -1293,7 +1595,7 @@ export const NearExpiredRecap: React.FC = () => {
           <button
             type="button"
             onClick={handleOpenPrintModal}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white transition-colors shadow-xs active:scale-95"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white transition-colors shadow-xs active:scale-95 whitespace-nowrap shrink-0"
             title="Buka Pratinjau & Cetak Laporan Produk Expired Dekat"
           >
             <Printer className="w-4 h-4 text-white" />
@@ -1302,9 +1604,9 @@ export const NearExpiredRecap: React.FC = () => {
         </div>
       </div>
 
-      {/* Copy Toast Alert */}
+      {/* Copy & Operation Toast Alerts */}
       {copyToast && (
-        <div className="fixed top-6 right-6 z-50 bg-neutral-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 text-sm animate-in fade-in slide-in-from-top-4">
+        <div className="fixed top-6 right-6 z-[150] bg-neutral-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 text-sm animate-in fade-in slide-in-from-top-4">
           <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
             <Check className="w-4 h-4" />
           </div>
@@ -1312,12 +1614,42 @@ export const NearExpiredRecap: React.FC = () => {
         </div>
       )}
 
+      {toastBanner && (
+        <div
+          className={`fixed top-6 right-6 z-[155] px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 text-xs sm:text-sm font-medium border animate-in fade-in slide-in-from-top-4 ${
+            toastBanner.type === 'error'
+              ? 'bg-rose-950 text-white border-rose-800'
+              : toastBanner.type === 'info'
+              ? 'bg-neutral-900 text-white border-neutral-800'
+              : 'bg-neutral-900 text-white border-emerald-800/60'
+          }`}
+        >
+          <div
+            className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+              toastBanner.type === 'error'
+                ? 'bg-rose-500/20 text-rose-300'
+                : 'bg-emerald-500/20 text-emerald-400'
+            }`}
+          >
+            {toastBanner.type === 'error' ? <AlertTriangle className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
+          </div>
+          <span>{toastBanner.message}</span>
+          <button
+            type="button"
+            onClick={() => setToastBanner(null)}
+            className="text-neutral-400 hover:text-white ml-1"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Interactive Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 no-print">
+      <div className="grid grid-cols-2 md:grid-cols-6 lg:grid-cols-5 gap-3 no-print">
         <button
           type="button"
           onClick={() => setFilterUrgency('all')}
-          className={`p-4 rounded-2xl border text-left transition-all ${
+          className={`md:col-span-2 lg:col-span-1 p-3.5 sm:p-4 rounded-2xl border text-left transition-all ${
             filterUrgency === 'all'
               ? 'bg-neutral-900 text-white border-neutral-900 shadow-sm'
               : 'bg-white hover:bg-neutral-50 text-neutral-800 border-neutral-200'
@@ -1327,14 +1659,14 @@ export const NearExpiredRecap: React.FC = () => {
             <span className="text-xs font-medium uppercase opacity-75 tracking-wider">Total Terdata</span>
             <Package className="w-4 h-4 opacity-60" />
           </div>
-          <div className="text-2xl font-bold mt-2">{stats.total}</div>
+          <div className="text-2xl font-bold mt-2 tabular-nums">{stats.total}</div>
           <div className="text-[11px] opacity-75 mt-0.5">Semua item expired</div>
         </button>
 
         <button
           type="button"
           onClick={() => setFilterUrgency(filterUrgency === 'expired' ? 'all' : 'expired')}
-          className={`p-4 rounded-2xl border text-left transition-all ${
+          className={`md:col-span-2 lg:col-span-1 p-3.5 sm:p-4 rounded-2xl border text-left transition-all ${
             filterUrgency === 'expired'
               ? 'bg-red-600 text-white border-red-600 shadow-sm ring-2 ring-red-400'
               : 'bg-red-50/70 hover:bg-red-100/70 text-red-900 border-red-200'
@@ -1344,14 +1676,14 @@ export const NearExpiredRecap: React.FC = () => {
             <span className="text-xs font-bold uppercase tracking-wider text-red-700">Sudah Expired</span>
             <div className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
           </div>
-          <div className="text-2xl font-bold mt-2 text-red-950">{stats.expired}</div>
+          <div className="text-2xl font-bold mt-2 text-red-950 tabular-nums">{stats.expired}</div>
           <div className="text-[11px] text-red-700 mt-0.5">Kedaluwarsa / hari ini</div>
         </button>
 
         <button
           type="button"
           onClick={() => setFilterUrgency(filterUrgency === 'critical' ? 'all' : 'critical')}
-          className={`p-4 rounded-2xl border text-left transition-all ${
+          className={`md:col-span-2 lg:col-span-1 p-3.5 sm:p-4 rounded-2xl border text-left transition-all ${
             filterUrgency === 'critical'
               ? 'bg-rose-600 text-white border-rose-600 shadow-sm ring-2 ring-rose-400'
               : 'bg-rose-50/70 hover:bg-rose-100/70 text-rose-900 border-rose-200'
@@ -1361,14 +1693,14 @@ export const NearExpiredRecap: React.FC = () => {
             <span className="text-xs font-bold uppercase tracking-wider text-rose-700">Kritis (&lt; 30 Hari)</span>
             <AlertTriangle className="w-4 h-4 text-rose-600" />
           </div>
-          <div className="text-2xl font-bold mt-2 text-rose-950">{stats.critical}</div>
+          <div className="text-2xl font-bold mt-2 text-rose-950 tabular-nums">{stats.critical}</div>
           <div className="text-[11px] text-rose-700 mt-0.5">Perlu retur / diskon segera</div>
         </button>
 
         <button
           type="button"
           onClick={() => setFilterUrgency(filterUrgency === 'warning' ? 'all' : 'warning')}
-          className={`p-4 rounded-2xl border text-left transition-all ${
+          className={`md:col-span-3 lg:col-span-1 p-3.5 sm:p-4 rounded-2xl border text-left transition-all ${
             filterUrgency === 'warning'
               ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-400'
               : 'bg-amber-50/70 hover:bg-amber-100/70 text-amber-900 border-amber-200'
@@ -1378,14 +1710,14 @@ export const NearExpiredRecap: React.FC = () => {
             <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Waspada (1-3 Bln)</span>
             <Clock className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="text-2xl font-bold mt-2 text-amber-950">{stats.warning}</div>
+          <div className="text-2xl font-bold mt-2 text-amber-950 tabular-nums">{stats.warning}</div>
           <div className="text-[11px] text-amber-700 mt-0.5">Prioritaskan penjualan</div>
         </button>
 
         <button
           type="button"
           onClick={() => setFilterUrgency(filterUrgency === 'safe' ? 'all' : 'safe')}
-          className={`p-4 rounded-2xl border text-left transition-all col-span-2 sm:col-span-1 ${
+          className={`col-span-2 md:col-span-3 lg:col-span-1 p-3.5 sm:p-4 rounded-2xl border text-left transition-all ${
             filterUrgency === 'safe'
               ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-400'
               : 'bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900 border-emerald-200'
@@ -1395,48 +1727,158 @@ export const NearExpiredRecap: React.FC = () => {
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Aman (&gt; 3 Bln)</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-2xl font-bold mt-2 text-emerald-950">{stats.safe}</div>
+          <div className="text-2xl font-bold mt-2 text-emerald-950 tabular-nums">{stats.safe}</div>
           <div className="text-[11px] text-emerald-700 mt-0.5">Pemantauan berkala</div>
         </button>
       </div>
 
-      {/* FORM INPUT & DAFTAR ANTREAN (PENDING LIST) */}
-      <div className="bg-white rounded-3xl border border-theme-200 shadow-sm overflow-hidden no-print">
-        <div 
-          onClick={() => setIsFormExpanded(!isFormExpanded)}
-          className="p-4 md:p-5 bg-gradient-to-r from-theme-50/80 to-white flex items-center justify-between cursor-pointer select-none border-b border-theme-200"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-theme-500 text-white flex items-center justify-center font-bold text-sm">
-              <Plus className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="font-bold text-neutral-900 text-sm md:text-base">
-                Form Input Produk Expired Dekat
-              </h2>
-              <p className="text-xs text-neutral-500">
-                Gunakan panah keyboard (↑ / ↓) pada pencarian dan tekan <kbd className="px-1.5 py-0.5 bg-neutral-200 text-neutral-800 rounded text-[10px] font-mono font-bold">Ctrl + S</kbd> untuk menyimpan daftar list
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {pendingItems.length > 0 && (
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-white shadow-xs">
-                {pendingItems.length} di Antrean
-              </span>
-            )}
-            <ChevronDown className={`w-5 h-5 text-neutral-400 transition-transform ${isFormExpanded ? 'rotate-180' : ''}`} />
-          </div>
-        </div>
+      {/* Datalist for standard packaging units */}
+      <datalist id="near-expired-units">
+        <option value="Pcs" />
+        <option value="Box" />
+        <option value="Strip" />
+        <option value="Botol" />
+        <option value="Tube" />
+        <option value="Karton" />
+        <option value="Pack" />
+        <option value="Sachet" />
+        <option value="Kg" />
+      </datalist>
 
-        {isFormExpanded && (
-          <div className="p-4 md:p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
-              
-              {/* Field 1: Nama Produk (Searchable + Arrow navigation) */}
-              <div className="lg:col-span-4 relative" ref={dropdownRef}>
-                <label className="block text-xs font-bold text-neutral-700 mb-1.5">
-                  Nama Produk <span className="text-red-500">*</span>
+      {/* FLOATING FORM MODAL INPUT PRODUK EXPIRED DEKAT */}
+      <FloatingFormModal
+        isOpen={isFormOpen || isFormFullscreen}
+        onClose={handleCloseForm}
+        title="Input Produk Expired Dekat"
+        subtitle="Catat batch, tanggal kedaluwarsa, stok & supplier (Ctrl + S untuk simpan)"
+        icon={<CalendarClock className="w-5 h-5" />}
+        isFullscreen={isFormFullscreen}
+        onToggleFullscreen={() => setIsFormFullscreen(!isFormFullscreen)}
+        disableEscapeClose={isDropdownOpen || isSupplierDropdownOpen}
+        maxWidthClass="max-w-3xl"
+      >
+        <div className="space-y-5">
+          {/* Quick Excel Import Strip */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200/80">
+            <div className="flex items-center gap-2 text-xs text-neutral-600">
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                Punya banyak data? Gunakan <strong className="text-neutral-900">Import Excel</strong> untuk input massal.
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => downloadNearExpiredTemplate(products, suppliers)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-100 transition-colors whitespace-nowrap"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Unduh Template</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => excelFileInputRef.current?.click()}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors whitespace-nowrap"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>Pilih File Excel</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Inline Error / Success / Duplicate Confirmation Feedback */}
+          {formError && (
+            <div className="flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{formError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormError(null)}
+                className="text-rose-500 hover:text-rose-800 p-0.5 rounded"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {formSuccess && !formError && (
+            <div className="flex items-center justify-between gap-2.5 px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{formSuccess}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormSuccess(null)}
+                className="text-emerald-600 hover:text-emerald-900 p-0.5 rounded"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {duplicatePromptItem && (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 space-y-2.5 text-xs">
+              <div className="flex items-start gap-2.5 text-amber-950">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="font-bold">
+                    Produk &ldquo;{duplicatePromptItem.incoming.productName}&rdquo; (Batch {duplicatePromptItem.incoming.batch}) sudah tercatat aktif
+                  </div>
+                  <div className="text-amber-800">
+                    Stok saat ini <strong className="tabular-nums">{duplicatePromptItem.existing.quantity || 0} {duplicatePromptItem.existing.unit || 'Pcs'}</strong>, tambahan <strong className="tabular-nums">+{duplicatePromptItem.incoming.quantity || 0} {duplicatePromptItem.incoming.unit || 'Pcs'}</strong>.
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDuplicatePromptItem(null)}
+                  className="px-3 py-1.5 rounded-lg font-medium text-neutral-600 hover:bg-amber-100/70 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleConfirmDuplicateInsertNew}
+                  className="px-3 py-1.5 rounded-lg font-semibold bg-white border border-amber-300 text-amber-900 hover:bg-amber-100/60 transition-colors"
+                >
+                  Simpan Baris Baru
+                </button>
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleConfirmDuplicateMerge}
+                  className="px-3.5 py-1.5 rounded-lg font-bold bg-amber-600 hover:bg-amber-700 text-white transition-colors"
+                >
+                  Gabungkan Qty (+{duplicatePromptItem.incoming.quantity || 0})
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 1: IDENTITAS PRODUK & BATCH */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+                1. Identitas Produk &amp; Batch
+              </span>
+              {selectedProduct && (
+                <span className="text-[11px] font-semibold text-emerald-700 inline-flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Terhubung Master Data
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5">
+              {/* Field 1: Nama Produk */}
+              <div className="sm:col-span-7 relative" ref={dropdownRef}>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Nama Produk <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -1450,8 +1892,9 @@ export const NearExpiredRecap: React.FC = () => {
                       setIsTypingNew(true);
                       setIsDropdownOpen(true);
                       setHighlightedIndex(0);
+                      setFormError(null);
+                      setDuplicatePromptItem(null);
 
-                      // Automatically link master data product and supplier if exact match
                       const exact = products.find(p => p.name.trim().toLowerCase() === val.trim().toLowerCase());
                       if (exact) {
                         setSelectedProduct(exact);
@@ -1466,7 +1909,6 @@ export const NearExpiredRecap: React.FC = () => {
                       }
                     }}
                     onBlur={() => {
-                      // On blur, auto-link if exact product match in master data
                       if (!selectedProduct && productSearchQuery.trim()) {
                         const exact = products.find(p => p.name.trim().toLowerCase() === productSearchQuery.trim().toLowerCase());
                         if (exact) {
@@ -1478,8 +1920,8 @@ export const NearExpiredRecap: React.FC = () => {
                       setIsDropdownOpen(true);
                     }}
                     onKeyDown={handleProductSearchKeyDown}
-                    placeholder="Ketik / cari nama produk..."
-                    className="w-full pl-9 pr-8 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
+                    placeholder="Ketik atau pilih produk dari master data..."
+                    className="w-full pl-9 pr-8 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:border-theme-500 focus:bg-white transition-all"
                   />
                   <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
                   {productSearchQuery && (
@@ -1491,127 +1933,238 @@ export const NearExpiredRecap: React.FC = () => {
                         setSelectedProduct(null);
                         setSupplierNameInput('');
                         setSelectedSupplierId(undefined);
+                        setFormError(null);
                       }}
                       className="absolute right-2.5 top-2.5 p-1 text-neutral-400 hover:text-neutral-600 rounded-lg"
+                      title="Bersihkan nama produk"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
 
-                {/* Dropdown with arrow scroll */}
+                {/* Dropdown with Previous Search Section + Arrow Scroll */}
                 {isDropdownOpen && (
-                  <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-neutral-200 rounded-2xl shadow-xl max-h-64 overflow-y-auto p-1.5">
-                    {/* Previous Search Section if available */}
-                    {(!isTypingNew || !productSearchQuery.trim()) && !!lastSearchQuery && previousProducts.length > 0 && (
-                      <div className="mb-2 pb-2 border-b border-neutral-100">
-                        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                          Pencarian Terakhir: &quot;{lastSearchQuery}&quot;
-                        </div>
-                      </div>
+                  <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-neutral-200 rounded-2xl shadow-xl max-h-64 overflow-y-auto">
+                    {(!isTypingNew || !productSearchQuery.trim()) && (lastSearchQuery || searchHistory.length > 0) && (
+                      <PreviousSearchSection
+                        lastQuery={lastSearchQuery}
+                        results={previousProducts}
+                        history={searchHistory}
+                        onSelectResult={handleProductSelect}
+                        onSelectQuery={(q) => {
+                          setProductSearchQuery(q);
+                          setProductNameInput(q);
+                          setIsTypingNew(true);
+                          setHighlightedIndex(0);
+                        }}
+                        onClearHistory={() => {
+                          clearSearchHistory('near_expired_product');
+                          setSearchHistory([]);
+                          setLastSearchQueryState('');
+                        }}
+                        renderTitle={(p: Product) => p.name}
+                        renderSubtitle={(p: Product) => {
+                          const sup = suppliers.find(s => s.id === p.supplierId);
+                          return [sup?.name, p.category].filter(Boolean).join(' • ');
+                        }}
+                        renderBadge={(p: Product) => (
+                          <span className="px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600 font-mono text-[10px]">
+                            {p.unit || 'Pcs'}
+                          </span>
+                        )}
+                        keyExtractor={(p: Product) => p.id}
+                        highlightedIndex={!isTypingNew ? highlightedIndex : -1}
+                        onHighlightIndex={setHighlightedIndex}
+                      />
                     )}
 
-                    {filteredProducts.length === 0 ? (
-                      <div className="p-3 text-center text-xs text-neutral-500">
-                        Produk tidak ditemukan di master data.
-                        <div className="mt-1 font-semibold text-neutral-700">
-                          Tekan Enter untuk menggunakan nama ini sebagai produk kustom.
+                    <div className="p-1.5">
+                      {filteredProducts.length === 0 ? (
+                        <div className="p-3 text-center text-xs text-neutral-500">
+                          Produk tidak ditemukan di master data.
+                          <div className="mt-1 font-semibold text-neutral-700">
+                            Tekan Enter untuk gunakan sebagai produk kustom.
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      filteredProducts.map((p, idx) => {
-                        const sup = suppliers.find(s => s.id === p.supplierId);
-                        const isHighlighted = idx === highlightedIndex;
-                        return (
-                          <div
-                            key={p.id}
-                            data-highlighted={isHighlighted ? "true" : undefined}
-                            onClick={() => handleProductSelect(p)}
-                            onMouseEnter={() => setHighlightedIndex(idx)}
-                            className={`p-2.5 rounded-xl cursor-pointer text-xs transition-colors flex items-center justify-between ${
-                              isHighlighted ? 'bg-theme-100 text-theme-900 font-semibold' : 'hover:bg-neutral-50 text-neutral-700'
-                            }`}
-                          >
-                            <div>
-                              <div className="font-semibold text-neutral-900">{p.name}</div>
-                              <div className="text-[11px] text-neutral-500 flex items-center gap-2 mt-0.5">
-                                {sup && <span>Vendor: {sup.name}</span>}
-                                {p.category && <span>• {p.category}</span>}
+                      ) : (
+                        filteredProducts.map((p, idx) => {
+                          const sup = suppliers.find(s => s.id === p.supplierId);
+                          const isHighlighted = idx === highlightedIndex && (isTypingNew || previousProducts.length === 0);
+                          return (
+                            <div
+                              key={p.id}
+                              data-highlighted={isHighlighted ? 'true' : undefined}
+                              onClick={() => handleProductSelect(p)}
+                              onMouseEnter={() => setHighlightedIndex(idx)}
+                              className={`p-2.5 rounded-xl cursor-pointer text-xs transition-colors flex items-center justify-between gap-2 ${
+                                isHighlighted ? 'bg-theme-100 text-theme-900 font-semibold' : 'hover:bg-neutral-50 text-neutral-700'
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="font-semibold text-neutral-900 truncate">{p.name}</div>
+                                <div className="text-[11px] text-neutral-500 flex items-center gap-2 mt-0.5 truncate">
+                                  {sup && <span>Vendor: {sup.name}</span>}
+                                  {p.category && <span>• {p.category}</span>}
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="px-2 py-0.5 rounded-md bg-neutral-100 text-neutral-600 font-mono text-[10px]">
+                                  {p.unit || 'Pcs'}
+                                </span>
                               </div>
                             </div>
-                            <div className="text-right shrink-0">
-                              <span className="px-2 py-0.5 rounded-lg bg-neutral-100 text-neutral-600 font-mono text-[10px]">
-                                {p.unit || 'Pcs'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
 
               {/* Field 2: No Batch */}
-              <div className="lg:col-span-2">
-                <label className="block text-xs font-bold text-neutral-700 mb-1.5">
-                  No. Batch <span className="text-red-500">*</span>
+              <div className="sm:col-span-5">
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  No. Batch <span className="text-rose-500">*</span>
                 </label>
                 <input
                   ref={batchInputRef}
                   type="text"
                   value={batchInput}
-                  onChange={(e) => setBatchInput(e.target.value.toUpperCase())}
+                  onChange={(e) => {
+                    setBatchInput(e.target.value.toUpperCase());
+                    setFormError(null);
+                    setDuplicatePromptItem(null);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       expiredDateInputRef.current?.focus();
                     }
                   }}
-                  placeholder="Contoh: B89012"
-                  className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-semibold tracking-wide uppercase text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
+                  placeholder="Contoh: B24091A"
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-mono font-semibold tracking-wide uppercase text-neutral-900 placeholder:text-neutral-400 placeholder:font-sans placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-theme-500 focus:border-theme-500 focus:bg-white transition-all"
                 />
               </div>
+            </div>
+          </div>
 
+          {/* SECTION 2: KEDALUWARSA & STOK */}
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+                2. Kedaluwarsa &amp; Kuantitas Stok
+              </span>
+              {expiredDateInput && (
+                <span
+                  className={`text-[11px] font-semibold ${
+                    getUrgencyInfo(expiredDateInput).status === 'expired'
+                      ? 'text-red-600'
+                      : getUrgencyInfo(expiredDateInput).status === 'critical'
+                      ? 'text-rose-600'
+                      : getUrgencyInfo(expiredDateInput).status === 'warning'
+                      ? 'text-amber-600'
+                      : 'text-emerald-600'
+                  }`}
+                >
+                  {getUrgencyInfo(expiredDateInput).label}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5">
               {/* Field 3: Tanggal Expired */}
-              <div className="lg:col-span-3">
+              <div className="sm:col-span-5">
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-neutral-700">
-                    Tanggal Expired <span className="text-red-500">*</span>
+                  <label className="text-xs font-semibold text-neutral-700">
+                    Tanggal Expired <span className="text-rose-500">*</span>
                   </label>
-                  {expiredDateInput && (
-                    <span className="text-[10px] font-semibold text-neutral-500">
-                      {getUrgencyInfo(expiredDateInput).label}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {[1, 3, 6].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => applyQuickExpiredDate(m)}
+                        className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-neutral-100 hover:bg-theme-100 text-neutral-600 hover:text-theme-800 transition-colors"
+                        title={`Set ${m} bulan dari hari ini`}
+                      >
+                        +{m} Bln
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <input
                   ref={expiredDateInputRef}
                   type="date"
                   value={expiredDateInput}
-                  onChange={(e) => setExpiredDateInput(e.target.value)}
+                  onChange={(e) => {
+                    setExpiredDateInput(e.target.value);
+                    setFormError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      qtyInputRef.current?.focus();
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-theme-500 focus:border-theme-500 focus:bg-white transition-all"
+                />
+              </div>
+
+              {/* Field 4: Jumlah (Qty) */}
+              <div className="sm:col-span-4">
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Jumlah (Qty)
+                </label>
+                <input
+                  ref={qtyInputRef}
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={quantityInput}
+                  onChange={(e) => setQuantityInput(e.target.value === '' ? '' : Number(e.target.value))}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       supplierInputRef.current?.focus();
                     }
                   }}
-                  className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
+                  placeholder="0"
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 tabular-nums placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:border-theme-500 focus:bg-white transition-all"
                 />
               </div>
 
-              {/* Field 4: Perkiraan Supplier Produk Didapat */}
-              <div className="lg:col-span-3 relative" ref={supplierDropdownRef}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-neutral-700">
-                    Perkiraan Supplier <span className="text-red-500">*</span>
-                  </label>
-                  {selectedProduct && (
-                    <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                      Otomatis Master Data
-                    </span>
-                  )}
-                </div>
+              {/* Field 5: Satuan */}
+              <div className="sm:col-span-3">
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Satuan
+                </label>
+                <input
+                  type="text"
+                  list="near-expired-units"
+                  value={unitInput}
+                  onChange={(e) => setUnitInput(e.target.value)}
+                  placeholder="Pcs"
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:border-theme-500 focus:bg-white transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 3: SUPPLIER & RENCANA PENANGANAN */}
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+                3. Perkiraan Supplier &amp; Rencana Penanganan
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-start">
+              {/* Field 6: Perkiraan Supplier */}
+              <div className="sm:col-span-6 relative" ref={supplierDropdownRef}>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Perkiraan Supplier
+                </label>
                 <div className="relative">
                   <input
                     ref={supplierInputRef}
@@ -1619,18 +2172,19 @@ export const NearExpiredRecap: React.FC = () => {
                     value={supplierNameInput}
                     onChange={(e) => {
                       setSupplierNameInput(e.target.value);
+                      setSelectedSupplierId(undefined);
                       setIsSupplierDropdownOpen(true);
                     }}
                     onFocus={() => setIsSupplierDropdownOpen(true)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        qtyInputRef.current?.focus();
                         setIsSupplierDropdownOpen(false);
+                        handleAddPending();
                       }
                     }}
-                    placeholder="Pemasok / Sumber..."
-                    className="w-full pl-9 pr-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
+                    placeholder="Pilih atau ketik nama supplier..."
+                    className="w-full pl-9 pr-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:border-theme-500 focus:bg-white transition-all"
                   />
                   <Building2 className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
                 </div>
@@ -1638,7 +2192,6 @@ export const NearExpiredRecap: React.FC = () => {
                 {/* Categorized Supplier dropdown */}
                 {isSupplierDropdownOpen && (
                   <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-neutral-200 rounded-2xl shadow-xl max-h-56 overflow-y-auto p-1.5 divide-y divide-neutral-100">
-                    {/* Master data related suppliers */}
                     {(categorizedSuppliers.matchedPrimary || categorizedSuppliers.matchedAlts.length > 0) && (
                       <div className="pb-1.5">
                         <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1">
@@ -1651,15 +2204,14 @@ export const NearExpiredRecap: React.FC = () => {
                               setSupplierNameInput(categorizedSuppliers.matchedPrimary!.name);
                               setSelectedSupplierId(categorizedSuppliers.matchedPrimary!.id);
                               setIsSupplierDropdownOpen(false);
-                              qtyInputRef.current?.focus();
                             }}
                             className="px-2.5 py-2 rounded-xl text-xs hover:bg-theme-50 cursor-pointer flex items-center justify-between font-semibold text-theme-900 transition-colors"
                           >
-                            <span className="flex items-center gap-1.5">
-                              <Building2 className="w-3.5 h-3.5 text-theme-600" />
-                              {categorizedSuppliers.matchedPrimary.name}
+                            <span className="flex items-center gap-1.5 truncate">
+                              <Building2 className="w-3.5 h-3.5 text-theme-600 shrink-0" />
+                              <span className="truncate">{categorizedSuppliers.matchedPrimary.name}</span>
                             </span>
-                            <span className="text-[10px] font-bold text-theme-700 bg-theme-100 px-2 py-0.5 rounded-md">
+                            <span className="text-[10px] font-bold text-theme-700 bg-theme-100 px-2 py-0.5 rounded-md shrink-0">
                               Utama
                             </span>
                           </div>
@@ -1671,15 +2223,14 @@ export const NearExpiredRecap: React.FC = () => {
                               setSupplierNameInput(alt.name);
                               setSelectedSupplierId(alt.id);
                               setIsSupplierDropdownOpen(false);
-                              qtyInputRef.current?.focus();
                             }}
                             className="px-2.5 py-2 rounded-xl text-xs hover:bg-amber-50 cursor-pointer flex items-center justify-between text-neutral-800 transition-colors"
                           >
-                            <span className="flex items-center gap-1.5 font-medium">
-                              <Layers className="w-3.5 h-3.5 text-amber-600" />
-                              {alt.name}
+                            <span className="flex items-center gap-1.5 font-medium truncate">
+                              <Layers className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span className="truncate">{alt.name}</span>
                             </span>
-                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md shrink-0">
                               Alternatif
                             </span>
                           </div>
@@ -1687,7 +2238,6 @@ export const NearExpiredRecap: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Other suppliers */}
                     <div className="pt-1.5">
                       {categorizedSuppliers.otherSuppliers.length > 0 ? (
                         <>
@@ -1701,11 +2251,10 @@ export const NearExpiredRecap: React.FC = () => {
                                 setSupplierNameInput(s.name);
                                 setSelectedSupplierId(s.id);
                                 setIsSupplierDropdownOpen(false);
-                                qtyInputRef.current?.focus();
                               }}
                               className="px-2.5 py-2 rounded-xl text-xs hover:bg-neutral-100 cursor-pointer flex items-center justify-between text-neutral-700 transition-colors"
                             >
-                              <span>{s.name}</span>
+                              <span className="truncate">{s.name}</span>
                             </div>
                           ))}
                         </>
@@ -1720,115 +2269,52 @@ export const NearExpiredRecap: React.FC = () => {
                   </div>
                 )}
 
-                {/* Master Data Supplier & Alternatif Interactive Chips */}
-                {selectedProduct && (
-                  <div className="mt-2 p-2 bg-neutral-50/90 rounded-xl border border-neutral-200 text-xs space-y-1.5">
-                    {/* Supplier Utama */}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1">
-                        <Building2 className="w-3 h-3 text-theme-600" />
-                        Utama:
-                      </span>
-                      {activeProductSuppliers.primary ? (
+                {/* Compact Master Data quick-pick buttons */}
+                {selectedProduct && (activeProductSuppliers.primary || activeProductSuppliers.alternatives.length > 0) && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {activeProductSuppliers.primary && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSupplierNameInput(activeProductSuppliers.primary!.name);
+                          setSelectedSupplierId(activeProductSuppliers.primary!.id);
+                        }}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border transition-colors ${
+                          supplierNameInput.trim().toLowerCase() === activeProductSuppliers.primary.name.trim().toLowerCase()
+                            ? 'bg-theme-600 text-white border-theme-600'
+                            : 'bg-neutral-50 border-neutral-200 text-neutral-700 hover:bg-theme-50'
+                        }`}
+                      >
+                        <span>Utama: {activeProductSuppliers.primary.name}</span>
+                      </button>
+                    )}
+                    {activeProductSuppliers.alternatives.map((altSup) => {
+                      const isSelected = supplierNameInput.trim().toLowerCase() === altSup.name.trim().toLowerCase();
+                      return (
                         <button
+                          key={altSup.id}
                           type="button"
                           onClick={() => {
-                            setSupplierNameInput(activeProductSuppliers.primary!.name);
-                            setSelectedSupplierId(activeProductSuppliers.primary!.id);
+                            setSupplierNameInput(altSup.name);
+                            setSelectedSupplierId(altSup.id);
                           }}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold transition-all ${
-                            supplierNameInput.trim().toLowerCase() === activeProductSuppliers.primary.name.trim().toLowerCase()
-                              ? 'bg-theme-600 text-white shadow-2xs'
-                              : 'bg-white border border-neutral-300 text-neutral-800 hover:bg-theme-50 hover:border-theme-300'
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border transition-colors ${
+                            isSelected
+                              ? 'bg-amber-600 text-white border-amber-600'
+                              : 'bg-amber-50/70 border-amber-200 text-amber-800 hover:bg-amber-100'
                           }`}
-                          title="Gunakan Supplier Utama dari Master Data"
                         >
-                          {supplierNameInput.trim().toLowerCase() === activeProductSuppliers.primary.name.trim().toLowerCase() && (
-                            <Check className="w-3 h-3 text-white" />
-                          )}
-                          <span className="truncate max-w-[140px]">{activeProductSuppliers.primary.name}</span>
+                          <span>Alt: {altSup.name}</span>
                         </button>
-                      ) : (
-                        <span className="text-[10px] text-neutral-400 italic">Belum diset di master</span>
-                      )}
-                    </div>
-
-                    {/* Supplier Alternatif */}
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-neutral-200/60">
-                      <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1">
-                        <Layers className="w-3 h-3 text-amber-600" />
-                        Alternatif:
-                      </span>
-                      {activeProductSuppliers.alternatives.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {activeProductSuppliers.alternatives.map((altSup) => {
-                            const isSelected = supplierNameInput.trim().toLowerCase() === altSup.name.trim().toLowerCase();
-                            return (
-                              <button
-                                key={altSup.id}
-                                type="button"
-                                onClick={() => {
-                                  setSupplierNameInput(altSup.name);
-                                  setSelectedSupplierId(altSup.id);
-                                }}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs transition-all ${
-                                  isSelected
-                                    ? 'bg-amber-600 text-white font-bold shadow-2xs'
-                                    : 'bg-white border border-amber-200 text-amber-900 hover:bg-amber-50 hover:border-amber-300 font-medium'
-                                }`}
-                                title="Klik untuk memilih alternatif supplier ini"
-                              >
-                                {isSelected && <Check className="w-3 h-3 text-white" />}
-                                <span className="truncate max-w-[120px]">{altSup.name}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-neutral-400 italic">
-                          Tidak ada alternatif di master data
-                        </span>
-                      )}
-                    </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {/* Field 5: Qty & Satuan */}
-              <div className="lg:col-span-3">
-                <label className="block text-xs font-bold text-neutral-700 mb-1.5">
-                  Jumlah (Qty) &amp; Satuan
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    ref={qtyInputRef}
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={quantityInput}
-                    onChange={(e) => setQuantityInput(e.target.value === '' ? '' : Number(e.target.value))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddPending();
-                      }
-                    }}
-                    placeholder="Qty..."
-                    className="w-1/2 px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
-                  />
-                  <input
-                    type="text"
-                    value={unitInput}
-                    onChange={(e) => setUnitInput(e.target.value)}
-                    placeholder="Satuan"
-                    className="w-1/2 px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Field 6: Catatan / Rencana Aksi */}
-              <div className="lg:col-span-5">
-                <label className="block text-xs font-bold text-neutral-700 mb-1.5">
+              {/* Field 7: Catatan / Rencana Aksi */}
+              <div className="sm:col-span-6">
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                   Catatan / Rencana Penanganan
                 </label>
                 <input
@@ -1842,135 +2328,156 @@ export const NearExpiredRecap: React.FC = () => {
                     }
                   }}
                   placeholder="Misal: Retur ke PBF, Tukar Guling, Promo Diskon..."
-                  className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:border-theme-500 focus:bg-white transition-all"
                 />
-              </div>
-
-              {/* Buttons Action */}
-              <div className="lg:col-span-4 flex items-end gap-2">
-                <button
-                  type="button"
-                  disabled={isSaving}
-                  onClick={handleAddPending}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-theme-600 hover:bg-theme-700 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95"
-                  title="Tambah ke antrean list (kumpulkan beberapa item lalu simpan sekali klik)"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Tambah ke List</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isSaving}
-                  onClick={handleDirectSave}
-                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-white border border-theme-300 hover:bg-theme-50 disabled:opacity-50 text-theme-800 shadow-xs transition-all active:scale-95"
-                  title="Simpan langsung ke database tanpa tertimpa (Ctrl + S)"
-                >
-                  {isSaving ? (
-                    <RefreshCw className="w-4 h-4 animate-spin text-theme-600" />
-                  ) : (
-                    <Save className="w-4 h-4 text-theme-600" />
-                  )}
-                  <span>{isSaving ? 'Menyimpan...' : 'Simpan'}</span>
-                </button>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                  {['Retur ke PBF', 'Tukar Guling', 'Promo Diskon', 'Pantau'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setNotesInput(preset)}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-medium border transition-colors ${
+                        notesInput === preset
+                          ? 'bg-neutral-800 text-white border-neutral-800'
+                          : 'bg-neutral-50 border-neutral-200 text-neutral-600 hover:bg-neutral-100'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
+          </div>
 
-            {/* PENDING ITEMS LIST (Daftar Antrean Input) */}
-            {pendingItems.length > 0 && (
-              <div className="pt-4 border-t border-neutral-200">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                    <h3 className="font-bold text-neutral-900 text-sm">
-                      Daftar Antrean Tersedia ({pendingItems.length} Item Siap Disimpan)
-                    </h3>
-                  </div>
+          {/* STRUCTURED FOOTER ACTION BAR */}
+          <div className="pt-4 border-t border-neutral-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={resetFormFields}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-neutral-600 hover:bg-neutral-100 disabled:opacity-50 transition-colors self-start sm:self-auto"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Form</span>
+            </button>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={() => setPendingItems([])}
-                      className="px-3 py-1.5 rounded-xl text-xs font-medium text-neutral-600 hover:bg-neutral-100 disabled:opacity-50 transition-colors"
-                    >
-                      Kosongkan Antrean
-                    </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={handleAddPending}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 disabled:opacity-50 text-neutral-800 transition-colors active:scale-95 whitespace-nowrap"
+                title="Masukkan ke antrean sebelum disimpan sekaligus"
+              >
+                <Plus className="w-4 h-4 text-theme-600" />
+                <span>Tambah ke Antrean</span>
+              </button>
 
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={handleSaveAllPending}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95"
-                      title="Simpan seluruh antrean ke database"
-                    >
-                      {isSaving ? (
-                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                      ) : (
-                        <Save className="w-4 h-4" />
-                      )}
-                      <span>{isSaving ? 'Menyimpan...' : 'Simpan Semua (Ctrl + S)'}</span>
-                    </button>
-                  </div>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={handleDirectSave}
+                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold bg-theme-600 hover:bg-theme-700 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95 whitespace-nowrap"
+                title="Simpan langsung ke database (Ctrl + S)"
+              >
+                {isSaving ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                <span>
+                  {isSaving
+                    ? 'Menyimpan...'
+                    : pendingItems.length > 0
+                    ? `Simpan Semua (${pendingItems.length + (resolveCurrentFormItem() ? 1 : 0)})`
+                    : 'Simpan Data'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* PENDING ITEMS LIST (Daftar Antrean Input) */}
+          {pendingItems.length > 0 && (
+            <div className="pt-4 border-t border-neutral-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <h4 className="font-bold text-neutral-900 text-xs sm:text-sm">
+                    Antrean Input ({pendingItems.length} Item Siap Disimpan)
+                  </h4>
                 </div>
 
-                <div className="bg-neutral-50 rounded-2xl border border-neutral-200 overflow-hidden divide-y divide-neutral-200 max-h-60 overflow-y-auto">
-                  {pendingItems.map((item, index) => {
-                    const urgency = getUrgencyInfo(item.expiredDate);
-                    return (
-                      <div key={item.id} className="p-3 flex items-center justify-between gap-3 hover:bg-white transition-colors">
-                        <div className="flex items-center gap-3">
-                          <span className="w-6 h-6 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-xs">
-                            {index + 1}
-                          </span>
-                          <div>
-                            <div className="font-bold text-sm text-neutral-900">{item.productName}</div>
-                            <div className="text-xs text-neutral-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
-                              <span>Batch: <strong className="text-neutral-800">{item.batch}</strong></span>
-                              <span>Expired: <strong className="text-neutral-800">{item.expiredDate}</strong> ({urgency.label})</span>
-                              <span>Supplier: <strong className="text-neutral-800">{item.supplierName}</strong></span>
-                              {(() => {
-                                const prod = item.productId
-                                  ? products.find(p => p.id === item.productId)
-                                  : products.find(p => p.name.trim().toLowerCase() === item.productName.trim().toLowerCase());
-                                const alts = (prod?.alternativeSupplierIds || [])
-                                  .map(id => suppliers.find(s => s.id === id)?.name)
-                                  .filter(Boolean);
-                                if (alts.length === 0) return null;
-                                return (
-                                  <span className="text-[11px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                    Alt: {alts.join(', ')}
-                                  </span>
-                                );
-                              })()}
-                              {item.quantity !== undefined && <span>Qty: <strong>{item.quantity} {item.unit}</strong></span>}
-                              {item.notes && <span className="italic">Catatan: {item.notes}</span>}
-                            </div>
-                          </div>
-                        </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => setPendingItems([])}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-600 hover:bg-neutral-100 disabled:opacity-50 transition-colors"
+                  >
+                    Kosongkan
+                  </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePendingItem(item.id)}
-                          className="p-1.5 text-neutral-400 hover:text-red-600 rounded-lg transition-colors"
-                          title="Hapus dari antrean"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={handleSaveAllPending}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white shadow-xs transition-all active:scale-95"
+                  >
+                    {isSaving ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isSaving ? 'Menyimpan...' : 'Simpan Antrean'}</span>
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
-        )}
-      </div>
+
+              <div className="bg-neutral-50 rounded-2xl border border-neutral-200 overflow-hidden divide-y divide-neutral-200 max-h-56 overflow-y-auto">
+                {pendingItems.map((item, index) => {
+                  const urgency = getUrgencyInfo(item.expiredDate);
+                  return (
+                    <div key={item.id} className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-white transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="w-6 h-6 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-xs shrink-0 tabular-nums">
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm text-neutral-900 truncate">{item.productName}</div>
+                          <div className="text-xs text-neutral-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+                            <span>Batch: <strong className="font-mono text-neutral-800">{item.batch}</strong></span>
+                            <span>ED: <strong className="text-neutral-800 tabular-nums">{item.expiredDate}</strong> ({urgency.label})</span>
+                            <span>Supplier: <strong className="text-neutral-800">{item.supplierName}</strong></span>
+                            {item.quantity !== undefined && (
+                              <span className="tabular-nums">Qty: <strong>{item.quantity} {item.unit || 'Pcs'}</strong></span>
+                            )}
+                            {item.notes && <span className="italic truncate max-w-[200px]">Catatan: {item.notes}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePendingItem(item.id)}
+                        className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-lg transition-colors shrink-0"
+                        title="Hapus dari antrean"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </FloatingFormModal>
 
       {/* TABLE & FILTER REKAP DATA */}
-      <div className="bg-white rounded-3xl border border-theme-200 shadow-sm overflow-hidden space-y-4 p-4 md:p-6 no-print">
+      <div className="bg-white rounded-3xl border border-theme-200 shadow-sm overflow-x-clip space-y-4 p-4 md:p-6 no-print">
         {/* Table Toolbar: Search, Filters, Sort */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-xs py-2.5 -mx-4 px-4 md:-mx-6 md:px-6 border-b border-neutral-100 rounded-t-3xl flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Search box */}
           <div className="relative flex-1 max-w-md">
             <input
@@ -2067,7 +2574,7 @@ export const NearExpiredRecap: React.FC = () => {
               <span>{selectedIds.size} item terpilih</span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => handleBatchMarkStatus('returned')}
@@ -2094,10 +2601,10 @@ export const NearExpiredRecap: React.FC = () => {
           </div>
         )}
 
-        {/* Responsive Mobile Card View */}
-        <div className={viewMode === 'table' ? 'hidden' : viewMode === 'cards' ? 'block space-y-3' : 'md:hidden space-y-3'}>
+        {/* Responsive Mobile & Tablet Card View */}
+        <div className={viewMode === 'table' ? 'hidden' : viewMode === 'cards' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'grid grid-cols-1 md:grid-cols-2 lg:hidden gap-3'}>
           {filteredRecords.length === 0 ? (
-            <div className="p-8 text-center bg-neutral-50 rounded-2xl border border-neutral-200 text-neutral-500">
+            <div className="col-span-full p-8 text-center bg-neutral-50 rounded-2xl border border-neutral-200 text-neutral-500">
               <CalendarClock className="w-10 h-10 mx-auto mb-2 opacity-40 text-neutral-400" />
               <p className="font-semibold text-neutral-700">Belum ada data produk expired dekat</p>
               <p className="text-xs text-neutral-400 mt-1">Tambahkan produk melalui form di atas atau sesuaikan filter</p>
@@ -2255,11 +2762,11 @@ export const NearExpiredRecap: React.FC = () => {
         </div>
 
         {/* Desktop / Full Table Content */}
-        <div className={viewMode === 'cards' ? 'hidden' : viewMode === 'table' ? 'block' : 'hidden md:block'}>
-          <div className="overflow-x-auto rounded-2xl border border-neutral-200">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-neutral-50/80 text-neutral-600 border-b border-neutral-200 font-bold uppercase tracking-wider text-[11px]">
+        <div className={viewMode === 'cards' ? 'hidden' : viewMode === 'table' ? 'block' : 'hidden lg:block'}>
+          <div className="overflow-auto max-h-[68vh] min-h-[240px] rounded-2xl border border-neutral-200">
+            <table className="w-full min-w-[920px] text-left text-xs border-collapse">
+              <thead className="sticky top-0 z-20 bg-neutral-100 shadow-xs">
+                <tr className="bg-neutral-100 text-neutral-700 border-b border-neutral-200 font-bold uppercase tracking-wider text-[11px]">
                   <th className="p-3 w-10 text-center">
                     <input
                       type="checkbox"
@@ -2429,150 +2936,169 @@ export const NearExpiredRecap: React.FC = () => {
       </div>
 
       {/* EDIT MODAL */}
-      {editingEntry && (
-        <div className="fixed inset-0 z-50 bg-neutral-900/50 backdrop-blur-xs flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 animate-in fade-in zoom-in-95 space-y-5">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-              <div>
-                <h3 className="font-bold text-neutral-900 text-base">Edit Data Produk Expired</h3>
-                <p className="text-xs text-neutral-500">{editingEntry.productName}</p>
+      <FloatingFormModal
+        isOpen={Boolean(editingEntry)}
+        onClose={() => {
+          setEditingEntry(null);
+          setEditFormError(null);
+        }}
+        title="Edit Data Produk Expired"
+        subtitle={editingEntry?.productName}
+        icon={<Edit2 className="w-4 h-4" />}
+        maxWidthClass="max-w-xl"
+      >
+        {editingEntry && (
+          <div className="space-y-4 text-xs">
+            {editFormError && (
+              <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{editFormError}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setEditingEntry(null)}
-                className="p-1.5 text-neutral-400 hover:text-neutral-600 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            )}
 
-            <div className="space-y-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block font-bold text-neutral-700 mb-1">No. Batch</label>
+                <label className="block font-semibold text-neutral-700 mb-1.5">
+                  No. Batch <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={editBatch}
-                  onChange={(e) => setEditBatch(e.target.value.toUpperCase())}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-semibold uppercase text-neutral-900 focus:outline-none focus:ring-2 focus:ring-theme-500"
+                  onChange={(e) => {
+                    setEditBatch(e.target.value.toUpperCase());
+                    setEditFormError(null);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-mono font-semibold uppercase text-neutral-900 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-neutral-700 mb-1">Tanggal Expired</label>
-                <input
-                  type="date"
-                  value={editExpiredDate}
-                  onChange={(e) => setEditExpiredDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:outline-none focus:ring-2 focus:ring-theme-500"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-bold text-neutral-700">Perkiraan Supplier</label>
-                  {editEntryProduct && (
-                    <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                      Tersambung Master Data
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block font-semibold text-neutral-700">
+                    Tanggal Expired <span className="text-rose-500">*</span>
+                  </label>
+                  {editExpiredDate && (
+                    <span className="text-[10px] font-semibold text-neutral-500">
+                      {getUrgencyInfo(editExpiredDate).label}
                     </span>
                   )}
                 </div>
                 <input
-                  type="text"
-                  value={editSupplierName}
-                  onChange={(e) => setEditSupplierName(e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:outline-none focus:ring-2 focus:ring-theme-500"
-                />
-                {(editEntrySuppliers.primary || editEntrySuppliers.alternatives.length > 0) && (
-                  <div className="mt-2 p-2 bg-neutral-50 rounded-xl border border-neutral-200 text-xs space-y-1.5">
-                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">
-                      Pilihan dari Master Data:
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {editEntrySuppliers.primary && (
-                        <button
-                          type="button"
-                          onClick={() => setEditSupplierName(editEntrySuppliers.primary!.name)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                            editSupplierName.trim().toLowerCase() === editEntrySuppliers.primary.name.trim().toLowerCase()
-                              ? 'bg-theme-600 text-white shadow-2xs'
-                              : 'bg-white border border-neutral-300 text-neutral-800 hover:bg-theme-50'
-                          }`}
-                        >
-                          <Building2 className="w-3 h-3" />
-                          <span>Utama: {editEntrySuppliers.primary.name}</span>
-                        </button>
-                      )}
-                      {editEntrySuppliers.alternatives.map(alt => (
-                        <button
-                          key={alt.id}
-                          type="button"
-                          onClick={() => setEditSupplierName(alt.name)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                            editSupplierName.trim().toLowerCase() === alt.name.trim().toLowerCase()
-                              ? 'bg-amber-600 text-white font-semibold shadow-2xs'
-                              : 'bg-white border border-amber-200 text-amber-900 hover:bg-amber-50'
-                          }`}
-                        >
-                          <Layers className="w-3 h-3 text-amber-500" />
-                          <span>Alt: {alt.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-neutral-700 mb-1">Jumlah (Qty)</label>
-                  <input
-                    type="number"
-                    value={editQuantity}
-                    onChange={(e) => setEditQuantity(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:outline-none focus:ring-2 focus:ring-theme-500"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-neutral-700 mb-1">Satuan</label>
-                  <input
-                    type="text"
-                    value={editUnit}
-                    onChange={(e) => setEditUnit(e.target.value)}
-                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:outline-none focus:ring-2 focus:ring-theme-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-neutral-700 mb-1">Status Penanganan</label>
-                <select
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value as any)}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-800 focus:outline-none focus:ring-2 focus:ring-theme-500"
-                >
-                  <option value="pending">Menunggu Tindakan (Pending)</option>
-                  <option value="returned">Sudah Diretur ke Supplier</option>
-                  <option value="resolved">Selesai Ditangani</option>
-                  <option value="disposed">Pemusnahan Barang</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-neutral-700 mb-1">Catatan</label>
-                <textarea
-                  rows={2}
-                  value={editNotes}
-                  onChange={(e) => setEditNotes(e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-medium text-neutral-900 focus:outline-none focus:ring-2 focus:ring-theme-500"
-                  placeholder="Keterangan tambahan..."
+                  type="date"
+                  value={editExpiredDate}
+                  onChange={(e) => {
+                    setEditExpiredDate(e.target.value);
+                    setEditFormError(null);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block font-semibold text-neutral-700">Perkiraan Supplier</label>
+                {editEntryProduct && (
+                  <span className="text-[11px] font-semibold text-emerald-700 inline-flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Terhubung Master Data
+                  </span>
+                )}
+              </div>
+              <input
+                type="text"
+                value={editSupplierName}
+                onChange={(e) => setEditSupplierName(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
+              />
+              {(editEntrySuppliers.primary || editEntrySuppliers.alternatives.length > 0) && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {editEntrySuppliers.primary && (
+                    <button
+                      type="button"
+                      onClick={() => setEditSupplierName(editEntrySuppliers.primary!.name)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                        editSupplierName.trim().toLowerCase() === editEntrySuppliers.primary.name.trim().toLowerCase()
+                          ? 'bg-theme-600 text-white border-theme-600'
+                          : 'bg-neutral-50 border-neutral-200 text-neutral-700 hover:bg-theme-50'
+                      }`}
+                    >
+                      <span>Utama: {editEntrySuppliers.primary.name}</span>
+                    </button>
+                  )}
+                  {editEntrySuppliers.alternatives.map(alt => (
+                    <button
+                      key={alt.id}
+                      type="button"
+                      onClick={() => setEditSupplierName(alt.name)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                        editSupplierName.trim().toLowerCase() === alt.name.trim().toLowerCase()
+                          ? 'bg-amber-600 text-white border-amber-600'
+                          : 'bg-amber-50/70 border-amber-200 text-amber-800 hover:bg-amber-100'
+                      }`}
+                    >
+                      <span>Alt: {alt.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div>
+                <label className="block font-semibold text-neutral-700 mb-1.5">Jumlah (Qty)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editQuantity}
+                  onChange={(e) => setEditQuantity(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-neutral-700 mb-1.5">Satuan</label>
+                <input
+                  type="text"
+                  list="near-expired-units"
+                  value={editUnit}
+                  onChange={(e) => setEditUnit(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-medium text-neutral-900 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-neutral-700 mb-1.5">Status</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as any)}
+                  className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-800 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="returned">Diretur</option>
+                  <option value="resolved">Selesai</option>
+                  <option value="disposed">Pemusnahan</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-neutral-700 mb-1.5">Catatan Penanganan</label>
+              <textarea
+                rows={2}
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-medium text-neutral-900 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:bg-white transition-all"
+                placeholder="Keterangan tambahan..."
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-200">
               <button
                 type="button"
-                onClick={() => setEditingEntry(null)}
+                onClick={() => {
+                  setEditingEntry(null);
+                  setEditFormError(null);
+                }}
                 className="px-4 py-2 rounded-xl text-xs font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
               >
                 Batal
@@ -2580,14 +3106,223 @@ export const NearExpiredRecap: React.FC = () => {
               <button
                 type="button"
                 onClick={handleSaveEdit}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-theme-600 hover:bg-theme-700 text-white transition-colors shadow-xs"
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold bg-theme-600 hover:bg-theme-700 text-white transition-colors shadow-xs"
               >
-                Simpan Perubahan
+                <Save className="w-3.5 h-3.5" />
+                <span>Simpan Perubahan</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </FloatingFormModal>
+
+      {/* EXCEL IMPORT PREVIEW MODAL */}
+      <FloatingFormModal
+        isOpen={isImportPreviewOpen}
+        onClose={() => {
+          if (!isExecutingImport) setIsImportPreviewOpen(false);
+        }}
+        title="Pratinjau Import Excel Expired Dekat"
+        subtitle="Periksa validasi data & kecocokan Master Data sebelum disimpan ke database"
+        icon={<FileSpreadsheet className="w-5 h-5" />}
+        maxWidthClass="max-w-4xl"
+      >
+        <div className="space-y-4">
+          {/* Compact Metrics Strip */}
+          <div className="grid grid-cols-3 gap-3 text-xs">
+            <div className="px-3.5 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200">
+              <div className="text-[11px] font-medium text-neutral-500">Siap Diimpor</div>
+              <div className="text-lg font-bold text-neutral-900 tabular-nums mt-0.5">
+                {importPreviewRows.length} Baris
+              </div>
+            </div>
+            <div className="px-3.5 py-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
+              <div className="text-[11px] font-medium text-emerald-700">Cocok Master Data</div>
+              <div className="text-lg font-bold text-emerald-900 tabular-nums mt-0.5">
+                {importPreviewRows.filter(r => r.matchedProduct).length} Produk
+              </div>
+            </div>
+            <div className="px-3.5 py-2.5 rounded-xl bg-amber-50/70 border border-amber-200">
+              <div className="text-[11px] font-medium text-amber-700">Duplikat Batch Aktif</div>
+              <div className="text-lg font-bold text-amber-900 tabular-nums mt-0.5">
+                {importPreviewRows.filter(r => r.duplicateExisting).length} Baris
+              </div>
+            </div>
+          </div>
+
+          {/* Validation Errors / Skipped Rows */}
+          {importParseErrors.length > 0 && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1.5">
+              <div className="font-bold flex items-center gap-1.5 text-rose-800">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{importParseErrors.length} Baris Dilewati / Bermasalah:</span>
+              </div>
+              <ul className="list-disc pl-5 space-y-0.5 max-h-24 overflow-y-auto text-[11px] text-rose-800">
+                {importParseErrors.map((err, idx) => (
+                  <li key={idx}>{err}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Merge Duplicate Option */}
+          {importPreviewRows.some(r => r.duplicateExisting) && (
+            <label className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-neutral-800 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={mergeDuplicateOnImport}
+                onChange={(e) => setMergeDuplicateOnImport(e.target.checked)}
+                className="rounded border-neutral-300 text-theme-600 focus:ring-theme-500"
+              />
+              <span>
+                Gabungkan Qty secara otomatis jika <strong>Nama Produk + No. Batch</strong> masih aktif di rekap
+              </span>
+            </label>
+          )}
+
+          {/* Scrollable Preview Table with Sticky Header */}
+          <div className="border border-neutral-200 rounded-2xl overflow-hidden">
+            <div className="max-h-80 overflow-y-auto overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="sticky top-0 z-10 bg-neutral-100 border-b border-neutral-200 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+                  <tr>
+                    <th className="px-3 py-2.5 w-10 text-center">Brs</th>
+                    <th className="px-3 py-2.5">Nama Produk</th>
+                    <th className="px-3 py-2.5">No. Batch</th>
+                    <th className="px-3 py-2.5">Tgl Expired</th>
+                    <th className="px-3 py-2.5">Supplier</th>
+                    <th className="px-3 py-2.5 text-right">Qty</th>
+                    <th className="px-3 py-2.5">Status</th>
+                    <th className="px-3 py-2.5 w-10 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 bg-white">
+                  {importPreviewRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-neutral-500">
+                        Tidak ada baris valid yang siap diimpor. Silakan periksa format file Excel atau gunakan template resmi.
+                      </td>
+                    </tr>
+                  ) : (
+                    importPreviewRows.map((row, idx) => {
+                      const urgency = getUrgencyInfo(row.expiredDate);
+                      return (
+                        <tr key={`${row.rowNumber}-${idx}`} className="hover:bg-neutral-50/80 transition-colors">
+                          <td className="px-3 py-2 text-center font-mono text-[11px] text-neutral-400 tabular-nums">
+                            {row.rowNumber}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="font-semibold text-neutral-900">
+                              {row.matchedProduct?.name || row.productName}
+                            </div>
+                            <div className="text-[10px] text-neutral-500 flex items-center gap-2 mt-0.5">
+                              {row.matchedProduct ? (
+                                <span className="text-emerald-700 font-medium">Master Data</span>
+                              ) : (
+                                <span className="text-neutral-500">Produk Kustom</span>
+                              )}
+                              {row.duplicateExisting && (
+                                <span className="text-amber-700 font-semibold">
+                                  • Batch Aktif ({row.duplicateExisting.quantity || 0} {row.duplicateExisting.unit || 'Pcs'})
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 font-mono font-semibold text-neutral-800">
+                            {row.batch}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <div className="font-medium text-neutral-900 tabular-nums">{row.expiredDate}</div>
+                            <div className="text-[10px] text-neutral-500">{urgency.label}</div>
+                          </td>
+                          <td className="px-3 py-2 text-neutral-700">
+                            {row.resolvedSupplierName}
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold text-neutral-900 tabular-nums whitespace-nowrap">
+                            {row.quantity !== undefined ? `${row.quantity} ${row.resolvedUnit}` : `- (${row.resolvedUnit})`}
+                          </td>
+                          <td className="px-3 py-2 text-neutral-700 capitalize">
+                            {row.status === 'returned'
+                              ? 'Retur'
+                              : row.status === 'resolved'
+                              ? 'Selesai'
+                              : row.status === 'disposed'
+                              ? 'Pemusnahan'
+                              : 'Pending'}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImportPreviewRow(row.rowNumber, idx)}
+                              className="p-1 text-neutral-400 hover:text-rose-600 rounded transition-colors"
+                              title="Hapus baris dari antrean import"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Preview Footer Actions */}
+          <div className="pt-3 border-t border-neutral-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => downloadNearExpiredTemplate(products, suppliers)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Unduh Template</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => excelFileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition-colors"
+              >
+                <Upload className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Ganti File</span>
+              </button>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={isExecutingImport}
+                onClick={() => setIsImportPreviewOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={importPreviewRows.length === 0 || isExecutingImport}
+                onClick={handleExecuteImport}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95"
+              >
+                <Save className="w-4 h-4" />
+                <span>Import &amp; Simpan ({importPreviewRows.length} Item)</span>
               </button>
             </div>
           </div>
         </div>
-      )}
+      </FloatingFormModal>
+
+      <OperationProgressModal
+        isOpen={isExecutingImport}
+        type="import"
+        title="Mengimpor Data Expired Dekat"
+        subtitle="Menyimpan data dari Excel ke database..."
+        current={importProgress.current}
+        total={importProgress.total}
+        currentItemName={importProgress.currentItemName}
+        startTime={importProgress.startTime}
+      />
 
       {/* PRINT PREVIEW & SETTINGS MODAL */}
       {isPrintModalOpen && (

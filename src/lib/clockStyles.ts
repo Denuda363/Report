@@ -14,7 +14,7 @@ export const CLOCK_STYLE_OPTIONS: ClockStyleMeta[] = [
     name: '3D Blok Taktil',
     description: 'Tombol angka 3D berbevel mengikuti palet tema aktif.',
     badge: 'Klasik 3D',
-    recommendedThemes: ['default', 'green']
+    recommendedThemes: ['default', 'green', 'ubuntu']
   },
   {
     id: 'analog-hybrid',
@@ -77,7 +77,7 @@ export const CLOCK_STYLE_OPTIONS: ClockStyleMeta[] = [
     name: 'Kaca Kristal Frosted',
     description: 'Panel kaca transparan blur dengan tepian cahaya lembut.',
     badge: 'Glass',
-    recommendedThemes: ['glass']
+    recommendedThemes: ['glass', 'windows11']
   }
 ];
 
@@ -101,7 +101,9 @@ export const getRecommendedClockStyleForTheme = (themeId?: string): ClockStyle =
     case 'glossy':
       return 'glossy-pill';
     case 'glass':
+    case 'windows11':
       return 'glass-frost';
+    case 'ubuntu':
     case 'default':
     default:
       return '3d-blocks';

@@ -22,10 +22,8 @@ export const exportReportsToTxt = (
       BottomStock: product?.bottomStock,
       'Sudah Order': report.isOrdered ? '✓' : '-',
       'Sudah Datang': report.isArrived ? 'Sudah Datang' : '-',
-      'Sudah Dicek': report.isChecked ? '[✓ Sudah Dicek]' : '[- Belum Dicek]',
       IsOrdered: !!report.isOrdered,
       IsArrived: !!report.isArrived,
-      IsChecked: !!report.isChecked,
       KosongPabrik: isKosongPabrik,
       ReorderQty: report.isReorder ? report.reorderQty : undefined,
       ReorderReason: report.isReorder ? report.reorderReason : undefined,
@@ -71,7 +69,6 @@ export const exportReportsToTxt = (
       const statuses = [
         item.IsOrdered ? '✓' : '',
         item.IsArrived ? 'Sudah Datang' : '',
-        item.IsChecked ? '✓ Sudah Dicek' : '',
       ].filter(Boolean).join(' | ');
       const statusStr = statuses ? ` [${statuses}]` : '';
       const notesStr = item.Notes ? ` (${item.Notes})` : '';
@@ -718,4 +715,241 @@ export const parseArrivedImport = async (file: File) => {
     reader.readAsArrayBuffer(file);
   });
 };
+
+export interface NearExpiredImportRow {
+  productName: string;
+  batch: string;
+  expiredDate: string; // YYYY-MM-DD
+  supplierName: string;
+  quantity?: number;
+  unit: string;
+  notes?: string;
+  status: 'pending' | 'returned' | 'disposed' | 'resolved';
+  rowNumber: number;
+}
+
+export const downloadNearExpiredTemplate = (
+  existingProducts: Product[] = [],
+  existingSuppliers: Supplier[] = []
+) => {
+  const wb = XLSX.utils.book_new();
+
+  const today = new Date();
+  const sampleDate1 = new Date(today.getFullYear(), today.getMonth() + 2, 15).toISOString().split('T')[0];
+  const sampleDate2 = new Date(today.getFullYear(), today.getMonth() + 4, 28).toISOString().split('T')[0];
+
+  const firstProd = existingProducts[0];
+  const secondProd = existingProducts[1];
+  const firstSup = firstProd ? existingSuppliers.find(s => s.id === firstProd.supplierId)?.name : undefined;
+  const secondSup = secondProd ? existingSuppliers.find(s => s.id === secondProd.supplierId)?.name : undefined;
+
+  const templateData = [
+    {
+      'Nama Produk': firstProd?.name || 'Paracetamol 500mg Box',
+      'No. Batch': 'B24091A',
+      'Tanggal Expired (YYYY-MM-DD)': sampleDate1,
+      'Perkiraan Supplier': firstSup || existingSuppliers[0]?.name || 'PT Contoh Supplier',
+      'Jumlah (Qty)': 12,
+      'Satuan': firstProd?.unit || 'Box',
+      'Status (Pending/Retur/Selesai/Pemusnahan)': 'Pending',
+      'Catatan': 'Prioritaskan penjualan / cek retur PBF'
+    },
+    {
+      'Nama Produk': secondProd?.name || 'Vitamin C 500mg Strip',
+      'No. Batch': 'VC88210',
+      'Tanggal Expired (YYYY-MM-DD)': sampleDate2,
+      'Perkiraan Supplier': secondSup || existingSuppliers[0]?.name || 'CV Makmur Jaya',
+      'Jumlah (Qty)': 25,
+      'Satuan': secondProd?.unit || 'Strip',
+      'Status (Pending/Retur/Selesai/Pemusnahan)': 'Pending',
+      'Catatan': 'Monitoring berkala'
+    }
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(templateData);
+  ws['!cols'] = [
+    { wch: 32 }, // Nama Produk
+    { wch: 16 }, // No. Batch
+    { wch: 28 }, // Tanggal Expired
+    { wch: 26 }, // Perkiraan Supplier
+    { wch: 14 }, // Jumlah (Qty)
+    { wch: 12 }, // Satuan
+    { wch: 38 }, // Status
+    { wch: 34 }, // Catatan
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, 'Import_Expired_Dekat');
+
+  const guideData = [
+    { Kolom: 'Nama Produk', Wajib: 'Ya', Format: 'Teks nama produk (otomatis terhubung ke Master Data jika nama sama)' },
+    { Kolom: 'No. Batch', Wajib: 'Ya', Format: 'Kode batch produk, otomatis diubah ke huruf kapital (contoh: B24091A)' },
+    { Kolom: 'Tanggal Expired (YYYY-MM-DD)', Wajib: 'Ya', Format: 'Format YYYY-MM-DD (2026-08-15), DD/MM/YYYY, atau sel Tanggal Excel' },
+    { Kolom: 'Perkiraan Supplier', Wajib: 'Opsional', Format: 'Nama supplier; jika dikosongkan otomatis diambil dari Master Data produk' },
+    { Kolom: 'Jumlah (Qty)', Wajib: 'Opsional', Format: 'Angka jumlah stok (contoh: 12)' },
+    { Kolom: 'Satuan', Wajib: 'Opsional', Format: 'Satuan unit (Pcs, Box, Strip, Botol, dll). Default mengikuti Master Data / Pcs' },
+    { Kolom: 'Status (Pending/Retur/Selesai/Pemusnahan)', Wajib: 'Opsional', Format: 'Isi salah satu: Pending, Retur, Selesai, atau Pemusnahan (default: Pending)' },
+    { Kolom: 'Catatan', Wajib: 'Opsional', Format: 'Rencana penanganan / keterangan tambahan' },
+  ];
+  const guideWs = XLSX.utils.json_to_sheet(guideData);
+  guideWs['!cols'] = [{ wch: 40 }, { wch: 12 }, { wch: 68 }];
+  XLSX.utils.book_append_sheet(wb, guideWs, 'Panduan_Pengisian');
+
+  XLSX.writeFile(wb, 'Template_Import_Expired_Dekat.xlsx');
+};
+
+const normalizeExcelHeaderKey = (key: string): string =>
+  key.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const getRowValueByAliases = (row: Record<string, any>, aliases: string[]): any => {
+  const entries = Object.entries(row);
+  for (const alias of aliases) {
+    if (row[alias] !== undefined && row[alias] !== null && String(row[alias]).trim() !== '') {
+      return row[alias];
+    }
+  }
+  const normalizedMap = new Map<string, any>();
+  for (const [k, v] of entries) {
+    normalizedMap.set(normalizeExcelHeaderKey(k), v);
+  }
+  for (const alias of aliases) {
+    const val = normalizedMap.get(normalizeExcelHeaderKey(alias));
+    if (val !== undefined && val !== null && String(val).trim() !== '') {
+      return val;
+    }
+  }
+  return '';
+};
+
+const mapNearExpiredStatus = (rawStatus: any): 'pending' | 'returned' | 'disposed' | 'resolved' => {
+  const s = String(rawStatus || '').trim().toLowerCase();
+  if (!s) return 'pending';
+  if (s.includes('retur') || s === 'returned') return 'returned';
+  if (s.includes('musnah') || s === 'disposed') return 'disposed';
+  if (s.includes('selesai') || s === 'resolved' || s === 'done') return 'resolved';
+  return 'pending';
+};
+
+export const parseNearExpiredImport = async (file: File) => {
+  return new Promise<{ items: NearExpiredImportRow[]; errors: string[] }>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const errors: string[] = [];
+
+        const preferredSheet =
+          workbook.SheetNames.find(n => n.toLowerCase().includes('expired')) ||
+          workbook.SheetNames[0];
+
+        if (!preferredSheet) {
+          errors.push('File Excel kosong atau tidak memiliki sheet data.');
+          return resolve({ items: [], errors });
+        }
+
+        const parsedData = XLSX.utils.sheet_to_json<Record<string, any>>(workbook.Sheets[preferredSheet], {
+          defval: ''
+        });
+
+        if (parsedData.length === 0) {
+          errors.push(`Sheet "${preferredSheet}" tidak memiliki baris data.`);
+          return resolve({ items: [], errors });
+        }
+
+        const items: NearExpiredImportRow[] = [];
+
+        parsedData.forEach((row, index) => {
+          const rowNumber = index + 2;
+
+          const rawProduct = getRowValueByAliases(row, [
+            'Nama Produk', 'Produk', 'Product', 'Nama Barang', 'Product Name', 'Name'
+          ]);
+          const rawBatch = getRowValueByAliases(row, [
+            'No. Batch', 'No Batch', 'Nomor Batch', 'Batch', 'Kode Batch', 'Batch Number'
+          ]);
+          const rawExpired = getRowValueByAliases(row, [
+            'Tanggal Expired (YYYY-MM-DD)', 'Tanggal Expired', 'Tgl Expired', 'Expired Date', 'Expired', 'ED', 'Tgl ED'
+          ]);
+          const rawSupplier = getRowValueByAliases(row, [
+            'Perkiraan Supplier', 'Supplier', 'Nama Supplier', 'Vendor', 'Pemasok'
+          ]);
+          const rawQty = getRowValueByAliases(row, [
+            'Jumlah (Qty)', 'Jumlah', 'Qty', 'Quantity', 'Kuantitas', 'Stok'
+          ]);
+          const rawUnit = getRowValueByAliases(row, [
+            'Satuan', 'Unit'
+          ]);
+          const rawStatus = getRowValueByAliases(row, [
+            'Status (Pending/Retur/Selesai/Pemusnahan)', 'Status Penanganan', 'Status'
+          ]);
+          const rawNotes = getRowValueByAliases(row, [
+            'Catatan', 'Catatan Tindakan', 'Keterangan', 'Notes', 'Rencana Aksi', 'Rencana Penanganan'
+          ]);
+
+          const productName = String(rawProduct || '').trim();
+          const batch = String(rawBatch || '').trim().toUpperCase();
+          const parsedExpiredDate = formatExcelDate(rawExpired);
+
+          // Skip completely blank trailing rows
+          if (!productName && !batch && !parsedExpiredDate) {
+            return;
+          }
+
+          if (!productName) {
+            errors.push(`Baris ${rowNumber} dilewati: Kolom "Nama Produk" kosong.`);
+            return;
+          }
+
+          if (!batch) {
+            errors.push(`Baris ${rowNumber} ("${productName}") dilewati: Kolom "No. Batch" wajib diisi.`);
+            return;
+          }
+
+          if (!parsedExpiredDate || !/^\d{4}-\d{2}-\d{2}$/.test(parsedExpiredDate)) {
+            errors.push(`Baris ${rowNumber} ("${productName}") dilewati: Format "Tanggal Expired" tidak valid (${rawExpired || 'kosong'}).`);
+            return;
+          }
+
+          const [y, m, d] = parsedExpiredDate.split('-').map(Number);
+          const checkDate = new Date(y, m - 1, d);
+          if (
+            isNaN(checkDate.getTime()) ||
+            checkDate.getFullYear() !== y ||
+            checkDate.getMonth() !== m - 1 ||
+            checkDate.getDate() !== d
+          ) {
+            errors.push(`Baris ${rowNumber} ("${productName}") dilewati: Tanggal Expired "${parsedExpiredDate}" tidak valid.`);
+            return;
+          }
+
+          let quantity: number | undefined = undefined;
+          if (rawQty !== '' && rawQty !== null && rawQty !== undefined && String(rawQty).trim() !== '-') {
+            const parsedNum = Number(String(rawQty).replace(',', '.'));
+            if (!isNaN(parsedNum) && parsedNum >= 0) {
+              quantity = parsedNum;
+            }
+          }
+
+          items.push({
+            productName,
+            batch,
+            expiredDate: parsedExpiredDate,
+            supplierName: String(rawSupplier || '').trim(),
+            quantity,
+            unit: String(rawUnit || '').trim(),
+            notes: String(rawNotes || '').trim() || undefined,
+            status: mapNearExpiredStatus(rawStatus),
+            rowNumber
+          });
+        });
+
+        resolve({ items, errors });
+      } catch (err: any) {
+        resolve({ items: [], errors: ['Gagal membaca file Excel: ' + (err?.message || err)] });
+      }
+    };
+    reader.onerror = () => reject(new Error('Gagal membaca file Excel'));
+    reader.readAsArrayBuffer(file);
+  });
+};
+
 

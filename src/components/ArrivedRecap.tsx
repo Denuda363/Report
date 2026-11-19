@@ -3,8 +3,8 @@ import { format, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fn
 import { 
   Search, Calendar as CalendarIcon, PackageOpen, Plus, ChevronDown, X, 
   Maximize2, Minimize2, Edit2, Check, Trash2, Download, Filter, 
-  ChevronUp, Upload, RefreshCw, PackageCheck, CheckCircle2, AlertCircle, 
-  FileSpreadsheet, Building2, Layers, ChevronRight, ChevronLeft,
+  Upload, RefreshCw, PackageCheck, CheckCircle2, AlertCircle, 
+  FileSpreadsheet, Building2, Layers,
   Boxes, FileText, LayoutGrid, Table as TableIcon, TrendingUp, Sparkles
 } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
@@ -15,6 +15,7 @@ import { cn } from '../lib/utils';
 import { Product, ReportEntry } from '../types';
 import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../lib/searchHistory';
 import { PreviousSearchSection } from './PreviousSearchSection';
+import { FloatingFormModal } from './common/FloatingFormModal';
 
 export const ArrivedRecap = () => {
   const { reports, products, suppliers, addReport, addReportsBatch, updateReport, deleteReport, updateProduct, updateProductsBatch, addSupplier, addProduct } = useAppContext();
@@ -41,9 +42,15 @@ export const ArrivedRecap = () => {
   const filterSupplierDropdownRef = useRef<HTMLDivElement>(null);
   const [isListFullscreen, setIsListFullscreen] = useState(false);
   const [isFormFullscreen, setIsFormFullscreen] = useState(false);
-  const [isFormCollapsed, setIsFormCollapsed] = useState(false);
-  const [mobileTab, setMobileTab] = useState<'list' | 'form'>('list');
+  const [isFormCollapsed, setIsFormCollapsed] = useState(true);
   const [viewMode, setViewMode] = useState<'auto' | 'table' | 'cards'>('auto');
+
+  const handleCloseFormModal = () => {
+    setIsFormCollapsed(true);
+    setIsFormFullscreen(false);
+    setIsSupplierDropdownOpen(false);
+    setIsProductDropdownOpen(false);
+  };
 
   // Import State & Progress Animation
   const [isImporting, setIsImporting] = useState(false);
@@ -770,8 +777,8 @@ export const ArrivedRecap = () => {
       setSaveSuccessMsg(`Berhasil menyimpan ${savedCount} data barang datang! Stok produk otomatis diperbarui.`);
       setTimeout(() => setSaveSuccessMsg(null), 4000);
 
-      // Switch to list view on mobile
-      setMobileTab('list');
+      // Close floating modal after save
+      handleCloseFormModal();
     } catch (err: any) {
       console.error("Error saving arrived items:", err);
       setFormErrorMsg("Gagal menyimpan data barang datang: " + (err?.message || "Terjadi kesalahan sistem."));
@@ -780,9 +787,10 @@ export const ArrivedRecap = () => {
     }
   };
 
-  // Ctrl + S shortcut to save arrived items list
+  // Ctrl + S shortcut to save arrived items list when modal is open
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (isFormCollapsed && !isFormFullscreen) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         const hasPending = arrivedItems.length > 0 || ((currentProductId || currentSearchQuery.trim()) && currentArrivedQty !== '' && Number(currentArrivedQty) > 0);
@@ -1186,131 +1194,19 @@ export const ArrivedRecap = () => {
 
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">
-      
-      {/* Mobile Tab Switcher (< lg) */}
-      <div className="lg:hidden flex items-center p-1 bg-theme-100/70 backdrop-blur rounded-2xl border border-theme-200 mb-3 shrink-0 shadow-2xs">
-        <button
-          type="button"
-          onClick={() => setMobileTab('list')}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all",
-            mobileTab === 'list'
-              ? "bg-white text-theme-900 shadow-2xs"
-              : "text-theme-600-text hover:text-theme-900"
-          )}
-        >
-          <PackageOpen className="w-4 h-4 text-theme-500" />
-          <span>Daftar Datang</span>
-          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-theme-100 text-theme-700 font-bold">
-            {filteredArrivedData.length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setMobileTab('form')}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all",
-            mobileTab === 'form'
-              ? "bg-theme-500 text-white shadow-2xs shadow-theme-500/30"
-              : "text-theme-600-text hover:text-theme-900"
-          )}
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Input Barang</span>
-          {arrivedItems.length > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white text-theme-700 font-bold">
-              {arrivedItems.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-5 flex-1 min-h-0">
-      
-      {/* Input Form */}
-      <div className={
-        isFormFullscreen
-          ? "fixed inset-0 z-[100] bg-theme-50/95 backdrop-blur-md p-4 sm:p-6 md:p-8 overflow-y-auto animate-in zoom-in-95 duration-200 shadow-2xl flex flex-col"
-          : cn(
-              "bg-white rounded-3xl border border-theme-200 shadow-xs transition-all duration-300 h-fit",
-              // Mobile visibility based on active tab
-              mobileTab === 'form' ? "w-full block p-4 sm:p-5" : "hidden lg:block",
-              // Desktop collapsed state
-              isFormCollapsed ? "lg:w-16 lg:p-3 overflow-hidden" : "lg:w-80 xl:w-96 lg:p-5 shrink-0"
-            )
-      }>
-        {/* Collapsed Rail on Desktop */}
-        {isFormCollapsed && !isFormFullscreen ? (
-          <div className="hidden lg:flex flex-col items-center gap-4 py-2">
-            <button
-              onClick={() => setIsFormCollapsed(false)}
-              className="p-2.5 bg-theme-100 hover:bg-theme-200 text-theme-700 rounded-2xl transition-all shadow-2xs group relative"
-              title="Buka Form Input"
-            >
-              <PackageOpen className="w-5 h-5 group-hover:scale-110 transition-transform" />
-              {arrivedItems.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-theme-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-xs">
-                  {arrivedItems.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setIsFormCollapsed(false)}
-              className="p-2 text-theme-600-text hover:text-theme-900 hover:bg-theme-50 rounded-xl transition-colors"
-              title="Perluas Form Input"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            <div 
-              className="[writing-mode:vertical-rl] rotate-180 text-xs font-bold text-theme-600-text tracking-wider uppercase select-none cursor-pointer py-2 hover:text-theme-900" 
-              onClick={() => setIsFormCollapsed(false)}
-            >
-              Form Input Barang
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* Form Header */}
-            <div className="flex items-center justify-between mb-4 gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-theme-100 text-theme-700 rounded-xl shadow-2xs">
-                  <PackageOpen className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-theme-900 text-sm md:text-base leading-tight">Input Barang Datang</h3>
-                  <p className="text-[11px] text-theme-600-text hidden sm:block">Tambah riwayat penerimaan</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setIsFormFullscreen(!isFormFullscreen)}
-                  className="p-1.5 text-neutral-500 hover:text-theme-700 hover:bg-theme-100 rounded-lg transition-colors active:scale-95 bg-white border border-theme-200 shadow-2xs"
-                  title={isFormFullscreen ? "Perkecil (Minimize)" : "Layar Penuh (Maximize)"}
-                >
-                  {isFormFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                </button>
-                {!isFormFullscreen && (
-                  <button
-                    onClick={() => setIsFormCollapsed(true)}
-                    className="hidden lg:flex p-1.5 text-neutral-500 hover:text-theme-700 hover:bg-theme-100 rounded-lg transition-colors active:scale-95 bg-white border border-theme-200 shadow-2xs"
-                    title="Sembunyikan Form (Collapse)"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                )}
-                {!isFormFullscreen && (
-                  <button
-                    onClick={() => setMobileTab('list')}
-                    className="lg:hidden p-1.5 text-neutral-500 hover:text-theme-700 hover:bg-theme-100 rounded-lg transition-colors active:scale-95 bg-white border border-theme-200 shadow-2xs"
-                    title="Kembali ke Daftar"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-            
-            <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+      {/* Floating Input Barang Datang Modal matching DailyReport style */}
+      <FloatingFormModal
+        isOpen={!isFormCollapsed || isFormFullscreen}
+        onClose={handleCloseFormModal}
+        title="Input Barang Datang"
+        subtitle="Tambah riwayat penerimaan & perbarui stok"
+        icon={<PackageOpen className="w-5 h-5" />}
+        isFullscreen={isFormFullscreen}
+        onToggleFullscreen={() => setIsFormFullscreen(!isFormFullscreen)}
+        disableEscapeClose={isSupplierDropdownOpen || isProductDropdownOpen}
+        maxWidthClass="max-w-lg"
+      >
+        <div className="space-y-4">
           {/* 1. TANGGAL DI PALING ATAS */}
           <div>
             <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Tanggal</label>
@@ -1802,24 +1698,22 @@ export const ArrivedRecap = () => {
             <p className="text-xs text-rose-500 mt-2 text-center">Belum ada produk di Master Data. Produk yang diketik baru akan didaftarkan otomatis.</p>
           )}
         </div>
-        </>
-        )}
-      </div>
+      </FloatingFormModal>
 
-      {/* Recap List */}
+      {/* Recap List (Always Full Width) */}
       <div className={
         isListFullscreen
           ? "fixed inset-0 z-[100] bg-theme-50 p-4 sm:p-6 md:p-8 flex flex-col animate-in zoom-in-95 duration-200 shadow-2xl overflow-hidden"
-          : cn(
-              "flex-1 bg-white rounded-3xl border border-theme-200 shadow-xs overflow-hidden flex flex-col min-w-0 transition-all duration-300",
-              mobileTab === 'list' ? "flex" : "hidden lg:flex"
-            )
+          : "flex-1 bg-white rounded-3xl border border-theme-200 shadow-xs overflow-x-clip sm:overflow-hidden flex flex-col min-w-0 transition-all duration-300"
       }>
-        {/* Header & Controls */}
-        <div className="p-3.5 sm:p-5 border-b border-theme-200 bg-theme-50/50 flex flex-col gap-3.5 shrink-0">
-          {/* Top row: Title, Total badge, View switch, Fullscreen */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2.5">
+        {/* Sticky Top Title & Action Bar on Mobile (Always fixed on sm+) */}
+        <div className={cn(
+          "px-3.5 pt-3.5 pb-2.5 sm:px-5 sm:pt-5 sm:pb-0 flex flex-wrap items-center justify-between gap-2.5 shrink-0",
+          isListFullscreen
+            ? "bg-theme-50/50"
+            : "sticky top-0 sm:static z-20 bg-theme-50/95 sm:bg-theme-50/50 backdrop-blur-xs sm:backdrop-blur-none border-b border-theme-200/70 sm:border-b-0 rounded-t-3xl sm:rounded-none"
+        )}>
+          <div className="flex items-center gap-2.5">
               <div className="p-2 bg-theme-100 text-theme-700 rounded-xl shadow-2xs">
                 <PackageOpen className="w-5 h-5" />
               </div>
@@ -1834,7 +1728,24 @@ export const ArrivedRecap = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFormCollapsed(false);
+                  setTimeout(() => productInputRef.current?.focus(), 80);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold bg-theme-600 hover:bg-theme-700 text-white transition-all shadow-sm active:scale-95 whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Input Barang Datang</span>
+                {arrivedItems.length > 0 && (
+                  <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.5 rounded-full font-extrabold">
+                    {arrivedItems.length}
+                  </span>
+                )}
+              </button>
+
               {/* View Mode Toggle (Card vs Table) */}
               <div className="hidden sm:flex items-center bg-white border border-theme-200 rounded-xl p-0.5 shadow-2xs">
                 <button
@@ -1881,7 +1792,21 @@ export const ArrivedRecap = () => {
                 <span className="hidden sm:inline">{isListFullscreen ? "Perkecil" : "Layar Penuh"}</span>
               </button>
             </div>
-          </div>
+        </div>
+
+        {/* Sub-header Controls (Stats & Filters) */}
+        <div className="px-3.5 py-3 sm:px-5 sm:pb-5 sm:pt-3.5 border-b border-theme-200 bg-theme-50/50 flex flex-col gap-3.5 shrink-0">
+          {saveSuccessMsg && (
+            <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between shadow-2xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="font-semibold">{saveSuccessMsg}</span>
+              </div>
+              <button type="button" onClick={() => setSaveSuccessMsg(null)} className="text-emerald-600 hover:text-emerald-800 p-0.5">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Quick Stat Ribbon */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
@@ -1931,20 +1856,20 @@ export const ArrivedRecap = () => {
               </div>
 
               {/* Custom Date Inputs */}
-              <div className="flex items-center gap-1.5 bg-white border border-theme-200 rounded-xl px-2.5 py-1 text-xs shadow-2xs">
+              <div className="flex flex-wrap xs:flex-nowrap items-center gap-1.5 bg-white border border-theme-200 rounded-xl px-2.5 py-1 text-xs shadow-2xs w-full sm:w-auto">
                 <CalendarIcon className="w-3.5 h-3.5 text-theme-500 shrink-0" />
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-transparent outline-none text-theme-900 font-medium w-26 sm:w-28 text-xs"
+                  className="bg-transparent outline-none text-theme-900 font-medium flex-1 min-w-[110px] sm:flex-none sm:w-28 text-xs"
                 />
-                <span className="text-theme-400">-</span>
+                <span className="text-theme-400 hidden xs:inline">-</span>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-transparent outline-none text-theme-900 font-medium w-26 sm:w-28 text-xs"
+                  className="bg-transparent outline-none text-theme-900 font-medium flex-1 min-w-[110px] sm:flex-none sm:w-28 text-xs"
                 />
               </div>
             </div>
@@ -1952,7 +1877,7 @@ export const ArrivedRecap = () => {
             {/* Search, Filter & Action Group */}
             <div className="flex flex-wrap items-center gap-2">
               {/* Search box */}
-              <div className="relative flex-1 sm:w-48 xl:w-52" ref={listSearchDropdownRef}>
+              <div className="relative w-full sm:flex-1 sm:w-48 xl:w-52 min-w-[150px]" ref={listSearchDropdownRef}>
                 <Search className="w-3.5 h-3.5 text-theme-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   ref={listInputRef}
@@ -1991,7 +1916,7 @@ export const ArrivedRecap = () => {
                 )}
 
                 {isListSearchDropdownOpen && (
-                  <div className="absolute left-0 z-50 mt-1 w-64 bg-white border border-theme-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-1">
+                  <div className="absolute left-0 z-50 mt-1 w-full sm:w-64 max-w-[calc(100vw-2rem)] bg-white border border-theme-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-1">
                     {(!isTypingNewList || !searchQueryList.trim()) && lastListQuery && (
                       <PreviousSearchSection
                         lastQuery={lastListQuery}
@@ -2067,7 +1992,7 @@ export const ArrivedRecap = () => {
               </div>
 
               {/* Searchable Supplier Filter */}
-              <div className="relative w-44 sm:w-52" ref={filterSupplierDropdownRef}>
+              <div className="relative flex-1 sm:flex-none sm:w-52 min-w-[150px]" ref={filterSupplierDropdownRef}>
                 <div className="relative flex items-center w-full">
                   <Building2 className="w-3.5 h-3.5 text-theme-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
@@ -2125,7 +2050,7 @@ export const ArrivedRecap = () => {
                 </div>
 
                 {isFilterSupplierDropdownOpen && (
-                  <div className="absolute left-0 z-50 mt-1 w-64 bg-white border border-theme-200 rounded-xl shadow-xl max-h-72 overflow-y-auto py-1">
+                  <div className="absolute left-0 z-50 mt-1 w-full sm:w-64 max-w-[calc(100vw-2rem)] bg-white border border-theme-200 rounded-xl shadow-xl max-h-72 overflow-y-auto py-1">
                     {(!isTypingNewFilterSupplier || !supplierFilterQuery.trim()) && lastFilterSupplierQuery && (
                       <PreviousSearchSection
                         lastQuery={lastFilterSupplierQuery}
@@ -2212,7 +2137,7 @@ export const ArrivedRecap = () => {
               </div>
 
               {/* Export & Import Buttons */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={() => exportArrivedToExcel(filteredArrivedData, `Barang_Datang_${format(new Date(), 'yyyyMMdd')}`)}
                   disabled={filteredArrivedData.length === 0}
@@ -2224,14 +2149,14 @@ export const ArrivedRecap = () => {
                 <button
                   onClick={() => exportArrivedToTxt(filteredArrivedData, `Barang_Datang_${format(new Date(), 'yyyyMMdd')}`)}
                   disabled={filteredArrivedData.length === 0}
-                  className="hidden sm:flex items-center gap-1.5 bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50 px-2.5 py-1.5 rounded-xl font-medium transition-all text-xs shadow-2xs active:scale-95"
+                  className="flex items-center gap-1.5 bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50 px-2.5 py-1.5 rounded-xl font-medium transition-all text-xs shadow-2xs active:scale-95"
                   title="Export ke File TXT"
                 >
                   <Download className="w-3.5 h-3.5" /> <span>TXT</span>
                 </button>
                 <button
                   onClick={downloadArrivedTemplate}
-                  className="hidden md:flex items-center gap-1.5 bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50 px-2.5 py-1.5 rounded-xl font-medium transition-all text-xs shadow-2xs active:scale-95"
+                  className="flex items-center gap-1.5 bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50 px-2.5 py-1.5 rounded-xl font-medium transition-all text-xs shadow-2xs active:scale-95"
                   title="Download Template Import Excel"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> <span>Template</span>
@@ -2324,11 +2249,12 @@ export const ArrivedRecap = () => {
         </div>
 
         {/* List Content: Responsive Cards + Table */}
-        <div className={
+        <div className={cn(
           isListFullscreen
             ? "flex-1 overflow-auto bg-white rounded-2xl border border-theme-200 shadow-xs min-h-0"
-            : "flex-1 overflow-auto"
-        }>
+            : "flex-1 overflow-auto min-h-0",
+          !isListFullscreen && viewMode === 'table' && "max-h-[65dvh] sm:max-h-none"
+        )}>
           {filteredArrivedData.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-neutral-400 p-8 min-h-[300px]">
               <PackageOpen className="w-16 h-16 mb-3 opacity-20" />
@@ -2355,10 +2281,10 @@ export const ArrivedRecap = () => {
             </div>
           ) : (
             <>
-              {/* 1. MOBILE CARDS VIEW (Shown on Mobile / Small screens, or when viewMode is 'cards') */}
+              {/* 1. MOBILE & TABLET CARDS VIEW */}
               <div className={cn(
-                "p-3 sm:p-4 space-y-2.5",
-                viewMode === 'table' ? "hidden" : viewMode === 'cards' ? "block" : "block md:hidden"
+                "p-3 sm:p-4 grid grid-cols-1 md:grid-cols-2 gap-3",
+                viewMode === 'table' ? "hidden" : viewMode === 'cards' ? "grid" : "grid lg:hidden"
               )}>
                 {filteredArrivedData.map((item, i) => (
                   <motion.div
@@ -2496,13 +2422,12 @@ export const ArrivedRecap = () => {
                 ))}
               </div>
 
-              {/* 2. TABLE VIEW (Shown on Tablet & Desktop, or when viewMode is 'table') */}
+              {/* 2. TABLE VIEW (Desktop or explicit table toggle) */}
               <div className={cn(
-                "overflow-x-auto",
-                viewMode === 'cards' ? "hidden" : viewMode === 'table' ? "block" : "hidden md:block"
+                viewMode === 'cards' ? "hidden" : viewMode === 'table' ? "block" : "hidden lg:block"
               )}>
-                <table className="w-full text-xs sm:text-sm text-left border-collapse">
-                  <thead className="text-[11px] text-theme-600-text uppercase tracking-wider bg-theme-50 sticky top-0 z-10 shadow-2xs">
+                <table className="w-full min-w-[700px] text-xs sm:text-sm text-left border-collapse">
+                  <thead className="text-[11px] text-theme-600-text uppercase tracking-wider bg-theme-100 sticky top-0 z-20 shadow-xs">
                     <tr>
                       <th className="px-4 py-3 font-bold border-b border-theme-200 whitespace-nowrap">Tanggal</th>
                       <th className="px-4 py-3 font-bold border-b border-theme-200 min-w-[180px]">Nama Barang</th>
@@ -2627,7 +2552,6 @@ export const ArrivedRecap = () => {
             </>
           )}
         </div>
-      </div>
       </div>
 
       {/* Progress Animation Modal for Excel Import */}

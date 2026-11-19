@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { format, subDays, startOfMonth } from 'date-fns';
-import { Search, PackageMinus, Plus, ChevronDown, X, Check, Trash2, Edit2, Calendar as CalendarIcon, PackageOpen } from 'lucide-react';
+import { Search, PackageMinus, Plus, ChevronDown, X, Check, Trash2, Edit2, Calendar as CalendarIcon } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { StockOutEntry } from '../types';
 import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../lib/searchHistory';
 import { PreviousSearchSection } from './PreviousSearchSection';
+import { FloatingFormModal } from './common/FloatingFormModal';
 
 export const StockOut = () => {
   const { stockOuts, products, addStockOut, updateStockOut, deleteStockOut, updateProduct, userId, addReport, reports, addStockOutsBatch } = useAppContext();
@@ -52,7 +53,14 @@ export const StockOut = () => {
       console.error("Error saving stockout pending items to localStorage:", e);
     }
   }, [pendingItems]);
-  const [mobileTab, setMobileTab] = useState<'form' | 'history'>('form');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isFormFullscreen, setIsFormFullscreen] = useState(false);
+
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setIsFormFullscreen(false);
+    setIsProductDropdownOpen(false);
+  };
 
   const [editStockOutId, setEditStockOutId] = useState<string | null>(null);
   const [editQty, setEditQty] = useState<number | ''>('');
@@ -304,12 +312,13 @@ export const StockOut = () => {
     
     setPendingItems([]);
     alert("Berhasil menyimpan data pengeluaran stok secara instan!");
-    setMobileTab('history');
+    handleCloseForm();
   };
 
-  // Ctrl + S shortcut to save pending stock out items list
+  // Ctrl + S shortcut to save pending stock out items list when modal is open
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (!(isFormOpen || isFormFullscreen)) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         if (pendingItems.length > 0) {
@@ -346,295 +355,274 @@ export const StockOut = () => {
   }, [stockOuts, startDate, endDate]);
 
   return (
-    <div className="h-full flex flex-col lg:flex-row gap-4 lg:gap-8 pb-12 w-full max-w-[1600px] mx-auto">
-      
-      {/* Mobile Segmented Switcher */}
-      <div className="lg:hidden flex items-center bg-white p-1 rounded-2xl border border-theme-200 shadow-sm shrink-0">
-        <button
-          type="button"
-          onClick={() => setMobileTab('form')}
-          className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
-            mobileTab === 'form'
-              ? 'bg-theme-500 text-white shadow-md shadow-theme-500/20'
-              : 'text-theme-600 hover:text-theme-900 hover:bg-theme-50'
-          }`}
-        >
-          <PackageMinus className="w-4 h-4" />
-          <span>Catat Pengeluaran</span>
-          {pendingItems.length > 0 && (
-            <span className="bg-rose-500 text-white text-[10px] px-2 py-0.2 rounded-full font-extrabold shadow-sm">
-              {pendingItems.length}
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => setMobileTab('history')}
-          className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
-            mobileTab === 'history'
-              ? 'bg-theme-500 text-white shadow-md shadow-theme-500/20'
-              : 'text-theme-600 hover:text-theme-900 hover:bg-theme-50'
-          }`}
-        >
-          <CalendarIcon className="w-4 h-4" />
-          <span>Riwayat ({filteredStockOuts.length})</span>
-        </button>
-      </div>
-
-      {/* Form Panel */}
-      <div className={`w-full lg:w-[450px] flex-shrink-0 flex flex-col gap-6 ${
-        mobileTab === 'form' ? 'flex' : 'hidden lg:flex'
-      }`}>
-        <div className="bg-white rounded-3xl border border-theme-200 shadow-sm overflow-hidden flex flex-col relative z-20">
-          <div className="bg-theme-500 p-6 text-white shrink-0 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <PackageMinus className="w-24 h-24 transform translate-x-4 -translate-y-4" />
-            </div>
-            <div className="relative z-10">
-              <h2 className="text-xl font-bold flex items-center gap-2 mb-1">
-                <PackageMinus className="w-6 h-6" /> Form Pengeluaran
-              </h2>
-              <p className="text-white/80 text-sm">Catat stok keluar dari gudang</p>
-            </div>
+    <div className="sm:h-full flex flex-col gap-4 pb-4 w-full max-w-[1600px] mx-auto">
+      {/* Floating Input Modal matching DailyReport style */}
+      <FloatingFormModal
+        isOpen={isFormOpen || isFormFullscreen}
+        onClose={handleCloseForm}
+        title="Form Pengeluaran Stok"
+        subtitle="Catat stok keluar dari gudang"
+        icon={<PackageMinus className="w-5 h-5" />}
+        isFullscreen={isFormFullscreen}
+        onToggleFullscreen={() => setIsFormFullscreen(!isFormFullscreen)}
+        disableEscapeClose={isProductDropdownOpen}
+        maxWidthClass="max-w-lg"
+      >
+        <div className="flex flex-col gap-4">
+          <div>
+            <label className="block text-xs font-bold text-theme-900 mb-1">Tanggal Keluar</label>
+            <input 
+              type="date" 
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-3 py-2 border border-theme-200 rounded-xl text-sm outline-none focus:border-theme-500 bg-white"
+            />
           </div>
-          
-          <div className="p-4 flex flex-col gap-4">
-            <div>
-              <label className="block text-xs font-bold text-theme-900 mb-1">Tanggal Keluar</label>
+
+          <div className="relative" ref={productDropdownRef}>
+            <label className="block text-xs font-bold text-theme-900 mb-1">Pilih Produk</label>
+            <div className="flex items-center w-full px-3 py-2 border border-theme-200 rounded-xl text-sm bg-white focus-within:border-theme-500 focus-within:ring-2 focus-within:ring-theme-100 transition-all">
+              <Search className="w-4 h-4 text-theme-400 mr-2 shrink-0" />
               <input 
-                type="date" 
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 border border-theme-200 rounded-xl text-sm outline-none focus:border-theme-500 bg-white"
+                ref={productInputRef}
+                type="text" 
+                className="bg-transparent outline-none w-full text-theme-900"
+                placeholder="Ketik nama produk..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setIsTypingNew(true);
+                  setHighlightedIndex(0);
+                  setIsProductDropdownOpen(true);
+                }}
+                onClick={() => {
+                  setIsProductDropdownOpen(true);
+                  setIsTypingNew(false);
+                  setHighlightedIndex(0);
+                  productInputRef.current?.select();
+                }}
+                onFocus={() => {
+                  setIsProductDropdownOpen(true);
+                  setIsTypingNew(false);
+                  setHighlightedIndex(0);
+                  productInputRef.current?.select();
+                }}
+                onKeyDown={handleSearchKeyDown}
+              />
+              {searchQuery && (
+                <X 
+                  className="w-4 h-4 text-theme-400 hover:text-rose-500 cursor-pointer mr-1 shrink-0" 
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedProduct(null);
+                    setIsTypingNew(false);
+                  }}
+                />
+              )}
+              <ChevronDown 
+                className={`w-4 h-4 text-theme-400 ml-1 transition-transform duration-200 cursor-pointer ${isProductDropdownOpen ? 'rotate-180' : ''}`}
+                onClick={() => {
+                  setIsProductDropdownOpen(!isProductDropdownOpen);
+                  setIsTypingNew(false);
+                }}
               />
             </div>
 
-            <div className="relative" ref={productDropdownRef}>
-              <label className="block text-xs font-bold text-theme-900 mb-1">Pilih Produk</label>
-              <div className="flex items-center w-full px-3 py-2 border border-theme-200 rounded-xl text-sm bg-white focus-within:border-theme-500 focus-within:ring-2 focus-within:ring-theme-100 transition-all">
-                <Search className="w-4 h-4 text-theme-400 mr-2 shrink-0" />
-                <input 
-                  ref={productInputRef}
-                  type="text" 
-                  className="bg-transparent outline-none w-full text-theme-900"
-                  placeholder="Ketik nama produk..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setIsTypingNew(true);
-                    setHighlightedIndex(0);
-                    setIsProductDropdownOpen(true);
-                  }}
-                  onClick={() => {
-                    setIsProductDropdownOpen(true);
-                    setIsTypingNew(false);
-                    setHighlightedIndex(0);
-                    productInputRef.current?.select();
-                  }}
-                  onFocus={() => {
-                    setIsProductDropdownOpen(true);
-                    setIsTypingNew(false);
-                    setHighlightedIndex(0);
-                    productInputRef.current?.select();
-                  }}
-                  onKeyDown={handleSearchKeyDown}
-                />
-                {searchQuery && (
-                  <X 
-                    className="w-4 h-4 text-theme-400 hover:text-rose-500 cursor-pointer mr-1 shrink-0" 
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedProduct(null);
+            {isProductDropdownOpen && (
+              <div className="absolute top-full left-0 right-0 mt-1 max-h-72 overflow-y-auto bg-white border border-theme-200 rounded-xl shadow-xl z-[60] py-1">
+                {(!isTypingNew || !searchQuery.trim()) && lastSearchQuery && (
+                  <PreviousSearchSection
+                    lastQuery={lastSearchQuery}
+                    results={previousProducts}
+                    history={productSearchHistory}
+                    highlightedIndex={highlightedIndex}
+                    onHighlightIndex={setHighlightedIndex}
+                    onSelectResult={(p) => handleProductSelect(p.id, p.name, p.stock || 0)}
+                    onSelectQuery={(term) => {
+                      setSearchQuery(term);
                       setIsTypingNew(false);
+                      setHighlightedIndex(0);
+                      setIsProductDropdownOpen(true);
                     }}
+                    onClearHistory={() => {
+                      clearSearchHistory('stockout_product');
+                      setLastSearchQueryState('');
+                      setProductSearchHistory([]);
+                    }}
+                    renderTitle={(p) => p.name}
+                    renderSubtitle={(p) => `Sisa Stok: ${p.stock || 0} ${p.unit || 'pcs'}`}
+                    keyExtractor={(p) => `prev-so-${p.id}`}
                   />
                 )}
-                <ChevronDown 
-                  className={`w-4 h-4 text-theme-400 ml-1 transition-transform duration-200 cursor-pointer ${isProductDropdownOpen ? 'rotate-180' : ''}`}
-                  onClick={() => {
-                    setIsProductDropdownOpen(!isProductDropdownOpen);
-                    setIsTypingNew(false);
-                  }}
-                />
-              </div>
 
-              {isProductDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 max-h-72 overflow-y-auto bg-white border border-theme-200 rounded-xl shadow-xl z-[60] py-1">
-                  {/* Previous search results displayed when user clicks search bar without active typing */}
-                  {(!isTypingNew || !searchQuery.trim()) && lastSearchQuery && (
-                    <PreviousSearchSection
-                      lastQuery={lastSearchQuery}
-                      results={previousProducts}
-                      history={productSearchHistory}
-                      highlightedIndex={highlightedIndex}
-                      onHighlightIndex={setHighlightedIndex}
-                      onSelectResult={(p) => handleProductSelect(p.id, p.name, p.stock || 0)}
-                      onSelectQuery={(term) => {
-                        setSearchQuery(term);
-                        setIsTypingNew(false);
-                        setHighlightedIndex(0);
-                        setIsProductDropdownOpen(true);
-                      }}
-                      onClearHistory={() => {
-                        clearSearchHistory('stockout_product');
-                        setLastSearchQueryState('');
-                        setProductSearchHistory([]);
-                      }}
-                      renderTitle={(p) => p.name}
-                      renderSubtitle={(p) => `Sisa Stok: ${p.stock || 0} ${p.unit || 'pcs'}`}
-                      keyExtractor={(p) => `prev-so-${p.id}`}
-                    />
-                  )}
-
-                  {isTypingNew && (searchQuery.trim() || !lastSearchQuery) ? (
-                    filteredProducts.length === 0 ? (
-                      <div className="px-4 py-3 text-sm text-theme-500 text-center">
-                        Tidak ada produk ditemukan untuk &quot;{searchQuery}&quot;
-                      </div>
-                    ) : (
-                      <div className="p-1 space-y-0.5">
-                        <div className="px-3 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-                          Hasil Pencarian ({filteredProducts.length})
-                        </div>
-                        {filteredProducts.map((p, idx) => (
-                          <div 
-                            key={p.id} 
-                            data-highlighted={idx === highlightedIndex ? 'true' : undefined}
-                            onMouseEnter={() => setHighlightedIndex(idx)}
-                            className={`px-3 py-2 rounded-lg cursor-pointer text-sm flex items-center justify-between transition-colors ${
-                              idx === highlightedIndex ? 'bg-theme-100 text-theme-900 font-bold' : 'hover:bg-theme-50'
-                            }`}
-                            onClick={() => handleProductSelect(p.id, p.name, p.stock || 0)}
-                          >
-                            <div>
-                              <span className="font-bold text-theme-900 block">{p.name}</span>
-                              <span className="text-[10px] text-theme-600-text">{p.unit || 'pcs'}</span>
-                            </div>
-                            <span className="text-xs font-semibold text-theme-700 bg-theme-100 px-2 py-0.5 rounded-md">
-                              Stok: {p.stock || 0}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  ) : (
-                    !lastSearchQuery && (
-                      <div className="px-4 py-3 text-sm text-theme-500 text-center">
-                        Ketik nama produk atau tekan panah bawah untuk memilih...
-                      </div>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
-            
-            {selectedProduct && (
-              <div className="bg-theme-50 border border-theme-200 rounded-2xl p-4 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
-                <div className="flex justify-between items-center border-b border-theme-100 pb-2">
-                  <div className="flex flex-col">
-                    <span className="text-xs text-theme-500 font-bold uppercase tracking-wider">Produk Terpilih</span>
-                    <span className="font-bold text-theme-900">{selectedProduct.name}</span>
-                  </div>
-                  <span className="text-xs bg-white px-2 py-1 rounded-lg border border-theme-200 text-theme-600-text font-bold shadow-sm">
-                    Stok: {selectedProduct.stock}
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-theme-500 uppercase mb-1">Qty Keluar</label>
-                    <input 
-                      ref={qtyInputRef}
-                      type="number" 
-                      min="1"
-                      value={currentQty}
-                      onChange={(e) => setCurrentQty(e.target.value ? Number(e.target.value) : '')}
-                      onKeyDown={handleFormInputKeyDown}
-                      className="w-full px-3 py-2 border border-theme-200 rounded-xl text-sm outline-none focus:border-theme-500 bg-white font-bold text-rose-600"
-                      placeholder="0"
-                      autoFocus
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-theme-500 uppercase mb-1">Keterangan (Opsional)</label>
-                    <input 
-                      type="text" 
-                      value={currentNotes}
-                      onChange={(e) => setCurrentNotes(e.target.value)}
-                      onKeyDown={handleFormInputKeyDown}
-                      className="w-full px-3 py-2 border border-theme-200 rounded-xl text-sm outline-none focus:border-theme-500 bg-white"
-                      placeholder="Rusak, dsb"
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex gap-2 mt-1">
-                  <button 
-                    onClick={handleAddPending}
-                    className="flex-1 bg-theme-900 hover:bg-theme-800 text-white py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Tambah ke Daftar
-                  </button>
-                  <button 
-                    onClick={handleCancelSelected}
-                    className="px-3 bg-white hover:bg-theme-100 border border-theme-200 text-theme-600-text py-2 rounded-xl text-xs font-bold transition-all shadow-sm"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {pendingItems.length > 0 && (
-              <div className="mt-2 bg-theme-50 p-3 rounded-2xl border border-theme-100">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-theme-900">Akan Dikeluarkan ({pendingItems.length})</span>
-                </div>
-                <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-1">
-                  {pendingItems.map((item) => (
-                    <div key={item.id} className="p-2 bg-white border border-theme-200 rounded-xl flex items-center justify-between group">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-theme-900 text-xs">{item.productName}</span>
-                        <span className="text-[10px] text-rose-500">Keluarkan: {item.qty} {item.notes && `(${item.notes})`}</span>
-                      </div>
-                      <button 
-                        onClick={() => handleRemoveItem(item.id)}
-                        className="p-1.5 text-neutral-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                {isTypingNew && (searchQuery.trim() || !lastSearchQuery) ? (
+                  filteredProducts.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-theme-500 text-center">
+                      Tidak ada produk ditemukan untuk &quot;{searchQuery}&quot;
                     </div>
-                  ))}
-                </div>
+                  ) : (
+                    <div className="p-1 space-y-0.5">
+                      <div className="px-3 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                        Hasil Pencarian ({filteredProducts.length})
+                      </div>
+                      {filteredProducts.map((p, idx) => (
+                        <div 
+                          key={p.id} 
+                          data-highlighted={idx === highlightedIndex ? 'true' : undefined}
+                          onMouseEnter={() => setHighlightedIndex(idx)}
+                          className={`px-3 py-2 rounded-lg cursor-pointer text-sm flex items-center justify-between transition-colors ${
+                            idx === highlightedIndex ? 'bg-theme-100 text-theme-900 font-bold' : 'hover:bg-theme-50'
+                          }`}
+                          onClick={() => handleProductSelect(p.id, p.name, p.stock || 0)}
+                        >
+                          <div>
+                            <span className="font-bold text-theme-900 block">{p.name}</span>
+                            <span className="text-[10px] text-theme-600-text">{p.unit || 'pcs'}</span>
+                          </div>
+                          <span className="text-xs font-semibold text-theme-700 bg-theme-100 px-2 py-0.5 rounded-md">
+                            Stok: {p.stock || 0}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  !lastSearchQuery && (
+                    <div className="px-4 py-3 text-sm text-theme-500 text-center">
+                      Ketik nama produk atau tekan panah bawah untuk memilih...
+                    </div>
+                  )
+                )}
               </div>
             )}
-            
-            <button 
-              onClick={handleSaveAll}
-              disabled={pendingItems.length === 0}
-              className="w-full flex items-center justify-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-4 py-3 rounded-xl font-bold transition-all duration-300 text-sm shadow-lg shadow-rose-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-            >
-              <Check className="w-4 h-4" />
-              <span>Simpan Pengeluaran</span>
-              <span className="text-[10px] bg-white/15 px-1.5 py-0.5 rounded font-medium ml-1">Ctrl+S</span>
-            </button>
           </div>
+          
+          {selectedProduct && (
+            <div className="bg-theme-50 border border-theme-200 rounded-2xl p-4 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="flex justify-between items-center border-b border-theme-100 pb-2">
+                <div className="flex flex-col">
+                  <span className="text-xs text-theme-500 font-bold uppercase tracking-wider">Produk Terpilih</span>
+                  <span className="font-bold text-theme-900">{selectedProduct.name}</span>
+                </div>
+                <span className="text-xs bg-white px-2 py-1 rounded-lg border border-theme-200 text-theme-600-text font-bold shadow-sm">
+                  Stok: {selectedProduct.stock}
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-theme-500 uppercase mb-1">Qty Keluar</label>
+                  <input 
+                    ref={qtyInputRef}
+                    type="number" 
+                    min="1"
+                    value={currentQty}
+                    onChange={(e) => setCurrentQty(e.target.value ? Number(e.target.value) : '')}
+                    onKeyDown={handleFormInputKeyDown}
+                    className="w-full px-3 py-2 border border-theme-200 rounded-xl text-sm outline-none focus:border-theme-500 bg-white font-bold text-rose-600"
+                    placeholder="0"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-theme-500 uppercase mb-1">Keterangan (Opsional)</label>
+                  <input 
+                    type="text" 
+                    value={currentNotes}
+                    onChange={(e) => setCurrentNotes(e.target.value)}
+                    onKeyDown={handleFormInputKeyDown}
+                    className="w-full px-3 py-2 border border-theme-200 rounded-xl text-sm outline-none focus:border-theme-500 bg-white"
+                    placeholder="Rusak, dsb"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-2 mt-1">
+                <button 
+                  type="button"
+                  onClick={handleAddPending}
+                  className="flex-1 bg-theme-900 hover:bg-theme-800 text-white py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Tambah ke Daftar
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleCancelSelected}
+                  className="px-3 bg-white hover:bg-theme-100 border border-theme-200 text-theme-600-text py-2 rounded-xl text-xs font-bold transition-all shadow-sm"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {pendingItems.length > 0 && (
+            <div className="mt-1 bg-theme-50 p-3 rounded-2xl border border-theme-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-theme-900">Akan Dikeluarkan ({pendingItems.length})</span>
+              </div>
+              <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-1">
+                {pendingItems.map((item) => (
+                  <div key={item.id} className="p-2 bg-white border border-theme-200 rounded-xl flex items-center justify-between group">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-theme-900 text-xs">{item.productName}</span>
+                      <span className="text-[10px] text-rose-500">Keluarkan: {item.qty} {item.notes && `(${item.notes})`}</span>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => handleRemoveItem(item.id)}
+                      className="p-1.5 text-neutral-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <button 
+            type="button"
+            onClick={handleSaveAll}
+            disabled={pendingItems.length === 0}
+            className="w-full flex items-center justify-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-4 py-3 rounded-xl font-bold transition-all duration-300 text-sm shadow-lg shadow-rose-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+          >
+            <Check className="w-4 h-4" />
+            <span>Simpan Pengeluaran</span>
+            <span className="text-[10px] bg-white/15 px-1.5 py-0.5 rounded font-medium ml-1">Ctrl+S</span>
+          </button>
         </div>
-      </div>
+      </FloatingFormModal>
       
-      {/* History Data Panel */}
-      <div className={`flex-1 bg-white rounded-3xl border border-theme-200 shadow-sm overflow-hidden flex flex-col min-w-0 ${
-        mobileTab === 'history' ? 'flex' : 'hidden lg:flex'
-      }`}>
-        <div className="p-4 md:p-6 border-b border-theme-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-theme-50/50 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-white rounded-xl shadow-sm border border-theme-100">
-              <PackageMinus className="w-5 h-5 text-theme-500" />
+      {/* History Data Panel (Full Width) */}
+      <div className="flex-1 bg-white rounded-3xl border border-theme-200 shadow-sm overflow-x-clip sm:overflow-hidden flex flex-col min-w-0">
+        <div className="p-4 md:p-6 border-b border-theme-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 sm:static z-20 bg-theme-50/95 sm:bg-theme-50/50 backdrop-blur-xs sm:backdrop-blur-none rounded-t-3xl sm:rounded-none shrink-0">
+          <div className="flex items-center justify-between sm:justify-start gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-white rounded-xl shadow-sm border border-theme-100">
+                <PackageMinus className="w-5 h-5 text-theme-500" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-theme-900">Riwayat Pengeluaran</h2>
+                <p className="text-xs text-theme-600-text">Data stok yang telah dikeluarkan</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-theme-900">Riwayat Pengeluaran</h2>
-              <p className="text-xs text-theme-600-text">Data stok yang telah dikeluarkan</p>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsFormOpen(true);
+                setTimeout(() => productInputRef.current?.focus(), 80);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold bg-theme-600 hover:bg-theme-700 text-white transition-all shadow-sm active:scale-95 whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Input Pengeluaran</span>
+              {pendingItems.length > 0 && (
+                <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.5 rounded-full font-extrabold">
+                  {pendingItems.length}
+                </span>
+              )}
+            </button>
           </div>
           
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
@@ -664,8 +652,8 @@ export const StockOut = () => {
             </div>
 
             {/* Date Range Inputs */}
-            <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-theme-200 shadow-sm shrink-0">
-              <div className="flex items-center gap-1.5 px-2 py-1 text-theme-700 text-xs sm:text-sm flex-1">
+            <div className="flex flex-wrap xs:flex-nowrap items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-theme-200 shadow-sm w-full sm:w-auto shrink-0">
+              <div className="flex items-center gap-1.5 px-2 py-1 text-theme-700 text-xs sm:text-sm flex-1 min-w-[120px]">
                 <CalendarIcon className="w-3.5 h-3.5 text-theme-400 shrink-0" />
                 <input 
                   type="date" 
@@ -674,8 +662,8 @@ export const StockOut = () => {
                   className="bg-transparent outline-none w-full text-xs sm:text-sm"
                 />
               </div>
-              <span className="text-theme-300 font-bold">-</span>
-              <div className="flex items-center gap-1.5 px-2 py-1 text-theme-700 text-xs sm:text-sm flex-1">
+              <span className="text-theme-300 font-bold hidden xs:inline">-</span>
+              <div className="flex items-center gap-1.5 px-2 py-1 text-theme-700 text-xs sm:text-sm flex-1 min-w-[120px]">
                 <input 
                   type="date" 
                   value={endDate}
@@ -687,7 +675,7 @@ export const StockOut = () => {
           </div>
         </div>
         
-        <div className="flex-1 overflow-auto p-4 md:p-6">
+        <div className="flex-1 min-h-0 overflow-auto p-4 md:p-5 lg:p-6">
           {filteredStockOuts.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-8">
               <PackageMinus className="w-16 h-16 text-theme-200 mb-4" />
@@ -695,7 +683,7 @@ export const StockOut = () => {
               <p className="text-sm text-theme-600-text max-w-sm">Belum ada catatan pengeluaran stok pada rentang tanggal ini.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-3.5">
               {filteredStockOuts.map(s => {
                 const product = products.find(p => p.id === s.productId);
                 return (

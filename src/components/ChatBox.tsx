@@ -245,7 +245,7 @@ const ChatBoxInner = () => {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className={`fixed bottom-20 md:bottom-6 right-4 md:right-6 bg-theme-500 hover:bg-theme-600 text-white p-4 rounded-full shadow-xl transition-all duration-300 z-40 flex items-center justify-center ${totalUnread > 0 ? 'animate-bounce ring-4 ring-rose-400/50 ring-offset-2' : 'hover:scale-110 active:scale-95'}`}
+          className={`fixed bottom-24 md:bottom-6 right-3 sm:right-4 md:right-6 bg-theme-500 hover:bg-theme-600 text-white p-3.5 sm:p-4 rounded-full shadow-xl transition-all duration-300 z-40 flex items-center justify-center ${totalUnread > 0 ? 'animate-bounce ring-4 ring-rose-400/50 ring-offset-2' : 'hover:scale-110 active:scale-95'}`}
         >
           <MessageCircle className="w-6 h-6" />
           {totalUnread > 0 && (
@@ -257,7 +257,7 @@ const ChatBoxInner = () => {
       )}
 
       {isOpen && (
-        <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 w-80 md:w-96 bg-white rounded-2xl shadow-2xl border border-theme-200 z-50 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed bottom-24 md:bottom-6 left-3 right-3 sm:left-auto sm:right-6 w-auto sm:w-96 max-h-[72vh] bg-white rounded-2xl shadow-2xl border border-theme-200 z-50 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
           
           {/* Header */}
           <div className="bg-theme-500 p-4 flex items-center justify-between text-white shrink-0">
@@ -310,13 +310,13 @@ const ChatBoxInner = () => {
               </div>
             )}
             
-            <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white transition-colors">
+            <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white transition-colors p-1">
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Body */}
-          <div className="h-96 overflow-y-auto flex flex-col bg-theme-50">
+          <div className="h-[340px] sm:h-96 overflow-y-auto flex flex-col bg-theme-50">
             {!selectedUser ? (
               // User List
               <div className="flex flex-col">

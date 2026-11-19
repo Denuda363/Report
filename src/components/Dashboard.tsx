@@ -97,27 +97,33 @@ export const Dashboard = () => {
       )}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 lg:grid-cols-5 gap-3 lg:gap-4">
         {stats.map((stat, i) => (
-          <div key={i} className="bg-white p-4 lg:p-5 rounded-2xl border border-theme-200 flex flex-col justify-center">
+          <div
+            key={i}
+            className={`bg-white p-3.5 sm:p-4 lg:p-5 rounded-2xl border border-theme-200 flex flex-col justify-center ${
+              i === 0 ? 'col-span-2 md:col-span-2 lg:col-span-1' : i <= 2 ? 'md:col-span-2 lg:col-span-1' : 'md:col-span-3 lg:col-span-1'
+            }`}
+          >
             <div className="flex items-center gap-2 mb-1 text-theme-500">
                <stat.icon className="w-4 h-4 shrink-0" />
                <span className="text-[10px] lg:text-xs font-bold uppercase tracking-wider line-clamp-1">{stat.label}</span>
             </div>
-            <div className="text-xl lg:text-2xl font-bold text-theme-900">{stat.value}</div>
+            <div className="text-xl lg:text-2xl font-bold text-theme-900 tabular-nums">{stat.value}</div>
+            <span className="text-[10px] sm:text-[11px] text-theme-600-text mt-0.5 line-clamp-1">{stat.sub}</span>
           </div>
         ))}
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
         {/* Revenue Trend Line Chart */}
-        <div className="bg-white p-4 lg:p-5 rounded-2xl border border-theme-200 flex flex-col min-h-[220px] lg:min-h-[260px]">
+        <div className="bg-white p-4 lg:p-5 rounded-2xl border border-theme-200 flex flex-col min-h-[250px] lg:min-h-[280px]">
           <h3 className="font-bold text-theme-900 mb-3 text-sm">Movement Volume (Last 7 Days)</h3>
-          <div className="flex-1">
+          <div className="h-[210px] sm:h-[250px] lg:flex-1 lg:min-h-[240px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={salesByDate} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#A3A899', fontSize: 11, fontWeight: 500 }} dy={15} />
+              <LineChart data={salesByDate} margin={{ top: 10, right: 12, left: 4, bottom: 4 }}>
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#A3A899', fontSize: 11, fontWeight: 500 }} dy={10} />
                 <RechartsTooltip 
                   cursor={false}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)', fontWeight: 600, color: 'var(--color-theme-900)', padding: '8px 12px' }}
@@ -125,18 +131,18 @@ export const Dashboard = () => {
                   labelStyle={{ color: '#A3A899', fontSize: '11px', marginBottom: '4px' }}
                   formatter={(val: number) => [`${val.toLocaleString('id-ID')} Units`, 'Volume']}
                 />
-                <Line type="monotone" dataKey="volume" stroke="var(--color-theme-500)" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: 'var(--color-theme-500)', stroke: '#fff', strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="volume" stroke="var(--color-theme-500)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: 'var(--color-theme-500)', stroke: '#fff', strokeWidth: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Top Suppliers Bar Chart */}
-        <div className="bg-white p-4 lg:p-5 rounded-2xl border border-theme-200 flex flex-col min-h-[220px] lg:min-h-[260px]">
+        <div className="bg-white p-4 lg:p-5 rounded-2xl border border-theme-200 flex flex-col min-h-[250px] lg:min-h-[280px]">
           <h3 className="font-bold text-theme-900 mb-3 text-sm">Top Suppliers (By Volume)</h3>
-          <div className="flex-1">
+          <div className="h-[210px] sm:h-[250px] lg:flex-1 lg:min-h-[240px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={salesBySupplier} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+              <BarChart data={salesBySupplier} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
                 <XAxis type="number" hide />
                 <YAxis 
                   dataKey="name" 
@@ -144,8 +150,8 @@ export const Dashboard = () => {
                   axisLine={false} 
                   tickLine={false} 
                   tick={{ fill: '#A3A899', fontSize: 11, fontWeight: 500 }}
-                  width={110}
-                  dx={-10}
+                  width={92}
+                  dx={-6}
                 />
                 <RechartsTooltip 
                   cursor={{ fill: 'var(--color-theme-50)', radius: 8 }}

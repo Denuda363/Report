@@ -81,6 +81,7 @@ export type AutoDeleteMode =
   | 'custom';
 
 export type NavbarPosition = 'bottom' | 'left' | 'right';
+export type NavbarStyle = 'classic' | 'iphone' | 'windows11' | 'ubuntu';
 export type DbProvider = 'supabase' | 'firebase' | 'local';
 export type ClockStyle =
   | '3d-blocks'
@@ -115,6 +116,7 @@ export interface UserSettings {
   autoDeleteMode: AutoDeleteMode;
   autoDeleteDays?: number; // Custom retention days when mode is 'custom' or specified
   navbarPosition?: NavbarPosition;
+  navbarStyle?: NavbarStyle;
   theme?: string;
   clockStyle?: ClockStyle;
   useLocalDb?: boolean;

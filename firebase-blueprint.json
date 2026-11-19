@@ -100,6 +100,7 @@
         "autoDeleteMode": { "type": "string" },
         "autoDeleteDays": { "type": "number" },
         "navbarPosition": { "type": "string" },
+        "navbarStyle": { "type": "string" },
         "theme": { "type": "string" },
         "clockStyle": { "type": "string" },
         "useLocalDb": { "type": "boolean" },

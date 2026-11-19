@@ -5,7 +5,7 @@ import {
   generateId, subscribeToSettings, syncSettingsToCloud
 } from '../lib/dbAdapter';
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { Product, ReportEntry, Supplier, UserSettings, AutoDeleteMode, StockOutEntry, DbProvider, NearExpiredEntry } from '../types';
+import { Product, ReportEntry, Supplier, UserSettings, AutoDeleteMode, StockOutEntry, DbProvider, NearExpiredEntry, NavbarStyle } from '../types';
 import { formatExcelDate } from '../lib/excel';
 import { getCleanupCutoffDate } from '../lib/cleanupUtils';
 import { mergeCrosscheckStatus, saveCrosscheckStatus, saveCrosscheckBatch } from '../lib/crosscheckRegistry';
@@ -96,7 +96,7 @@ interface AppContextType extends AppState {
 
 const getInitialSettings = (): UserSettings => {
   if (typeof window === 'undefined') {
-    return { autoDeleteMode: 'none', autoDeleteDays: 3, navbarPosition: 'bottom', theme: 'green', clockStyle: '3d-blocks' };
+    return { autoDeleteMode: 'none', autoDeleteDays: 3, navbarPosition: 'bottom', navbarStyle: 'classic', theme: 'green', clockStyle: '3d-blocks' };
   }
   const currentProvider = getDbProvider();
   const savedSettingsStr = localStorage.getItem('appSettings');
@@ -110,6 +110,7 @@ const getInitialSettings = (): UserSettings => {
     autoDeleteMode: 'none',
     autoDeleteDays: 3,
     navbarPosition: 'bottom',
+    navbarStyle: 'classic',
     theme: 'green',
     clockStyle: '3d-blocks',
     dbPinHash: getStoredPinHash(),
@@ -267,6 +268,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           hasChanges = true;
         }
 
+        const remoteNavbarStyle = (remote.navbarStyle ?? remote.navbarstyle) as NavbarStyle | undefined;
+        if (remoteNavbarStyle && remoteNavbarStyle !== prev.settings.navbarStyle) {
+          updated.navbarStyle = remoteNavbarStyle;
+          hasChanges = true;
+        }
+
         if (remotePinHash && remotePinHash.length === 64 && remotePinHash !== prev.settings.dbPinHash) {
           updated.dbPinHash = remotePinHash;
           saveStoredPinHash(remotePinHash);
@@ -317,6 +324,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           updated.autoDeleteDays = remote.autoDeleteDays;
           hasChanges = true;
         }
+        if (remote.navbarStyle && remote.navbarStyle !== prev.settings.navbarStyle) {
+          updated.navbarStyle = remote.navbarStyle;
+          hasChanges = true;
+        }
         if (remote.dbPinHash && remote.dbPinHash.length === 64 && remote.dbPinHash !== prev.settings.dbPinHash) {
           updated.dbPinHash = remote.dbPinHash;
           saveStoredPinHash(remote.dbPinHash);
@@ -351,6 +362,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 ...prev.settings,
                 ...(incoming.autoDeleteMode !== undefined ? { autoDeleteMode: incoming.autoDeleteMode } : {}),
                 ...(incoming.autoDeleteDays !== undefined ? { autoDeleteDays: incoming.autoDeleteDays } : {}),
+                ...(incoming.navbarStyle !== undefined ? { navbarStyle: incoming.navbarStyle } : {}),
                 ...(incoming.theme !== undefined ? { theme: incoming.theme } : {}),
                 ...(incoming.clockStyle !== undefined ? { clockStyle: incoming.clockStyle } : {}),
                 ...(incoming.dbPinHash !== undefined ? { dbPinHash: incoming.dbPinHash } : {}),
@@ -382,6 +394,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         autoDeleteMode: 'none',
         autoDeleteDays: 3,
         navbarPosition: 'bottom',
+        navbarStyle: 'classic',
         theme: 'green',
         clockStyle: '3d-blocks',
         ...savedSettings,
@@ -1443,6 +1456,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       autoDeleteMode: state.settings.autoDeleteMode || 'none',
       autoDeleteDays: state.settings.autoDeleteDays || 3,
       navbarPosition: state.settings.navbarPosition || 'bottom',
+      navbarStyle: state.settings.navbarStyle || 'classic',
       theme: state.settings.theme || 'default',
       clockStyle: state.settings.clockStyle || '3d-blocks',
       useLocalDb: false,

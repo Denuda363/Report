@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { 
   Calendar as CalendarIcon, Search, Building2, ChevronDown, X, 
   AlertTriangle, Trash2, Copy, Download, Upload, RefreshCw,
-  CheckCircle2, CheckSquare, Square
+  CheckSquare, Square, SlidersHorizontal, MoreHorizontal
 } from 'lucide-react';
 import { Supplier, Product } from '../../types';
 import { cn } from '../../lib/utils';
@@ -27,6 +27,8 @@ interface DailyReportToolbarProps {
   products?: Product[];
   bottomStockFilter: 'all' | 'has' | 'none' | 'warning';
   setBottomStockFilter: (val: 'all' | 'has' | 'none' | 'warning') => void;
+  orderedFilter: 'all' | 'ordered' | 'not_ordered';
+  setOrderedFilter: (val: 'all' | 'ordered' | 'not_ordered') => void;
   arrivedFilter: 'all' | 'arrived' | 'not_arrived';
   setArrivedFilter: (val: 'all' | 'arrived' | 'not_arrived') => void;
   checkedFilter: 'all' | 'checked' | 'unchecked';
@@ -70,6 +72,8 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
   products = [],
   bottomStockFilter,
   setBottomStockFilter,
+  orderedFilter,
+  setOrderedFilter,
   arrivedFilter,
   setArrivedFilter,
   checkedFilter,
@@ -99,6 +103,17 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
   const productDropdownRef = useRef<HTMLDivElement>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<'none' | 'filters' | 'actions'>('none');
+
+  const activeMobileFilterCount = [
+    !!filterDate,
+    !!filterSupplier || !!supplierFilterQuery,
+    bottomStockFilter !== 'all',
+    orderedFilter !== 'all',
+    arrivedFilter !== 'all',
+    checkedFilter !== 'all',
+    showDuplicatesOnly
+  ].filter(Boolean).length;
   
   // Product Search Memory
   const [lastProductQuery, setLastProductQuery] = useState(() => getLastSearchQuery('toolbar_product'));
@@ -270,67 +285,106 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
   };
 
   return (
-    <div className="p-3 sm:p-4 border-b border-theme-200 bg-white flex flex-col gap-3">
-      {/* Row 1: Quick Presets, Custom Date, Supplier Filter, Product Search */}
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Date Presets */}
-        <div className="flex items-center bg-theme-100/70 p-1 rounded-xl border border-theme-200 text-xs">
-          <button
-            type="button"
-            onClick={() => onSelectPreset('all')}
-            className={cn(
-              "px-2.5 py-1 rounded-lg font-semibold transition-all",
-              activePreset === 'all'
-                ? "bg-white text-theme-900 shadow-2xs font-bold"
-                : "text-theme-600-text hover:text-theme-900"
+    <div className="p-2.5 sm:p-4 border-b border-theme-200 bg-white flex flex-col gap-2 sm:gap-3">
+      {/* Row 1: Mobile Search + Filter/Actions toggles, Desktop/Tablet full row */}
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        {/* Date Presets + Quick Mobile Check All */}
+        <div className="order-3 sm:order-1 w-full sm:w-auto flex items-center justify-between gap-1.5">
+          <div className="flex items-center bg-theme-100/70 p-0.5 sm:p-1 rounded-xl border border-theme-200 text-[11px] sm:text-xs">
+            <button
+              type="button"
+              onClick={() => onSelectPreset('all')}
+              className={cn(
+                "px-2 sm:px-2.5 py-1 rounded-lg font-semibold transition-all whitespace-nowrap",
+                activePreset === 'all'
+                  ? "bg-white text-theme-900 shadow-2xs font-bold"
+                  : "text-theme-600-text hover:text-theme-900"
+              )}
+            >
+              Semua
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectPreset('today')}
+              className={cn(
+                "px-2 sm:px-2.5 py-1 rounded-lg font-semibold transition-all whitespace-nowrap",
+                activePreset === 'today'
+                  ? "bg-white text-theme-900 shadow-2xs font-bold"
+                  : "text-theme-600-text hover:text-theme-900"
+              )}
+            >
+              Hari Ini
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectPreset('yesterday')}
+              className={cn(
+                "px-2 sm:px-2.5 py-1 rounded-lg font-semibold transition-all whitespace-nowrap",
+                activePreset === 'yesterday'
+                  ? "bg-white text-theme-900 shadow-2xs font-bold"
+                  : "text-theme-600-text hover:text-theme-900"
+              )}
+            >
+              Kemarin
+            </button>
+          </div>
+
+          <div className="flex sm:hidden items-center gap-1 shrink-0">
+            {onToggleCheckAllFiltered && (
+              <button
+                type="button"
+                onClick={onToggleCheckAllFiltered}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 rounded-lg font-semibold text-[11px] border transition-all active:scale-95 whitespace-nowrap",
+                  allFilteredChecked
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-white text-emerald-700 border-emerald-200"
+                )}
+              >
+                {allFilteredChecked ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
+                <span>{allFilteredChecked ? 'Batal' : 'Ceklis'}</span>
+              </button>
             )}
-          >
-            Semua
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelectPreset('today')}
-            className={cn(
-              "px-2.5 py-1 rounded-lg font-semibold transition-all",
-              activePreset === 'today'
-                ? "bg-white text-theme-900 shadow-2xs font-bold"
-                : "text-theme-600-text hover:text-theme-900"
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={onResetFilters}
+                className="flex items-center gap-0.5 px-2 py-1 rounded-lg text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200"
+              >
+                <X className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
             )}
-          >
-            Hari Ini
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelectPreset('yesterday')}
-            className={cn(
-              "px-2.5 py-1 rounded-lg font-semibold transition-all",
-              activePreset === 'yesterday'
-                ? "bg-white text-theme-900 shadow-2xs font-bold"
-                : "text-theme-600-text hover:text-theme-900"
-            )}
-          >
-            Kemarin
-          </button>
+          </div>
         </div>
 
-        {/* Date Picker */}
-        <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 focus-within:border-theme-500 focus-within:ring-1 focus-within:ring-theme-500 transition-all text-xs">
+        {/* Date Picker (hidden on mobile unless Filters expanded) */}
+        <div className={cn(
+          "order-4 sm:order-2 items-center gap-1.5 bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 focus-within:border-theme-500 focus-within:ring-1 focus-within:ring-theme-500 transition-all text-xs w-full sm:w-auto",
+          mobilePanel === 'filters' ? "flex" : "hidden sm:flex"
+        )}>
           <CalendarIcon className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
           <input
             type="date"
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
-            className="outline-none bg-transparent text-neutral-700 text-xs w-28 sm:w-32"
+            className="outline-none bg-transparent text-neutral-700 text-xs w-full sm:w-32"
           />
           {filterDate && (
-            <button onClick={() => setFilterDate('')} className="text-neutral-400 hover:text-rose-500">
+            <button onClick={() => setFilterDate('')} className="text-neutral-400 hover:text-rose-500 shrink-0">
               <X className="w-3 h-3" />
             </button>
           )}
         </div>
 
-        {/* Supplier Dropdown */}
-        <div className="relative flex-1 min-w-[140px] sm:max-w-[200px]" ref={dropdownRef}>
+        {/* Supplier Dropdown (hidden on mobile unless Filters expanded) */}
+        <div
+          className={cn(
+            "order-5 sm:order-3 relative w-full sm:flex-1 sm:min-w-[150px] sm:max-w-[210px]",
+            mobilePanel === 'filters' ? "block" : "hidden sm:block"
+          )}
+          ref={dropdownRef}
+        >
           <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 focus-within:border-theme-500 focus-within:ring-1 focus-within:ring-theme-500 transition-all text-xs w-full">
             <Building2 className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
             <input
@@ -383,7 +437,7 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
           </div>
 
           {isSupplierDropdownOpen && (
-            <div className="absolute z-50 left-0 mt-1 w-64 bg-white border border-theme-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+            <div className="absolute z-50 left-0 mt-1 w-full sm:w-64 max-w-[calc(100vw-2rem)] bg-white border border-theme-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
               {/* Previous search suppliers when clicking bar without active typing */}
               {(!isTypingNewSupplier || !supplierFilterQuery.trim()) && lastSupplierQuery && previousSuppliers.length > 0 && (
                 <div className="border-b border-theme-200 bg-theme-50/60 pb-1">
@@ -456,9 +510,9 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
           )}
         </div>
 
-        {/* Product Search with Dropdown */}
-        <div className="relative flex-1 min-w-[160px]" ref={productDropdownRef}>
-          <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 focus-within:border-theme-500 focus-within:ring-1 focus-within:ring-theme-500 transition-all text-xs w-full">
+        {/* Product Search with Dropdown (always first on mobile) */}
+        <div className="order-1 sm:order-4 relative flex-1 min-w-0 sm:min-w-[150px]" ref={productDropdownRef}>
+          <div className="flex items-center gap-1.5 bg-theme-50/50 sm:bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 focus-within:border-theme-500 focus-within:ring-1 focus-within:ring-theme-500 focus-within:bg-white transition-all text-xs w-full">
             <Search className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
             <input
               ref={productInputRef}
@@ -505,7 +559,7 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
           </div>
 
           {isProductDropdownOpen && (
-            <div className="absolute z-50 left-0 mt-1 w-72 bg-white border border-theme-200 rounded-xl shadow-xl max-h-72 overflow-y-auto p-1">
+            <div className="absolute z-50 left-0 mt-1 w-full sm:w-72 max-w-[calc(100vw-2rem)] bg-white border border-theme-200 rounded-xl shadow-xl max-h-72 overflow-y-auto p-1">
               {/* Previous search results when clicking search bar without active new typing */}
               {(!isTypingNewProduct || !productFilterQuery.trim()) && lastProductQuery && (
                 <PreviousSearchSection
@@ -570,11 +624,55 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
             </div>
           )}
         </div>
+
+        {/* Mobile Toggle Buttons for Filters & Actions */}
+        <div className="order-2 sm:hidden flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobilePanel(prev => prev === 'filters' ? 'none' : 'filters')}
+            className={cn(
+              "relative flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all",
+              mobilePanel === 'filters' || activeMobileFilterCount > 0
+                ? "bg-theme-100 border-theme-400 text-theme-900"
+                : "bg-white border-neutral-200 text-neutral-700"
+            )}
+            title="Filter Lanjutan"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Filter</span>
+            {activeMobileFilterCount > 0 && (
+              <span className="px-1 py-0.2 rounded-full bg-theme-600 text-white text-[10px] font-bold leading-none">
+                {activeMobileFilterCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMobilePanel(prev => prev === 'actions' ? 'none' : 'actions')}
+            className={cn(
+              "flex items-center justify-center p-1.5 rounded-xl border text-xs font-semibold transition-all",
+              mobilePanel === 'actions'
+                ? "bg-neutral-900 border-neutral-900 text-white"
+                : "bg-white border-neutral-200 text-neutral-700"
+            )}
+            title="Menu Export, Import & Salin"
+            aria-label="Menu Export, Import & Salin"
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Row 2: Secondary Dropdowns & Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-theme-100">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+      {/* Row 2: Secondary Dropdowns & Actions (Collapsible on mobile, always visible on sm+) */}
+      <div className={cn(
+        "flex-wrap items-center justify-between gap-2 pt-2 border-t border-theme-100",
+        mobilePanel !== 'none' ? "flex" : "hidden sm:flex"
+      )}>
+        <div className={cn(
+          "flex-wrap items-center gap-2 text-xs w-full sm:w-auto",
+          mobilePanel === 'filters' ? "flex" : "hidden sm:flex"
+        )}>
           {/* Bottom Stock Filter */}
           <div className="relative">
             <select
@@ -590,12 +688,36 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
             <ChevronDown className="w-3 h-3 text-neutral-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
+          {/* Ordered Filter */}
+          <div className="relative">
+            <select
+              value={orderedFilter}
+              onChange={(e) => setOrderedFilter(e.target.value as any)}
+              className={cn(
+                "pl-2.5 pr-7 py-1.5 border rounded-xl outline-none text-xs appearance-none font-medium transition-colors",
+                orderedFilter !== 'all'
+                  ? "border-blue-400 bg-blue-50/60 text-blue-800 font-bold"
+                  : "border-neutral-200 bg-white text-neutral-700 focus:border-theme-500 focus:ring-1 focus:ring-theme-500"
+              )}
+            >
+              <option value="all">Semua Status Order</option>
+              <option value="ordered">Sudah Order</option>
+              <option value="not_ordered">Belum Order</option>
+            </select>
+            <ChevronDown className="w-3 h-3 text-neutral-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
           {/* Arrived Filter */}
           <div className="relative">
             <select
               value={arrivedFilter}
               onChange={(e) => setArrivedFilter(e.target.value as any)}
-              className="pl-2.5 pr-7 py-1.5 border border-neutral-200 rounded-xl bg-white focus:border-theme-500 focus:ring-1 focus:ring-theme-500 outline-none text-xs appearance-none text-neutral-700 font-medium"
+              className={cn(
+                "pl-2.5 pr-7 py-1.5 border rounded-xl outline-none text-xs appearance-none font-medium transition-colors",
+                arrivedFilter !== 'all'
+                  ? "border-theme-400 bg-theme-50/60 text-theme-800 font-bold"
+                  : "border-neutral-200 bg-white text-neutral-700 focus:border-theme-500 focus:ring-1 focus:ring-theme-500"
+              )}
             >
               <option value="all">Semua Status Datang</option>
               <option value="arrived">Sudah Datang</option>
@@ -637,7 +759,10 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
         </div>
 
         {/* Action Buttons Group */}
-        <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+        <div className={cn(
+          "flex-wrap items-center gap-1.5 w-full xl:w-auto xl:ml-auto",
+          mobilePanel === 'actions' ? "flex" : "hidden sm:flex"
+        )}>
           {/* Ceklis Semua / Batal Ceklis Semua */}
           {onToggleCheckAllFiltered && (
             <button
@@ -733,7 +858,7 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
             type="button"
             onClick={onExportPdf}
             disabled={totalResults === 0}
-            className="hidden sm:flex items-center gap-1 bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 disabled:opacity-50 px-2.5 py-1.5 rounded-xl font-semibold text-xs transition-all active:scale-95"
+            className="flex items-center gap-1 bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 disabled:opacity-50 px-2.5 py-1.5 rounded-xl font-semibold text-xs transition-all active:scale-95"
             title="Download PDF"
           >
             <Download className="w-3.5 h-3.5 shrink-0" />
@@ -745,7 +870,7 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
             type="button"
             onClick={onExportTxt}
             disabled={totalResults === 0}
-            className="hidden md:flex items-center gap-1 bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50 px-2.5 py-1.5 rounded-xl font-semibold text-xs transition-all active:scale-95"
+            className="flex items-center gap-1 bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50 px-2.5 py-1.5 rounded-xl font-semibold text-xs transition-all active:scale-95"
             title="Download TXT"
           >
             <Download className="w-3.5 h-3.5 shrink-0" />
@@ -756,7 +881,7 @@ export const DailyReportToolbar: React.FC<DailyReportToolbarProps> = ({
           <button
             type="button"
             onClick={onDownloadTemplate}
-            className="hidden sm:flex items-center gap-1 bg-white text-emerald-600 border border-emerald-200 hover:bg-emerald-50 px-2 py-1.5 rounded-xl font-semibold text-xs transition-all active:scale-95"
+            className="flex items-center gap-1 bg-white text-emerald-600 border border-emerald-200 hover:bg-emerald-50 px-2 py-1.5 rounded-xl font-semibold text-xs transition-all active:scale-95"
             title="Download Template Format Excel"
           >
             <Download className="w-3.5 h-3.5 shrink-0" />

@@ -2,7 +2,7 @@ import { db, handleFirestoreError, OperationType, isFirebaseQuotaExceeded } from
 import { localDb, generateId } from './localDb';
 import { getSupabaseClient, checkSupabaseTableStatus, SUPABASE_SQL_SCHEMA } from './supabase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, writeBatch, getDoc, getDocs, query, limit } from 'firebase/firestore';
-import { DbProvider, AutoDeleteMode, ClockStyle } from '../types';
+import { DbProvider, AutoDeleteMode, ClockStyle, NavbarStyle } from '../types';
 
 export const REQUIRED_TABLES = [
   'suppliers', 
@@ -604,6 +604,7 @@ export const ensureFirebaseCollections = async (): Promise<{
             autoDeleteMode: 'none',
             autoDeleteDays: 3,
             navbarPosition: 'bottom',
+            navbarStyle: 'classic',
             theme: 'green',
             clockStyle: '3d-blocks',
             dbProvider: 'firebase',
@@ -909,6 +910,7 @@ export const checkDatabaseTablesStatus = async (targetProvider?: DbProvider): Pr
 export type SyncableSettingsPayload = {
   autoDeleteMode?: AutoDeleteMode;
   autoDeleteDays?: number;
+  navbarStyle?: NavbarStyle;
   theme?: string;
   clockStyle?: ClockStyle;
   dbPinHash?: string;
@@ -928,6 +930,7 @@ export const subscribeToSettings = (
   const extractSettings = (data: Record<string, any>): SyncableSettingsPayload => ({
     autoDeleteMode: data.autoDeleteMode as AutoDeleteMode,
     autoDeleteDays: data.autoDeleteDays !== undefined ? Number(data.autoDeleteDays) : undefined,
+    navbarStyle: (data.navbarStyle ?? data.navbarstyle) as NavbarStyle | undefined,
     theme: data.theme,
     clockStyle: (data.clockStyle ?? data.clockstyle) as ClockStyle | undefined,
     dbPinHash: data.dbPinHash || data.dbpinhash,
@@ -1024,6 +1027,9 @@ export const syncSettingsToCloud = async (
   }
   if (newSettings.autoDeleteDays !== undefined) {
     payload.autoDeleteDays = Number(newSettings.autoDeleteDays);
+  }
+  if (newSettings.navbarStyle !== undefined) {
+    payload.navbarStyle = newSettings.navbarStyle;
   }
   if (newSettings.theme !== undefined) {
     payload.theme = newSettings.theme;

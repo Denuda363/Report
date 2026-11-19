@@ -28,9 +28,9 @@ export const DailyReportTable: React.FC<DailyReportTableProps> = ({
   className
 }) => {
   return (
-    <div className={cn("overflow-x-auto w-full", className)}>
+    <div className={cn("w-full", className)}>
       <table className="w-full text-left border-collapse min-w-[980px]">
-        <thead className="sticky top-0 bg-theme-100/90 backdrop-blur-xs z-10">
+        <thead className="sticky top-0 bg-theme-100 z-20 shadow-xs">
           <tr className="border-b border-theme-200">
             <th className="py-3 px-4 text-xs font-bold text-theme-600 uppercase tracking-wider rounded-tl-xl whitespace-nowrap">
               Tanggal

@@ -1,16 +1,32 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
-import { Plus, Trash2, Download, Upload, Search, ChevronDown, ChevronLeft, ChevronRight, Edit2, X, Filter, Check, Maximize2, Minimize2, Building2, Package, ChevronUp, SlidersHorizontal, FileText } from 'lucide-react';
+import { Plus, Trash2, Download, Upload, Search, ChevronDown, ChevronLeft, ChevronRight, Edit2, X, Filter, Check, Maximize2, Minimize2, Building2, Package, SlidersHorizontal, FileText } from 'lucide-react';
 import { Supplier, Product } from '../types';
 import { downloadMasterDataTemplate, parseMasterDataImport, exportProductsToTxt } from '../lib/excel';
 import { OperationProgressModal } from './common/OperationProgressModal';
 import { getLastSearchQuery, setLastSearchQuery, addSearchHistory, getSearchHistory, clearSearchHistory } from '../lib/searchHistory';
 import { PreviousSearchSection } from './PreviousSearchSection';
+import { FloatingFormModal } from './common/FloatingFormModal';
 
 export const MasterData = () => {
   const { suppliers, products, addSupplier, updateSupplier, deleteSupplier, addProduct, updateProduct, deleteProduct, importMasterData, resetAllProductStocks } = useAppContext();
   
-  const [activeTab, setActiveTab] = useState<'suppliers' | 'products'>('suppliers');
+  const [activeTab, setActiveTab] = useState<'suppliers' | 'products'>(() => {
+    try {
+      const saved = localStorage.getItem('dailyreportpro_master_tab');
+      return saved === 'products' ? 'products' : 'suppliers';
+    } catch {
+      return 'suppliers';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dailyreportpro_master_tab', activeTab);
+    } catch {
+      // Ignore storage errors
+    }
+  }, [activeTab]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<{
@@ -47,7 +63,8 @@ export const MasterData = () => {
   const [productLocation, setProductLocation] = useState('');
   const [productCategory, setProductCategory] = useState('');
   const [isListFullscreen, setIsListFullscreen] = useState(false);
-  const [isMobileFormOpen, setIsMobileFormOpen] = useState(false);
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [isFormFullscreen, setIsFormFullscreen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -80,7 +97,6 @@ export const MasterData = () => {
   const [altSupplierSearchQuery, setAltSupplierSearchQuery] = useState('');
   const [isAltSupplierDropdownOpen, setIsAltSupplierDropdownOpen] = useState(false);
   const altSupplierDropdownRef = useRef<HTMLDivElement>(null);
-  const formRef = useRef<HTMLDivElement>(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -274,6 +290,8 @@ export const MasterData = () => {
         await addSupplier({ name: supplierName.trim() });
       }
       setSupplierName('');
+      setIsFormModalOpen(false);
+      setIsFormFullscreen(false);
     } catch (err: any) {
       console.error("Gagal menyimpan supplier:", err);
       alert(`Gagal menyimpan supplier: ${err.message || 'Terjadi kesalahan'}`);
@@ -284,15 +302,14 @@ export const MasterData = () => {
     setEditingSupplierId(supplier.id);
     setSupplierName(supplier.name);
     setActiveTab('suppliers');
-    setIsMobileFormOpen(true);
-    setTimeout(() => {
-      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 50);
+    setIsFormModalOpen(true);
   };
 
   const handleCancelEditSupplier = () => {
     setEditingSupplierId(null);
     setSupplierName('');
+    setIsFormModalOpen(false);
+    setIsFormFullscreen(false);
   };
 
   const filteredSuppliersList = useMemo(() => {
@@ -430,18 +447,18 @@ export const MasterData = () => {
       setProductLocation('');
       setProductCategory('');
       setSupplierSearchQuery('');
-      setTimeout(() => {
-        productNameInputRef.current?.focus();
-      }, 50);
+      setIsFormModalOpen(false);
+      setIsFormFullscreen(false);
     } catch (err: any) {
       console.error("Gagal menyimpan produk:", err);
       alert(`Gagal menyimpan produk: ${err.message || 'Terjadi kesalahan sistem'}`);
     }
   };
 
-  // Ctrl + S shortcut to save active Supplier or Product form
+  // Ctrl + S shortcut to save active Supplier or Product form when modal is open
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (!(isFormModalOpen || isFormFullscreen)) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         if (activeTab === 'suppliers' && supplierName.trim()) {
@@ -570,10 +587,10 @@ export const MasterData = () => {
     const sName = suppliers.find(s => s.id === product.supplierId)?.name || '';
     setSupplierSearchQuery(sName);
     setActiveTab('products');
-    setIsMobileFormOpen(true);
+    setIsFormModalOpen(true);
     setTimeout(() => {
-      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 50);
+      productNameInputRef.current?.focus();
+    }, 80);
   };
 
   const handleCancelEditProduct = () => {
@@ -587,6 +604,23 @@ export const MasterData = () => {
     setProductLocation('');
     setProductCategory('');
     setSupplierSearchQuery('');
+    setIsFormModalOpen(false);
+    setIsFormFullscreen(false);
+  };
+
+  const handleCloseFormModal = () => {
+    setIsSupplierDropdownOpen(false);
+    setIsAltSupplierDropdownOpen(false);
+    if (editingSupplierId) {
+      handleCancelEditSupplier();
+      return;
+    }
+    if (editingProductId) {
+      handleCancelEditProduct();
+      return;
+    }
+    setIsFormModalOpen(false);
+    setIsFormFullscreen(false);
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -687,22 +721,23 @@ export const MasterData = () => {
   const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
 
   return (
-    <div className="bg-white rounded-3xl border border-theme-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[600px]">
+    <div className="bg-white rounded-3xl border border-theme-200 shadow-sm overflow-x-clip sm:overflow-hidden flex flex-col min-h-0 sm:h-full sm:min-h-[500px]">
       {/* Tabs & Top Actions */}
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center border-b border-theme-200 gap-3 sm:gap-0 p-3 sm:p-0">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center border-b border-theme-200 gap-2.5 sm:gap-2 p-3 sm:px-4 sm:py-0 lg:px-0 shrink-0">
         <div className="flex bg-theme-100/70 sm:bg-transparent p-1 sm:p-0 rounded-2xl sm:rounded-none">
           <button
             onClick={() => {
               setActiveTab('suppliers');
-              setIsMobileFormOpen(false);
+              setIsFormModalOpen(false);
+              setIsFormFullscreen(false);
             }}
-            className={`flex-1 sm:flex-none px-4 sm:px-8 py-2.5 sm:py-4 text-xs sm:text-sm font-bold sm:font-medium text-center transition-all rounded-xl sm:rounded-none flex items-center justify-center gap-2 ${
+            className={`flex-1 sm:flex-none px-3.5 sm:px-5 lg:px-8 py-2.5 sm:py-3.5 lg:py-4 text-xs sm:text-sm font-bold sm:font-medium text-center transition-all rounded-xl sm:rounded-none flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap ${
               activeTab === 'suppliers' 
                 ? 'bg-white sm:bg-neutral-50 text-neutral-900 shadow-sm sm:shadow-none sm:border-b-2 sm:border-neutral-900' 
                 : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100/60'
             }`}
           >
-            <Building2 className="w-4 h-4 sm:hidden text-theme-500" />
+            <Building2 className="w-4 h-4 lg:hidden text-theme-500 shrink-0" />
             <span>Suppliers</span>
             <span className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded-full bg-theme-200/70 text-theme-800">
               {suppliers.length}
@@ -711,32 +746,33 @@ export const MasterData = () => {
           <button
             onClick={() => {
               setActiveTab('products');
-              setIsMobileFormOpen(false);
+              setIsFormModalOpen(false);
+              setIsFormFullscreen(false);
             }}
-            className={`flex-1 sm:flex-none px-4 sm:px-8 py-2.5 sm:py-4 text-xs sm:text-sm font-bold sm:font-medium text-center transition-all rounded-xl sm:rounded-none flex items-center justify-center gap-2 ${
+            className={`flex-1 sm:flex-none px-3.5 sm:px-5 lg:px-8 py-2.5 sm:py-3.5 lg:py-4 text-xs sm:text-sm font-bold sm:font-medium text-center transition-all rounded-xl sm:rounded-none flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap ${
               activeTab === 'products' 
                 ? 'bg-white sm:bg-neutral-50 text-neutral-900 shadow-sm sm:shadow-none sm:border-b-2 sm:border-neutral-900' 
                 : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100/60'
             }`}
           >
-            <Package className="w-4 h-4 sm:hidden text-theme-500" />
+            <Package className="w-4 h-4 lg:hidden text-theme-500 shrink-0" />
             <span>Products</span>
             <span className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded-full bg-theme-200/70 text-theme-800">
               {products.length}
             </span>
           </button>
         </div>
-        <div className="flex items-center gap-2 px-1 sm:pr-6 justify-end">
+        <div className="flex items-center gap-2 px-0.5 sm:px-0 lg:pr-6 justify-end shrink-0">
           <button 
             onClick={() => downloadMasterDataTemplate(suppliers, products)}
-            className="group flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 px-3 py-2 rounded-xl font-medium transition-all text-xs sm:text-sm active:scale-[0.98]"
+            className="group flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 px-3 py-2 rounded-xl font-medium transition-all text-xs sm:text-sm active:scale-[0.98] whitespace-nowrap"
             title="Download Excel Template"
           >
-            <Download className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform" /> 
+            <Download className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform shrink-0" /> 
             <span>Template</span>
           </button>
-          <label className="group flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-neutral-900 text-white hover:bg-neutral-800 px-3 py-2 rounded-xl font-medium transition-all text-xs sm:text-sm cursor-pointer active:scale-[0.98]">
-            <Upload className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform" /> 
+          <label className="group flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-neutral-900 text-white hover:bg-neutral-800 px-3 py-2 rounded-xl font-medium transition-all text-xs sm:text-sm cursor-pointer active:scale-[0.98] whitespace-nowrap">
+            <Upload className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform shrink-0" /> 
             <span>Import</span>
             <input 
               type="file" 
@@ -749,73 +785,45 @@ export const MasterData = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-3 sm:p-6 flex flex-col lg:flex-row gap-4 lg:gap-8">
-        {/* Mobile Toggle Button for Adding Data */}
-        <div className="lg:hidden">
-          <button
-            onClick={() => setIsMobileFormOpen(!isMobileFormOpen)}
-            className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-bold text-sm transition-all shadow-sm active:scale-[0.98] ${
-              isMobileFormOpen
-                ? 'bg-theme-100 text-theme-800 border border-theme-300'
-                : 'bg-theme-500 hover:bg-theme-600 text-white shadow-theme-500/25'
-            }`}
-          >
-            {isMobileFormOpen ? (
-              <>
-                <ChevronUp className="w-4 h-4" /> 
-                <span>Tutup Form {activeTab === 'suppliers' ? 'Supplier' : 'Produk'}</span>
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4" /> 
-                <span>+ Tambah {activeTab === 'suppliers' ? 'Supplier Baru' : 'Produk Baru'}</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Form Section */}
-        <div 
-          ref={formRef} 
-          className={`w-full lg:w-1/4 shrink-0 transition-all ${
-            isMobileFormOpen ? 'block' : 'hidden lg:block'
-          }`}
+      <div className="flex-1 min-h-0 p-3 sm:p-4 lg:p-6 flex flex-col gap-4 sm:overflow-hidden">
+        {/* Floating Input Modal matching DailyReport style */}
+        <FloatingFormModal
+          isOpen={isFormModalOpen || isFormFullscreen}
+          onClose={handleCloseFormModal}
+          title={
+            activeTab === 'suppliers'
+              ? (editingSupplierId ? 'Edit Supplier' : 'Tambah Supplier Baru')
+              : (editingProductId ? 'Edit Produk' : 'Tambah Produk Baru')
+          }
+          subtitle={
+            activeTab === 'suppliers'
+              ? 'Kelola data pemasok / vendor'
+              : 'Lengkapi informasi produk & supplier utama'
+          }
+          icon={activeTab === 'suppliers' ? <Building2 className="w-5 h-5" /> : <Package className="w-5 h-5" />}
+          isFullscreen={isFormFullscreen}
+          onToggleFullscreen={() => setIsFormFullscreen(!isFormFullscreen)}
+          disableEscapeClose={isSupplierDropdownOpen || isAltSupplierDropdownOpen}
+          maxWidthClass={activeTab === 'suppliers' ? 'max-w-md' : 'max-w-xl'}
         >
-          <div className="bg-theme-50/70 p-4 rounded-2xl border border-theme-200 lg:bg-transparent lg:p-0 lg:border-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-theme-900 text-base">
-                {activeTab === 'suppliers' 
-                  ? (editingSupplierId ? 'Edit Supplier' : 'Tambah Supplier') 
-                  : (editingProductId ? 'Edit Produk' : 'Tambah Produk')}
-              </h3>
-              {isMobileFormOpen && (
-                <button
-                  onClick={() => setIsMobileFormOpen(false)}
-                  className="lg:hidden p-1 text-theme-500 hover:text-theme-800 rounded-lg"
-                  title="Tutup Form"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          
           {activeTab === 'suppliers' ? (
             <form onSubmit={handleSubmitSupplier} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Supplier Name</label>
+                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5">Supplier Name</label>
                 <input
                   type="text"
                   required
+                  autoFocus
                   value={supplierName}
                   onChange={(e) => setSupplierName(e.target.value)}
                   className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
                   placeholder="e.g. PT Maju Bersama"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 sm:shrink-0">
                 <button
                   type="submit"
-                  className="group flex-1 flex items-center justify-center gap-2 bg-theme-500 hover:bg-theme-600 text-white px-4 py-3 rounded-2xl font-bold transition-all duration-300 text-sm hover:shadow-lg hover:shadow-theme-500/20 active:scale-[0.98]"
+                  className="group flex-1 sm:flex-none lg:flex-1 flex items-center justify-center gap-2 bg-theme-500 hover:bg-theme-600 text-white px-4 sm:px-5 py-2.5 lg:py-3 rounded-2xl font-bold transition-all duration-300 text-sm hover:shadow-lg hover:shadow-theme-500/20 active:scale-[0.98] whitespace-nowrap"
                 >
                   {editingSupplierId ? <><Edit2 className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" /> Update</> : <><Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" /> Add</>} Supplier
                 </button>
@@ -823,7 +831,7 @@ export const MasterData = () => {
                   <button
                     type="button"
                     onClick={handleCancelEditSupplier}
-                    className="group flex-none flex items-center justify-center gap-2 bg-theme-100 hover:bg-theme-200 text-theme-600-text px-4 py-3 rounded-2xl font-bold transition-all duration-300 text-sm active:scale-[0.98]"
+                    className="group flex-none flex items-center justify-center gap-2 bg-theme-100 hover:bg-theme-200 text-theme-600-text px-4 py-2.5 lg:py-3 rounded-2xl font-bold transition-all duration-300 text-sm active:scale-[0.98] whitespace-nowrap"
                   >
                     <X className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" /> Cancel
                   </button>
@@ -831,77 +839,77 @@ export const MasterData = () => {
               </div>
             </form>
           ) : (
-            <form onSubmit={handleSubmitProduct} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Product Name</label>
+            <form onSubmit={handleSubmitProduct} className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5">Product Name</label>
                 <input
                   ref={productNameInputRef}
                   type="text"
                   required
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
-                  className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
+                  className="w-full px-4 py-2.5 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
                   placeholder="e.g. Indomie Goreng"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Unit</label>
+                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Unit</label>
                 <input
                   type="text"
                   required
                   value={productUnit}
                   onChange={(e) => setProductUnit(e.target.value)}
-                  className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
+                  className="w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
                   placeholder="e.g. pcs, Box, fls"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Butom Stok</label>
+                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Butom Stok</label>
                 <input
                   type="number"
                   min="0"
                   value={productBottomStock}
                   onChange={(e) => setProductBottomStock(e.target.value ? Number(e.target.value) : '')}
-                  className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
+                  className="w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
                   placeholder="e.g. 30 (Opsional)"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Stok Awal</label>
+                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Stok Awal</label>
                 <input
                   type="number"
                   min="0"
                   value={productStock}
                   onChange={(e) => setProductStock(e.target.value ? Number(e.target.value) : '')}
-                  className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
+                  className="w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
                   placeholder="e.g. 100 (Opsional)"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Lokasi Rak</label>
+                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Lokasi Rak</label>
                 <input
                   type="text"
                   value={productLocation}
                   onChange={(e) => setProductLocation(e.target.value)}
-                  className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
+                  className="w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
                   placeholder="e.g. Rak A1 (Opsional)"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Kategori</label>
+                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Kategori</label>
                 <input
                   type="text"
                   value={productCategory}
                   onChange={(e) => setProductCategory(e.target.value)}
-                  className="w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
+                  className="w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all text-sm text-theme-800"
                   placeholder="e.g. Minuman (Opsional)"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Supplier</label>
+                <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5 lg:mb-2">Supplier</label>
                 <div className="relative" ref={supplierDropdownRef}>
                   <div 
-                    className={`flex items-center w-full px-4 py-3 border rounded-2xl bg-theme-50 transition-all cursor-text ${isSupplierDropdownOpen ? 'border-theme-500 ring-2 ring-theme-500' : 'border-theme-200'}`}
+                    className={`flex items-center w-full px-4 py-2.5 lg:py-3 border rounded-2xl bg-white lg:bg-theme-50 transition-all cursor-text ${isSupplierDropdownOpen ? 'border-theme-500 ring-2 ring-theme-500' : 'border-theme-200'}`}
                     onClick={() => {
                       setIsSupplierDropdownOpen(true);
                       setIsTypingNewSupplier(false);
@@ -1012,8 +1020,8 @@ export const MasterData = () => {
               
               {/* Alternative Suppliers */}
               {productSupplierId && (
-                <div>
-                  <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-2">Alternative Suppliers (Optional)</label>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-theme-500 uppercase tracking-wider mb-1.5">Alternative Suppliers (Optional)</label>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {productAlternativeSupplierIds.map(id => {
                       const sName = suppliers.find(s => s.id === id)?.name || id;
@@ -1032,7 +1040,7 @@ export const MasterData = () => {
                     })}
                   </div>
                   <div className="relative" ref={altSupplierDropdownRef}>
-                    <div className="flex items-center w-full px-4 py-3 border border-theme-200 rounded-2xl bg-theme-50 focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500">
+                    <div className="flex items-center w-full px-4 py-2.5 lg:py-3 border border-theme-200 rounded-2xl bg-white lg:bg-theme-50 focus-within:ring-2 focus-within:ring-theme-500 focus-within:border-theme-500">
                       <input
                         type="text"
                         className="bg-transparent outline-none w-full text-sm text-theme-800"
@@ -1082,10 +1090,10 @@ export const MasterData = () => {
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 sm:col-span-2 pt-0.5">
                 <button
                   type="submit"
-                  className="group flex-1 flex items-center justify-center gap-2 bg-theme-500 hover:bg-theme-600 text-white px-4 py-3 rounded-2xl font-bold transition-all duration-300 text-sm hover:shadow-lg hover:shadow-theme-500/20 active:scale-[0.98]"
+                  className="group flex-1 flex items-center justify-center gap-2 bg-theme-500 hover:bg-theme-600 text-white px-4 py-2.5 rounded-2xl font-bold transition-all duration-300 text-sm hover:shadow-lg hover:shadow-theme-500/20 active:scale-[0.98] whitespace-nowrap"
                   disabled={suppliers.length === 0 || !productSupplierId}
                 >
                   {editingProductId ? <><Edit2 className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" /> Update</> : <><Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" /> Add</>} Product
@@ -1094,29 +1102,32 @@ export const MasterData = () => {
                   <button
                     type="button"
                     onClick={handleCancelEditProduct}
-                    className="group flex-none flex items-center justify-center gap-2 bg-theme-100 hover:bg-theme-200 text-theme-600-text px-4 py-3 rounded-2xl font-bold transition-all duration-300 text-sm active:scale-[0.98]"
+                    className="group flex-none flex items-center justify-center gap-2 bg-theme-100 hover:bg-theme-200 text-theme-600-text px-4 py-2.5 rounded-2xl font-bold transition-all duration-300 text-sm active:scale-[0.98] whitespace-nowrap"
                   >
                     <X className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" /> Cancel
                   </button>
                 )}
               </div>
               {suppliers.length === 0 && (
-                <p className="text-xs text-rose-500 mt-1">Please add a supplier first.</p>
+                <p className="text-xs text-rose-500 sm:col-span-2">Please add a supplier first.</p>
               )}
             </form>
           )}
-          </div>
-        </div>
+        </FloatingFormModal>
 
-        {/* List Section */}
+        {/* List Section (Always Full Width) */}
         <div className={
           isListFullscreen && activeTab === 'products'
             ? "fixed inset-0 z-[100] bg-theme-50 p-3 sm:p-6 md:p-8 flex flex-col animate-in zoom-in-95 duration-200 shadow-2xl overflow-hidden"
-            : "flex-1 border-t lg:border-t-0 lg:border-l border-theme-200 pt-4 lg:pt-0 lg:pl-8 flex flex-col min-w-0"
+            : "flex-1 flex flex-col min-w-0 sm:min-h-0 sm:overflow-hidden"
         }>
-          <div className="flex flex-col gap-3 mb-4 shrink-0">
+          <div className={`flex flex-col gap-3 mb-4 shrink-0 ${
+            isListFullscreen && activeTab === 'products'
+              ? ''
+              : 'sticky top-0 sm:static z-20 bg-white/95 sm:bg-transparent backdrop-blur-xs sm:backdrop-blur-none py-2 sm:py-0 -mx-3 px-3 sm:mx-0 sm:px-0 border-b border-theme-100 sm:border-b-0'
+          }`}>
             {/* Header: Title & Quick Actions */}
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-theme-900 text-sm sm:text-base">
                   {activeTab === 'suppliers' ? 'Daftar Supplier' : 'Daftar Produk'}
@@ -1126,41 +1137,61 @@ export const MasterData = () => {
                 </span>
               </div>
               
-              {activeTab === 'products' && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsListFullscreen(!isListFullscreen)}
-                    className="p-1.5 text-neutral-500 hover:text-theme-700 hover:bg-theme-200 rounded-lg transition-colors active:scale-95 bg-white border border-theme-200 shadow-sm"
-                    title={isListFullscreen ? "Perkecil (Minimize)" : "Layar Penuh (Maximize)"}
-                  >
-                    {isListFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                  </button>
-                  <button
-                    onClick={handleExportProductsTxt}
-                    disabled={filteredProductsList.length === 0}
-                    className="px-2.5 py-1.5 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95 bg-white border border-emerald-200 shadow-sm flex items-center gap-1.5 text-xs font-bold"
-                    title={filteredProductsList.length === 0 ? "Tidak ada data produk untuk diexport" : `Export ${filteredProductsList.length} nama item produk ke file .txt`}
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Export TXT</span>
-                    <span className="sm:hidden">TXT</span>
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (window.confirm("AWAS: Apakah Anda yakin ingin mengatur SEMUA stok produk menjadi 0? Tindakan ini tidak dapat dibatalkan!")) {
-                        await resetAllProductStocks();
-                        alert("Semua stok produk berhasil di-nol-kan.");
-                      }
-                    }}
-                    className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors active:scale-95 bg-white border border-rose-200 shadow-sm flex items-center gap-1.5 text-xs font-bold"
-                    title="Jadikan Semua Stok 0"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> 
-                    <span className="hidden sm:inline">Reset Semua Stok</span>
-                    <span className="sm:hidden">Reset Stok</span>
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeTab === 'suppliers') {
+                      setEditingSupplierId(null);
+                      setSupplierName('');
+                    } else {
+                      setEditingProductId(null);
+                      setTimeout(() => productNameInputRef.current?.focus(), 80);
+                    }
+                    setIsFormModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold bg-theme-600 hover:bg-theme-700 text-white transition-all shadow-sm active:scale-95 whitespace-nowrap"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Tambah {activeTab === 'suppliers' ? 'Supplier' : 'Produk'}</span>
+                </button>
+
+                {activeTab === 'products' && (
+                  <>
+                    <button
+                      onClick={() => setIsListFullscreen(!isListFullscreen)}
+                      className="p-1.5 text-neutral-500 hover:text-theme-700 hover:bg-theme-200 rounded-lg transition-colors active:scale-95 bg-white border border-theme-200 shadow-sm"
+                      title={isListFullscreen ? "Perkecil (Minimize)" : "Layar Penuh (Maximize)"}
+                    >
+                      {isListFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                    </button>
+                    <button
+                      onClick={handleExportProductsTxt}
+                      disabled={filteredProductsList.length === 0}
+                      className="px-2.5 py-1.5 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95 bg-white border border-emerald-200 shadow-sm flex items-center gap-1.5 text-xs font-bold whitespace-nowrap"
+                      title={filteredProductsList.length === 0 ? "Tidak ada data produk untuk diexport" : `Export ${filteredProductsList.length} nama item produk ke file .txt`}
+                    >
+                      <FileText className="w-3.5 h-3.5 shrink-0" />
+                      <span className="hidden sm:inline">Export TXT</span>
+                      <span className="sm:hidden">TXT</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (window.confirm("AWAS: Apakah Anda yakin ingin mengatur SEMUA stok produk menjadi 0? Tindakan ini tidak dapat dibatalkan!")) {
+                          await resetAllProductStocks();
+                          alert("Semua stok produk berhasil di-nol-kan.");
+                        }
+                      }}
+                      className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors active:scale-95 bg-white border border-rose-200 shadow-sm flex items-center gap-1.5 text-xs font-bold whitespace-nowrap"
+                      title="Jadikan Semua Stok 0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 shrink-0" /> 
+                      <span className="hidden sm:inline">Reset Semua Stok</span>
+                      <span className="sm:hidden">Reset Stok</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Search & Mobile Filter Toggle Row */}
@@ -1216,7 +1247,7 @@ export const MasterData = () => {
 
                 {/* Dropdown for Previous & Live Search Results */}
                 {isListSearchDropdownOpen && (
-                  <div className="absolute left-0 z-50 mt-1 w-72 bg-white border border-theme-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-1">
+                  <div className="absolute left-0 z-50 mt-1 w-full sm:w-80 max-w-[calc(100vw-2rem)] bg-white border border-theme-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-1">
                     {(!isTypingNewListSearch || !(activeTab === 'suppliers' ? supplierListSearch : productListSearch).trim()) && (
                       <>
                         {activeTab === 'products' && lastProductListQuery && (
@@ -1341,11 +1372,11 @@ export const MasterData = () => {
               )}
             </div>
 
-            {/* Filter Dropdowns: Collapsible on Mobile, inline flex on sm+ */}
+            {/* Filter Dropdowns: Collapsible on Mobile, 2x2 grid on Tablet (sm-md), inline flex on lg+ */}
             {activeTab === 'products' && (
-              <div className={`${isMobileFilterOpen ? 'grid' : 'hidden'} sm:flex flex-wrap items-center gap-2 grid-cols-2 pt-2 border-t border-neutral-100 sm:border-0 sm:pt-0`}>
+              <div className={`${isMobileFilterOpen ? 'grid' : 'hidden'} sm:grid sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2 grid-cols-2 pt-2 border-t border-neutral-100 sm:border-0 sm:pt-0`}>
                 {/* Supplier Filter */}
-                <div className="relative col-span-2 sm:col-span-1 sm:w-36" ref={listSupplierDropdownRef}>
+                <div className="relative col-span-2 sm:col-span-1 lg:w-36 xl:w-40" ref={listSupplierDropdownRef}>
                   <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 focus-within:border-neutral-400 focus-within:ring-1 focus-within:ring-neutral-400 transition-all">
                     <Filter className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
                     <input 
@@ -1398,7 +1429,7 @@ export const MasterData = () => {
                 </div>
 
                 {/* Category Filter */}
-                <div className="relative sm:w-36">
+                <div className="relative lg:w-36">
                   <select
                     value={listCategoryFilter}
                     onChange={(e) => setListCategoryFilter(e.target.value)}
@@ -1414,7 +1445,7 @@ export const MasterData = () => {
                 </div>
 
                 {/* Location Filter */}
-                <div className="relative sm:w-36">
+                <div className="relative lg:w-36">
                   <select
                     value={listLocationFilter}
                     onChange={(e) => setListLocationFilter(e.target.value)}
@@ -1430,7 +1461,7 @@ export const MasterData = () => {
                 </div>
 
                 {/* Bottom Stock Filter */}
-                <div className="relative sm:w-36">
+                <div className="relative lg:w-36">
                   <select
                     value={listBottomStockFilter}
                     onChange={(e) => setListBottomStockFilter(e.target.value as any)}
@@ -1446,18 +1477,18 @@ export const MasterData = () => {
             )}
           </div>
           
-          {/* Main List Container: Desktop Table vs Mobile Cards */}
+          {/* Main List Container: Desktop Table vs Mobile/Tablet Cards */}
           <div className={
             isListFullscreen && activeTab === 'products'
               ? "flex-1 overflow-auto bg-white rounded-2xl border border-theme-200 shadow-sm min-h-0" 
-              : "overflow-auto max-h-[calc(100vh-280px)] min-h-[300px]"
+              : "sm:flex-1 sm:overflow-auto sm:min-h-0 lg:min-h-[300px]"
           }>
             {activeTab === 'suppliers' ? (
               <>
-                {/* Mobile Cards for Suppliers */}
-                <div className="md:hidden space-y-2.5 pb-2">
+                {/* Mobile & Tablet Cards for Suppliers */}
+                <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2">
                   {filteredSuppliersList.length === 0 ? (
-                    <div className="p-8 text-center text-theme-600-text bg-white rounded-2xl border border-theme-200">
+                    <div className="col-span-full p-8 text-center text-theme-600-text bg-white rounded-2xl border border-theme-200">
                       <Building2 className="w-10 h-10 mx-auto text-theme-300 mb-2" />
                       <p className="font-bold text-theme-800">Tidak ada supplier ditemukan</p>
                     </div>
@@ -1467,7 +1498,7 @@ export const MasterData = () => {
                       return (
                         <div 
                           key={s.id}
-                          className={`bg-white rounded-2xl border p-4 shadow-sm transition-all ${
+                          className={`bg-white rounded-2xl border p-4 shadow-sm transition-all flex flex-col justify-between ${
                             editingSupplierId === s.id 
                               ? 'border-amber-400 ring-2 ring-amber-300 bg-amber-50/40' 
                               : 'border-theme-200 hover:border-theme-300'
@@ -1475,14 +1506,14 @@ export const MasterData = () => {
                         >
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="min-w-0">
-                              <h4 className="font-bold text-theme-950 text-base leading-snug break-words">
+                              <h4 className="font-bold text-theme-950 text-sm sm:text-base leading-snug break-words">
                                 {s.name}
                               </h4>
-                              <span className="text-xs text-theme-500 font-mono mt-0.5 block">
+                              <span className="text-xs text-theme-500 font-mono mt-0.5 block truncate">
                                 ID: {s.id}
                               </span>
                             </div>
-                            <span className="text-xs font-semibold px-2.5 py-1 bg-theme-100 text-theme-800 rounded-lg shrink-0">
+                            <span className="text-xs font-semibold px-2.5 py-1 bg-theme-100 text-theme-800 rounded-lg shrink-0 whitespace-nowrap">
                               {productCount} Produk
                             </span>
                           </div>
@@ -1492,9 +1523,9 @@ export const MasterData = () => {
                               onClick={() => {
                                 handleEditSupplier(s);
                               }}
-                              className="flex-1 min-h-[42px] flex items-center justify-center gap-2 bg-theme-100 hover:bg-theme-200 text-theme-800 font-bold text-xs rounded-xl py-2 px-3 transition-colors active:scale-[0.98]"
+                              className="flex-1 min-h-[40px] flex items-center justify-center gap-1.5 bg-theme-100 hover:bg-theme-200 text-theme-800 font-bold text-xs rounded-xl py-2 px-2.5 transition-colors active:scale-[0.98] whitespace-nowrap"
                             >
-                              <Edit2 className="w-3.5 h-3.5" />
+                              <Edit2 className="w-3.5 h-3.5 shrink-0" />
                               Edit Supplier
                             </button>
                             <button
@@ -1503,9 +1534,9 @@ export const MasterData = () => {
                                   deleteSupplier(s.id);
                                 }
                               }}
-                              className="min-h-[42px] flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl py-2 px-3 border border-rose-200 transition-colors active:scale-[0.98]"
+                              className="min-h-[40px] flex items-center justify-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl py-2 px-2.5 border border-rose-200 transition-colors active:scale-[0.98] whitespace-nowrap"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3.5 h-3.5 shrink-0" />
                               Hapus
                             </button>
                           </div>
@@ -1516,14 +1547,14 @@ export const MasterData = () => {
                 </div>
 
                 {/* Desktop Table for Suppliers */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
+                <div className="hidden lg:block">
+                  <table className="w-full min-w-[520px] text-left border-collapse">
+                    <thead className="sticky top-0 z-20 bg-theme-100 shadow-xs">
                       <tr className="border-b border-theme-200">
-                        <th className="sticky top-0 z-10 py-3.5 px-4 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 rounded-tl-xl">ID</th>
-                        <th className="sticky top-0 z-10 py-3.5 px-4 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100">Nama Supplier</th>
-                        <th className="sticky top-0 z-10 py-3.5 px-4 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 text-center">Jumlah Produk</th>
-                        <th className="sticky top-0 z-10 py-3.5 px-4 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 rounded-tr-xl w-24 text-right">Aksi</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-4 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 rounded-tl-xl">ID</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-4 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100">Nama Supplier</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-4 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 text-center">Jumlah Produk</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-4 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 rounded-tr-xl w-24 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-theme-100">
@@ -1565,10 +1596,10 @@ export const MasterData = () => {
               </>
             ) : (
               <>
-                {/* Mobile Cards for Products */}
-                <div className="md:hidden space-y-3 pb-2">
+                {/* Mobile & Tablet Cards for Products */}
+                <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2">
                   {filteredProductsList.length === 0 ? (
-                    <div className="p-8 text-center text-theme-600-text bg-white rounded-2xl border border-theme-200">
+                    <div className="col-span-full p-8 text-center text-theme-600-text bg-white rounded-2xl border border-theme-200">
                       <Package className="w-10 h-10 mx-auto text-theme-300 mb-2" />
                       <p className="font-bold text-theme-800">Tidak ada produk ditemukan</p>
                       <p className="text-xs text-theme-500 mt-1">Coba sesuaikan kata kunci atau filter</p>
@@ -1581,99 +1612,103 @@ export const MasterData = () => {
                       return (
                         <div 
                           key={p.id}
-                          className={`bg-white rounded-2xl border p-4 shadow-sm transition-all ${
+                          className={`bg-white rounded-2xl border p-4 shadow-sm transition-all flex flex-col justify-between ${
                             editingProductId === p.id 
                               ? 'border-amber-400 ring-2 ring-amber-300 bg-amber-50/40' 
                               : 'border-theme-200 hover:border-theme-300'
                           }`}
                         >
-                          {/* Card Top: Title & Unit */}
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="min-w-0 flex-1">
-                              <h4 className="font-bold text-theme-950 text-base leading-snug break-words">
-                                {p.name}
-                              </h4>
-                              <div className="flex flex-wrap items-center gap-1.5 mt-1 text-xs">
-                                <span className="inline-flex items-center gap-1 bg-theme-100 text-theme-800 font-medium px-2 py-0.5 rounded-md">
-                                  <Building2 className="w-3 h-3 text-theme-500" />
-                                  {supplier?.name || 'Unknown Supplier'}
-                                </span>
-                                {p.category && (
-                                  <span className="bg-neutral-100 text-neutral-700 font-medium px-2 py-0.5 rounded-md">
-                                    {p.category}
+                          <div>
+                            {/* Card Top: Title & Unit */}
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-bold text-theme-950 text-sm sm:text-base leading-snug break-words">
+                                  {p.name}
+                                </h4>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1 text-xs">
+                                  <span className="inline-flex items-center gap-1 bg-theme-100 text-theme-800 font-medium px-2 py-0.5 rounded-md">
+                                    <Building2 className="w-3 h-3 text-theme-500 shrink-0" />
+                                    {supplier?.name || 'Unknown Supplier'}
                                   </span>
-                                )}
-                                {p.location && (
-                                  <span className="bg-indigo-50 text-indigo-700 font-medium px-2 py-0.5 rounded-md">
-                                    📍 {p.location}
-                                  </span>
-                                )}
+                                  {p.category && (
+                                    <span className="bg-neutral-100 text-neutral-700 font-medium px-2 py-0.5 rounded-md">
+                                      {p.category}
+                                    </span>
+                                  )}
+                                  {p.location && (
+                                    <span className="bg-indigo-50 text-indigo-700 font-medium px-2 py-0.5 rounded-md">
+                                      📍 {p.location}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                            <span className="text-xs font-semibold px-2 py-1 bg-theme-50 text-theme-700 rounded-lg border border-theme-200 shrink-0">
-                              {p.unit || 'pcs'}
-                            </span>
-                          </div>
-
-                          {/* Alternative Suppliers */}
-                          {p.alternativeSupplierIds && p.alternativeSupplierIds.length > 0 && (
-                            <div className="mb-2 flex flex-wrap items-center gap-1 text-[11px] text-theme-500">
-                              <span className="font-medium text-theme-400">Alt:</span>
-                              {p.alternativeSupplierIds.map(altId => (
-                                <span key={altId} className="bg-theme-50 text-theme-600 px-1.5 py-0.5 rounded border border-theme-100 text-[10px]">
-                                  {suppliers.find(s => s.id === altId)?.name || altId}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Stock Metrics Grid */}
-                          <div className="grid grid-cols-2 gap-2 my-2.5 py-2.5 px-3 bg-theme-50/80 rounded-xl border border-theme-100 text-xs">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] uppercase font-bold text-theme-500 tracking-wider">Sisa Stok</span>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className={`text-base font-extrabold ${isLow ? 'text-rose-600' : 'text-theme-900'}`}>
-                                  {p.stock !== undefined && p.stock !== null ? p.stock : 0}
-                                </span>
-                                <span className="text-theme-500 text-[11px]">{p.unit || 'pcs'}</span>
-                                {isLow && (
-                                  <span className="text-[10px] font-bold bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">
-                                    Menipis
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            
-                            <div className="flex flex-col border-l border-theme-200/60 pl-3">
-                              <span className="text-[10px] uppercase font-bold text-theme-500 tracking-wider">Butom Stok</span>
-                              <span className="text-sm font-bold text-theme-700 mt-0.5">
-                                {p.bottomStock !== undefined && p.bottomStock !== null ? `${p.bottomStock} ${p.unit || 'pcs'}` : '-'}
+                              <span className="text-xs font-semibold px-2 py-1 bg-theme-50 text-theme-700 rounded-lg border border-theme-200 shrink-0 whitespace-nowrap">
+                                {p.unit || 'pcs'}
                               </span>
                             </div>
+
+                            {/* Alternative Suppliers */}
+                            {p.alternativeSupplierIds && p.alternativeSupplierIds.length > 0 && (
+                              <div className="mb-2 flex flex-wrap items-center gap-1 text-[11px] text-theme-500">
+                                <span className="font-medium text-theme-400">Alt:</span>
+                                {p.alternativeSupplierIds.map(altId => (
+                                  <span key={altId} className="bg-theme-50 text-theme-600 px-1.5 py-0.5 rounded border border-theme-100 text-[10px]">
+                                    {suppliers.find(s => s.id === altId)?.name || altId}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
 
-                          {/* Card Action Buttons */}
-                          <div className="flex items-center gap-2 pt-2 border-t border-theme-100">
-                            <button
-                              onClick={() => {
-                                handleEditProduct(p);
-                              }}
-                              className="flex-1 min-h-[42px] flex items-center justify-center gap-2 bg-theme-100 hover:bg-theme-200 text-theme-800 font-bold text-xs rounded-xl py-2 px-3 transition-colors active:scale-[0.98]"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                              Edit Produk
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Hapus produk "${p.name}"?`)) {
-                                  deleteProduct(p.id);
-                                }
-                              }}
-                              className="min-h-[42px] flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl py-2 px-3 border border-rose-200 transition-colors active:scale-[0.98]"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Hapus
-                            </button>
+                          <div>
+                            {/* Stock Metrics Grid */}
+                            <div className="grid grid-cols-2 gap-2 my-2.5 py-2.5 px-3 bg-theme-50/80 rounded-xl border border-theme-100 text-xs">
+                              <div className="flex flex-col">
+                                <span className="text-[10px] uppercase font-bold text-theme-500 tracking-wider">Sisa Stok</span>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <span className={`text-base font-extrabold ${isLow ? 'text-rose-600' : 'text-theme-900'}`}>
+                                    {p.stock !== undefined && p.stock !== null ? p.stock : 0}
+                                  </span>
+                                  <span className="text-theme-500 text-[11px]">{p.unit || 'pcs'}</span>
+                                  {isLow && (
+                                    <span className="text-[10px] font-bold bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">
+                                      Menipis
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div className="flex flex-col border-l border-theme-200/60 pl-3">
+                                <span className="text-[10px] uppercase font-bold text-theme-500 tracking-wider">Butom Stok</span>
+                                <span className="text-sm font-bold text-theme-700 mt-0.5">
+                                  {p.bottomStock !== undefined && p.bottomStock !== null ? `${p.bottomStock} ${p.unit || 'pcs'}` : '-'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Card Action Buttons */}
+                            <div className="flex items-center gap-2 pt-2 border-t border-theme-100">
+                              <button
+                                onClick={() => {
+                                  handleEditProduct(p);
+                                }}
+                                className="flex-1 min-h-[40px] flex items-center justify-center gap-1.5 bg-theme-100 hover:bg-theme-200 text-theme-800 font-bold text-xs rounded-xl py-2 px-2.5 transition-colors active:scale-[0.98] whitespace-nowrap"
+                              >
+                                <Edit2 className="w-3.5 h-3.5 shrink-0" />
+                                Edit Produk
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Hapus produk "${p.name}"?`)) {
+                                    deleteProduct(p.id);
+                                  }
+                                }}
+                                className="min-h-[40px] flex items-center justify-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl py-2 px-2.5 border border-rose-200 transition-colors active:scale-[0.98] whitespace-nowrap"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                                Hapus
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -1682,18 +1717,18 @@ export const MasterData = () => {
                 </div>
 
                 {/* Desktop Table for Products */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
+                <div className="hidden lg:block">
+                  <table className="w-full min-w-[780px] text-left border-collapse">
+                    <thead className="sticky top-0 z-20 bg-theme-100 shadow-xs">
                       <tr className="border-b border-theme-200">
-                        <th className="sticky top-0 z-10 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 rounded-tl-xl">Nama Produk</th>
-                        <th className="sticky top-0 z-10 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100">Satuan</th>
-                        <th className="sticky top-0 z-10 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100">Supplier</th>
-                        <th className="sticky top-0 z-10 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 text-center">Butom Stok</th>
-                        <th className="sticky top-0 z-10 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100">Kategori</th>
-                        <th className="sticky top-0 z-10 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 text-center">Stok</th>
-                        <th className="sticky top-0 z-10 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100">Lokasi</th>
-                        <th className="sticky top-0 z-10 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 rounded-tr-xl w-24 text-right">Aksi</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 rounded-tl-xl">Nama Produk</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100">Satuan</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100">Supplier</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 text-center">Butom Stok</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100">Kategori</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 text-center">Stok</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100">Lokasi</th>
+                        <th className="sticky top-0 z-20 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 rounded-tr-xl w-24 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-theme-100">
@@ -1761,7 +1796,7 @@ export const MasterData = () => {
           </div>
           
           {/* Responsive Pagination Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between p-3 sm:px-6 sm:py-4 border-t border-theme-200 bg-white gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between p-3 sm:px-4 lg:px-6 sm:py-3.5 border-t border-theme-200 bg-white gap-2.5 sm:gap-3 shrink-0">
             <div className="flex items-center justify-between w-full sm:w-auto gap-3">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-theme-600-text">Baris:</span>
@@ -1777,12 +1812,12 @@ export const MasterData = () => {
                   <option value={9999}>Semua</option>
                 </select>
               </div>
-              <span className="text-xs text-theme-600-text">
+              <span className="text-xs text-theme-600-text whitespace-nowrap">
                 {totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, totalItems)} dari {totalItems}
               </span>
             </div>
             
-            <div className="flex items-center justify-center w-full sm:w-auto gap-2">
+            <div className="flex items-center justify-center w-full sm:w-auto gap-1.5 sm:gap-2">
               <button
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
@@ -1796,7 +1831,7 @@ export const MasterData = () => {
                 Hal {currentPage} / {totalPages}
               </span>
 
-              <div className="hidden sm:flex items-center gap-1 mx-2">
+              <div className="hidden sm:flex items-center gap-1 mx-1 lg:mx-2">
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum = i + 1;
                   if (totalPages > 5 && currentPage > 3) {

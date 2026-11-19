@@ -392,51 +392,46 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
     return pendingItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
   }, [pendingItems]);
 
-  // If collapsed on desktop
+  const handleCloseFloatingModal = () => {
+    setIsFormFullscreen(false);
+    setIsFormCollapsed(true);
+    setMobileTab('list');
+  };
+
+  // Close floating form on Escape key (when product autocomplete dropdown is closed)
+  useEffect(() => {
+    if (isFormCollapsed) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isDropdownOpen) {
+        handleCloseFloatingModal();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isFormCollapsed, isDropdownOpen]);
+
+  // Do not render anything when floating form is closed
   if (isFormCollapsed && !isFormFullscreen) {
-    return (
-      <div className={cn(
-        "bg-white rounded-3xl border border-theme-200 shadow-xs transition-all duration-300 h-fit",
-        mobileTab === 'form' ? "w-full block p-4 sm:p-5" : "hidden lg:block lg:w-16 lg:p-3 overflow-hidden"
-      )}>
-        <div className="hidden lg:flex flex-col items-center gap-4 py-2">
-          <button 
-            type="button"
-            onClick={() => setIsFormCollapsed(false)}
-            className="p-3 text-white bg-neutral-900 hover:bg-neutral-800 rounded-2xl transition-all duration-300 shadow-sm active:scale-95 group"
-            title="Buka Form Input Sales"
-          >
-            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-          </button>
-          <div className="[writing-mode:vertical-lr] text-xs font-bold text-theme-500 tracking-wider uppercase select-none cursor-pointer" onClick={() => setIsFormCollapsed(false)}>
-            + Input Sales
-          </div>
-          {pendingItems.length > 0 && (
-            <span className="w-6 h-6 rounded-full bg-theme-500 text-white text-[10px] font-bold flex items-center justify-center shadow-xs">
-              {pendingItems.length}
-            </span>
-          )}
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
     <div
-      className={
-        isFormFullscreen
-          ? "fixed inset-0 z-[100] bg-white p-4 sm:p-6 md:p-8 overflow-y-auto animate-in zoom-in-95 duration-200 shadow-2xl flex flex-col"
-          : cn(
-              "bg-white rounded-3xl border border-theme-200 shadow-xs transition-all duration-300 h-fit",
-              mobileTab === 'form' ? "w-full block p-4 sm:p-5" : "hidden lg:block",
-              "lg:w-84 xl:w-96 lg:p-5 shrink-0"
-            )
-      }
+      className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-5 bg-neutral-950/55 backdrop-blur-xs animate-in fade-in duration-150"
+      onClick={handleCloseFloatingModal}
     >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className={
+          isFormFullscreen
+            ? "w-full h-full bg-white p-4 sm:p-6 md:p-8 overflow-y-auto animate-in zoom-in-95 duration-200 shadow-2xl flex flex-col rounded-none sm:rounded-3xl border border-theme-200"
+            : "w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-3xl border border-theme-200 shadow-2xl p-4 sm:p-6 animate-in zoom-in-95 duration-200"
+        }
+      >
       {/* Header */}
       <div className="flex items-center justify-between pb-3 mb-4 border-b border-theme-100">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-2xl bg-theme-500/10 border border-theme-500/20 flex items-center justify-center text-theme-700 shadow-2xs">
+          <div className="w-9 h-9 rounded-2xl bg-theme-500/10 border border-theme-500/20 flex items-center justify-center text-theme-700 shadow-2xs shrink-0">
             {editingReportId ? <Edit2 className="w-4 h-4 text-theme-600" /> : <Plus className="w-4 h-4 text-theme-600" />}
           </div>
           <div>
@@ -449,25 +444,23 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={() => setIsFormFullscreen(!isFormFullscreen)}
             className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-theme-100 rounded-xl transition-colors"
-            title={isFormFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
+            title={isFormFullscreen ? "Perkecil Modal" : "Perbesar Layar Penuh"}
           >
             {isFormFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
-          {!isFormFullscreen && (
-            <button
-              type="button"
-              onClick={() => setIsFormCollapsed(true)}
-              className="hidden lg:flex p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-theme-100 rounded-xl transition-colors"
-              title="Ciutkan Form"
-            >
-              <ChevronDown className="w-4 h-4" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleCloseFloatingModal}
+            className="p-1.5 text-neutral-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+            title="Tutup Form Input"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -1111,6 +1104,7 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 };

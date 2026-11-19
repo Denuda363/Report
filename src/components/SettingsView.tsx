@@ -7,9 +7,9 @@ import {
   BookOpen, Sparkles, Play, Calendar, Clock, Minus, Plus, Info, ShieldCheck,
   Code2, Copyright, Award, Heart, BadgeCheck, Laptop, Cpu,
   Lock, KeyRound, Eye, EyeOff, X,
-  Building2, MapPin, Phone, Mail, ImagePlus, Save, RotateCcw
+  Building2, MapPin, Phone, Mail, ImagePlus, Save, RotateCcw, Smartphone
 } from 'lucide-react';
-import { AutoDeleteMode, NavbarPosition, DbProvider, ClockStyle } from '../types';
+import { AutoDeleteMode, NavbarPosition, NavbarStyle, DbProvider, ClockStyle } from '../types';
 import { 
   getSupabaseConfig, setSupabaseConfig, SUPABASE_SQL_SCHEMA, 
   checkSupabaseTableStatus, TableStatus, DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_KEY 
@@ -541,6 +541,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
     updateSettings({ ...settings, navbarPosition: position });
   };
 
+  const handleNavbarStyleChange = (navbarStyle: NavbarStyle) => {
+    updateSettings({ ...settings, navbarStyle });
+  };
+
   const handleClearCache = async () => {
     if (window.confirm("Apakah Anda yakin ingin menghapus cache sistem aplikasi? Ini dapat membantu menyelesaikan masalah teknis ringan. Aplikasi akan dimuat ulang setelah selesai.")) {
       try {
@@ -561,33 +565,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
   const activeProvider = dbProvider || getDbProvider();
 
   const renderAboutCard = () => (
-    <div id="section-tentang-aplikasi" className="bg-white rounded-[2.5rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8 relative">
+    <div id="section-tentang-aplikasi" className="bg-white rounded-[2rem] lg:rounded-[2.5rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-8 relative">
       {/* Background ambient accents */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-100/40 via-theme-100/30 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
       <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-theme-100/40 to-transparent rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
 
       <div className="relative z-10">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-neutral-100 mb-8">
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
-              <Award className="w-7 h-7" />
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 sm:pb-6 border-b border-neutral-100 mb-5 sm:mb-8">
+          <div className="flex items-start gap-3.5 sm:gap-4">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
+              <Award className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-xl md:text-2xl font-black text-theme-900 tracking-tight">
+                <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-theme-900 tracking-tight">
                   Tentang Aplikasi & Hak Cipta
                 </h3>
                 {/* APPLICATION VERSION BADGE PROMINENT */}
-                <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 shadow-2xs">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
                   Versi Aplikasi: v3.2.0 Pro Edition
                 </span>
-                <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-neutral-100 text-neutral-700 border border-neutral-200">
+                <span className="px-2.5 py-0.5 sm:py-1 rounded-full text-[11px] font-mono font-bold bg-neutral-100 text-neutral-700 border border-neutral-200">
                   Build 2026.11.12 (Stable)
                 </span>
               </div>
-              <p className="text-xs md:text-sm text-theme-600-text mt-1 font-medium">
+              <p className="text-xs sm:text-sm text-theme-600-text mt-1 font-medium">
                 Informasi resmi profil pengembang (Developer), sertifikat hak cipta, dan spesifikasi arsitektur aplikasi.
               </p>
             </div>
@@ -597,7 +601,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
             <button
               type="button"
               onClick={handleCopyCopyright}
-              className="px-3.5 py-2 text-xs font-bold rounded-xl border border-neutral-200 hover:border-emerald-300 bg-white hover:bg-emerald-50 text-neutral-700 hover:text-emerald-800 transition-all shadow-xs flex items-center gap-2 active:scale-95"
+              className="px-3.5 py-2 text-xs font-bold rounded-xl border border-neutral-200 hover:border-emerald-300 bg-white hover:bg-emerald-50 text-neutral-700 hover:text-emerald-800 transition-all shadow-xs flex items-center gap-2 active:scale-95 whitespace-nowrap"
               title="Salin ringkasan hak cipta & developer"
             >
               {isCopiedCopyright ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-neutral-500" />}
@@ -607,10 +611,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
         </div>
 
         {/* 3 Main Grid Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
 
           {/* CARD 1: DEVELOPER APLIKASI (DENUDA) */}
-          <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border-2 border-emerald-500/30 p-6 flex flex-col justify-between shadow-xs hover:border-emerald-500/60 transition-all relative overflow-hidden group">
+          <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[1.75rem] lg:rounded-[2rem] border-2 border-emerald-500/30 p-4 sm:p-5 lg:p-6 flex flex-col justify-between shadow-xs hover:border-emerald-500/60 transition-all relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
             
             <div>
@@ -662,7 +666,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
           </div>
 
           {/* CARD 2: HAK CIPTA APLIKASI */}
-          <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border border-neutral-200 p-6 flex flex-col justify-between shadow-xs hover:border-theme-300 transition-all relative overflow-hidden group">
+          <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[1.75rem] lg:rounded-[2rem] border border-neutral-200 p-4 sm:p-5 lg:p-6 flex flex-col justify-between shadow-xs hover:border-theme-300 transition-all relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-28 h-28 bg-theme-400/10 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
 
             <div>
@@ -713,7 +717,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
           </div>
 
           {/* CARD 3: TENTANG APLIKASI & SPESIFIKASI */}
-          <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[2rem] border border-neutral-200 p-6 flex flex-col justify-between shadow-xs hover:border-neutral-300 transition-all md:col-span-2 lg:col-span-1">
+          <div className="bg-gradient-to-b from-neutral-50/80 to-white rounded-[1.75rem] lg:rounded-[2rem] border border-neutral-200 p-4 sm:p-5 lg:p-6 flex flex-col justify-between shadow-xs hover:border-neutral-300 transition-all sm:col-span-2 lg:col-span-1">
             <div>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-neutral-200/80 text-neutral-800 flex items-center gap-1">
@@ -865,23 +869,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
     colorful: 'Colorful 3D',
     '3d': '3D Depth',
     glossy: 'Glosy Shine',
-    glass: 'Glassmorphism'
+    glass: 'Glassmorphism',
+    windows11: 'Windows 11 Mica',
+    ubuntu: 'Ubuntu Yaru'
   };
   const currentThemeLabel = activeThemeDisplayMap[settings.theme || 'default'] || 'Sage Green 3D';
   const previewCompanyName = companyName.trim() || 'ReportPro';
   const previewCompanyTagline = companyTagline.trim() || 'Manajemen Stok & Laporan';
 
   return (
-    <div className="h-full flex flex-col gap-6 pb-12 max-w-6xl mx-auto w-full">
+    <div className="h-full flex flex-col gap-4 lg:gap-6 pb-6 max-w-6xl mx-auto w-full">
       {/* Settings Header & Grouped Tab Menu */}
-      <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm p-5 sm:p-6 flex flex-col gap-5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <div className="p-3.5 bg-theme-50 rounded-2xl border border-theme-200 text-theme-600 shadow-xs shrink-0">
-              <Settings className="w-6 h-6" />
+      <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm p-4 sm:p-5 lg:p-6 flex flex-col gap-4 lg:gap-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 lg:gap-4">
+          <div className="flex items-start gap-3.5 sm:gap-4">
+            <div className="p-3 lg:p-3.5 bg-theme-50 rounded-2xl border border-theme-200 text-theme-600 shadow-xs shrink-0">
+              <Settings className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div>
-              <h2 className="text-2xl sm:text-3xl font-black text-theme-900 tracking-tight">Pengaturan Aplikasi</h2>
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-theme-900 tracking-tight">Pengaturan Aplikasi</h2>
               <p className="text-theme-600-text text-xs sm:text-sm font-medium mt-0.5 leading-relaxed">
                 Kelola profil perusahaan, tampilan tema 3D, koneksi database, pemeliharaan data, dan panduan dalam tab terkelompok.
               </p>
@@ -893,7 +899,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
             <button
               type="button"
               onClick={() => setActiveSubTab('database')}
-              className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap"
               title="Buka tab Database & Cloud"
             >
               <Database className="w-3.5 h-3.5 text-emerald-600" />
@@ -903,7 +909,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
             <button
               type="button"
               onClick={() => setActiveSubTab('appearance')}
-              className="px-3 py-1.5 rounded-xl bg-theme-50 hover:bg-theme-100/80 border border-theme-200 text-theme-800 text-xs font-bold flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 rounded-xl bg-theme-50 hover:bg-theme-100/80 border border-theme-200 text-theme-800 text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap"
               title="Buka tab Tampilan & Tema"
             >
               <Palette className="w-3.5 h-3.5 text-theme-600" />
@@ -913,7 +919,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
             <button
               type="button"
               onClick={() => setActiveSubTab('about')}
-              className="px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-emerald-300 border border-neutral-800 text-xs font-black flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-emerald-300 border border-neutral-800 text-xs font-black flex items-center gap-1.5 transition-colors whitespace-nowrap"
               title="Buka tab Tentang Aplikasi"
             >
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
@@ -923,14 +929,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
         </div>
 
         {/* Grouped Tab Navigation Bar */}
-        <div className="pt-4 border-t border-theme-100 flex flex-col gap-3">
+        <div className="pt-3.5 lg:pt-4 border-t border-theme-100 flex flex-col gap-3">
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
             {/* Group 1: Konfigurasi Utama */}
             <div className="flex flex-col gap-1.5 flex-1">
               <span className="text-[10px] font-black uppercase tracking-wider text-theme-600-text px-1">
                 Konfigurasi & Sistem
               </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
                 {settingsTabs.filter((t) => t.group === 'pengaturan').map((tab) => {
                   const Icon = tab.icon;
                   const isActive = activeSubTab === tab.id;
@@ -939,7 +945,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveSubTab(tab.id)}
-                      className={`text-left px-3.5 py-2.5 rounded-2xl border transition-all flex items-center gap-2.5 ${
+                      className={`text-left px-3 sm:px-3.5 py-2.5 rounded-2xl border transition-all flex items-center gap-2.5 ${
                         isActive
                           ? 'bg-theme-600 text-white border-theme-700 shadow-sm'
                           : 'bg-theme-50/50 hover:bg-theme-100/70 text-theme-900 border-theme-200/80'
@@ -952,7 +958,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-extrabold leading-tight break-words">{tab.label}</span>
+                          <span className="text-xs font-extrabold leading-tight">{tab.label}</span>
                           {tab.badge && (
                             <span className={`px-1.5 py-0.2 rounded-md text-[9px] font-black uppercase ${
                               isActive ? 'bg-white/20 text-white' : 'bg-theme-100 text-theme-800'
@@ -990,7 +996,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveSubTab(tab.id)}
-                      className={`text-left px-3.5 py-2.5 rounded-2xl border transition-all flex items-center gap-2.5 ${
+                      className={`text-left px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-2xl border transition-all flex items-center gap-2 sm:gap-2.5 ${
                         isActive
                           ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
                           : 'bg-neutral-50 hover:bg-emerald-50/70 text-neutral-900 border-neutral-200/90'
@@ -1029,22 +1035,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
 
       {/* TAB 1: PROFIL PERUSAHAAN */}
       {activeSubTab === 'profile' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-200">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 animate-in fade-in duration-200">
           {/* Form Editor Profil Perusahaan */}
-          <div className="lg:col-span-8 bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8 relative">
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <div className="flex items-start gap-4">
-                <div className="p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
-                  <Building2 className="w-7 h-7 text-theme-500" />
+          <div className="lg:col-span-8 bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-8 relative">
+            <div className="flex items-start justify-between gap-4 mb-5 lg:mb-6">
+              <div className="flex items-start gap-3.5 sm:gap-4">
+                <div className="p-3 lg:p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
+                  <Building2 className="w-6 h-6 lg:w-7 lg:h-7 text-theme-500" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-xl font-bold text-theme-900">Profil & Identitas Perusahaan</h3>
+                    <h3 className="text-lg lg:text-xl font-bold text-theme-900">Profil & Identitas Perusahaan</h3>
                     <span className="px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-theme-100 text-theme-800">
                       Sidebar, Header & PDF
                     </span>
                   </div>
-                  <p className="text-sm text-theme-600-text mt-1 font-medium leading-relaxed">
+                  <p className="text-xs sm:text-sm text-theme-600-text mt-1 font-medium leading-relaxed">
                     Sesuaikan nama perusahaan, slogan, kontak, serta unggah logo/icon perusahaan agar tampil di navigasi aplikasi dan kop laporan PDF.
                   </p>
                 </div>
@@ -1254,8 +1260,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
           </div>
 
           {/* Live Branding Preview Card */}
-          <div className="lg:col-span-4 flex flex-col gap-6">
-            <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm p-6 flex flex-col gap-4">
+          <div className="lg:col-span-4 flex flex-col gap-4 lg:gap-6">
+            <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm p-4 sm:p-5 lg:p-6 flex flex-col gap-4">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="text-sm font-extrabold text-theme-900 flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-theme-500" />
@@ -1326,27 +1332,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
 
       {/* TAB 2: TAMPILAN & TEMA */}
       {activeSubTab === 'appearance' && (
-        <div className="flex flex-col gap-6 animate-in fade-in duration-200">
+        <div className="flex flex-col gap-4 lg:gap-6 animate-in fade-in duration-200">
           {/* Theme Settings */}
-          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8">
-            <div className="flex items-start gap-4 mb-7">
-              <div className="p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
-                <Palette className="w-7 h-7 text-theme-500" />
+          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-8">
+            <div className="flex items-start gap-3.5 sm:gap-4 mb-5 lg:mb-7">
+              <div className="p-3 lg:p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
+                <Palette className="w-6 h-6 lg:w-7 lg:h-7 text-theme-500" />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-xl font-bold text-theme-900">Tema Warna & Gaya 3D</h3>
+                  <h3 className="text-lg lg:text-xl font-bold text-theme-900">Tema Warna & Gaya 3D</h3>
                   <span className="px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-theme-100 text-theme-800">
-                    10 Pilihan Tema 3D
+                    12 Pilihan Tema
                   </span>
                 </div>
-                <p className="text-sm text-theme-600-text mt-1.5 font-medium leading-relaxed">
-                  Seluruh tema kini hadir dengan efek kedalaman 3D fisik. Mengubah tema juga otomatis menyesuaikan gaya jam agar serasi.
+                <p className="text-xs sm:text-sm text-theme-600-text mt-1 lg:mt-1.5 font-medium leading-relaxed">
+                  Seluruh tema hadir dengan efek kedalaman 3D fisik, termasuk gaya Windows 11 Fluent Mica &amp; Ubuntu Yaru. Mengubah tema juga otomatis menyesuaikan gaya jam agar serasi.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2.5 sm:gap-3 lg:gap-4">
               {[
                 {
                   id: 'default',
@@ -1408,6 +1414,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                   badge: '3D Kaca',
                   color: 'bg-gradient-to-tr from-indigo-500/75 via-sky-400/70 to-pink-400/70 backdrop-blur-md border-2 border-white/90 shadow-[0_5px_0_rgba(67,56,202,0.55),0_8px_16px_rgba(79,70,229,0.28),inset_0_2px_4px_rgba(255,255,255,0.9)]'
                 },
+                {
+                  id: 'windows11',
+                  name: 'Windows 11',
+                  badge: 'Fluent Mica',
+                  color: 'bg-gradient-to-br from-[#38BDF8] via-[#0078D4] to-[#004578] shadow-[0_5px_0_#003E73,0_8px_16px_rgba(0,120,212,0.32),inset_0_2px_3px_rgba(255,255,255,0.85)] ring-1 ring-sky-200'
+                },
+                {
+                  id: 'ubuntu',
+                  name: 'Ubuntu Yaru',
+                  badge: 'Yaru Orange',
+                  color: 'bg-gradient-to-br from-[#F36B3B] via-[#E95420] to-[#300A24] shadow-[0_5px_0_#2C001E,0_8px_16px_rgba(233,84,32,0.34),inset_0_2px_3px_rgba(255,255,255,0.75)] ring-1 ring-orange-200'
+                },
               ].map((t) => {
                 const activeTheme = settings.theme === 'green' || !settings.theme ? 'default' : settings.theme;
                 const isSelected = activeTheme === t.id;
@@ -1415,19 +1433,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                   <div
                     key={t.id}
                     onClick={() => handleThemeChange(t.id)}
-                    className={`relative p-5 rounded-[1.5rem] border-2 cursor-pointer transition-all duration-300 flex flex-col items-center gap-3 group ${
+                    className={`relative p-3 sm:p-3.5 lg:p-5 rounded-2xl lg:rounded-[1.5rem] border-2 cursor-pointer transition-all duration-300 flex flex-row lg:flex-col items-center gap-3 group ${
                       isSelected
                         ? 'border-theme-500 bg-theme-50 shadow-md scale-100'
                         : 'border-theme-100 hover:border-theme-300 hover:bg-neutral-50 bg-white hover:-translate-y-1'
                     }`}
                   >
-                    <div className={`w-12 h-12 rounded-full ${t.color} flex items-center justify-center transition-transform group-hover:scale-110`}>
-                      {isSelected && <CheckCircle2 className="w-6 h-6 text-white drop-shadow-md" />}
+                    <div className={`w-10 h-10 lg:w-12 lg:h-12 rounded-full ${t.color} flex items-center justify-center shrink-0 transition-transform group-hover:scale-110`}>
+                      {isSelected && <CheckCircle2 className="w-5 h-5 lg:w-6 lg:h-6 text-white drop-shadow-md" />}
                     </div>
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="font-bold text-theme-900 text-sm text-center">{t.name}</span>
+                    <div className="min-w-0 flex-1 lg:flex-none flex flex-col items-start lg:items-center gap-0.5 lg:gap-1 text-left lg:text-center">
+                      <span className="font-bold text-theme-900 text-xs sm:text-sm leading-tight truncate max-w-full">{t.name}</span>
                       {t.badge && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-theme-100 text-theme-800">
+                        <span className="text-[9px] lg:text-[10px] font-bold uppercase tracking-wider px-1.5 lg:px-2 py-0.5 rounded-md bg-theme-100 text-theme-800 whitespace-nowrap">
                           {t.badge}
                         </span>
                       )}
@@ -1445,20 +1463,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
             const isMatchedWithTheme = activeClockStyle === recommendedStyle;
 
             return (
-              <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8">
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-7">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
-                      <Clock className="w-7 h-7 text-theme-500" />
+              <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-8">
+                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3.5 lg:gap-4 mb-5 lg:mb-7">
+                  <div className="flex items-start gap-3.5 sm:gap-4">
+                    <div className="p-3 lg:p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
+                      <Clock className="w-6 h-6 lg:w-7 lg:h-7 text-theme-500" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-xl font-bold text-theme-900">Gaya Jam Header</h3>
+                        <h3 className="text-lg lg:text-xl font-bold text-theme-900">Gaya Jam Header</h3>
                         <span className="text-xs font-semibold text-theme-600-text">
                           10 Gaya Unik · Pratinjau Langsung
                         </span>
                       </div>
-                      <p className="text-sm text-theme-600-text mt-1.5 font-medium leading-relaxed">
+                      <p className="text-xs sm:text-sm text-theme-600-text mt-1 lg:mt-1.5 font-medium leading-relaxed">
                         Pilih gaya tampilan jam digital atau analog di header aplikasi. Saat tema diubah, gaya jam otomatis menyesuaikan dengan tema pilihan Anda.
                       </p>
                     </div>
@@ -1468,7 +1486,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                     <button
                       type="button"
                       onClick={() => handleClockStyleChange(recommendedStyle)}
-                      className="px-3.5 py-2 rounded-xl bg-theme-50 hover:bg-theme-100 border border-theme-200 text-theme-800 text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 self-start"
+                      className="px-3.5 py-2 rounded-xl bg-theme-50 hover:bg-theme-100 border border-theme-200 text-theme-800 text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 self-start whitespace-nowrap"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       <span>Ikuti Tema ({currentThemeLabel})</span>
@@ -1476,7 +1494,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-4">
                   {CLOCK_STYLE_OPTIONS.map((opt) => {
                     const isSelected = activeClockStyle === opt.id;
                     const isRecommended = recommendedStyle === opt.id;
@@ -1534,21 +1552,283 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
             );
           })()}
 
-          {/* Navigation Settings */}
-          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8">
-            <div className="flex items-start gap-4 mb-7">
-              <div className="p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
-                <LayoutPanelLeft className="w-7 h-7 text-theme-500" />
+          {/* Sidebar & Navbar Style Settings (Classic vs iPhone vs Windows 11 vs Ubuntu) */}
+          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-8">
+            <div className="flex items-start gap-3.5 sm:gap-4 mb-5 lg:mb-7">
+              <div className="p-3 lg:p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
+                <Smartphone className="w-6 h-6 lg:w-7 lg:h-7 text-theme-500" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-theme-900">Posisi Menu Navigasi</h3>
-                <p className="text-sm text-theme-600-text mt-1.5 font-medium leading-relaxed">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg lg:text-xl font-bold text-theme-900">Gaya Sidebar &amp; Navbar</h3>
+                  <span className="px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-theme-100 text-theme-800">
+                    Klasik · iPhone · Windows 11 · Ubuntu
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-theme-600-text mt-1 lg:mt-1.5 font-medium leading-relaxed">
+                  Pilih gaya navigasi: Klasik 3D, iPhone / iOS Floating Glass, Windows 11 Fluent Mica Taskbar, atau Ubuntu Yaru GNOME Dock.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Classic Option */}
+              {(() => {
+                const isSelected = (settings.navbarStyle || 'classic') === 'classic';
+                return (
+                  <button
+                    key="nav-style-classic"
+                    type="button"
+                    onClick={() => handleNavbarStyleChange('classic')}
+                    className={`text-left p-5 rounded-[1.5rem] border-2 transition-all duration-300 flex flex-col justify-between gap-4 ${
+                      isSelected
+                        ? 'border-theme-500 bg-theme-50 shadow-md'
+                        : 'border-theme-100 hover:border-theme-300 bg-white hover:-translate-y-1'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 w-full">
+                      <div>
+                        <span className="font-bold text-theme-900 text-base block">Gaya Klasik (3D Standar)</span>
+                        <p className="text-xs font-medium text-theme-600-text mt-1 leading-relaxed">
+                          Sidebar penuh menempel di tepi layar dan navbar bawah standar dengan efek 3D fisik.
+                        </p>
+                      </div>
+                      {isSelected && <CheckCircle2 className="w-5 h-5 text-theme-500 shrink-0" />}
+                    </div>
+
+                    {/* Visual Mini-Mockup Classic */}
+                    <div className="w-full h-24 rounded-2xl bg-theme-50/70 border border-theme-200 overflow-hidden flex shadow-inner">
+                      <div className="w-12 h-full bg-theme-200/80 border-r border-theme-300 p-1.5 flex flex-col gap-1.5">
+                        <div className="w-5 h-2.5 rounded bg-theme-500 mx-auto" />
+                        <div className="h-2 w-full rounded bg-theme-500/90" />
+                        <div className="h-2 w-full rounded bg-white/80" />
+                        <div className="h-2 w-full rounded bg-white/80" />
+                      </div>
+                      <div className="flex-1 flex flex-col justify-between">
+                        <div className="h-4 bg-white border-b border-theme-200 px-2 flex items-center gap-1">
+                          <span className="w-6 h-1.5 rounded bg-theme-300" />
+                        </div>
+                        <div className="flex-1 p-2 flex items-center justify-center">
+                          <div className="w-24 h-7 rounded-lg bg-white border border-theme-200 shadow-2xs" />
+                        </div>
+                        <div className="h-5 bg-white border-t border-theme-200 flex items-center justify-around px-3">
+                          <span className="w-2.5 h-2.5 rounded bg-theme-500" />
+                          <span className="w-2.5 h-2.5 rounded bg-neutral-300" />
+                          <span className="w-2.5 h-2.5 rounded bg-neutral-300" />
+                          <span className="w-2.5 h-2.5 rounded bg-neutral-300" />
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })()}
+
+              {/* iPhone / iOS Option */}
+              {(() => {
+                const isSelected = settings.navbarStyle === 'iphone';
+                return (
+                  <button
+                    key="nav-style-iphone"
+                    type="button"
+                    onClick={() => handleNavbarStyleChange('iphone')}
+                    className={`text-left p-5 rounded-[1.5rem] border-2 transition-all duration-300 flex flex-col justify-between gap-4 ${
+                      isSelected
+                        ? 'border-theme-500 bg-theme-50 shadow-md'
+                        : 'border-theme-100 hover:border-theme-300 bg-white hover:-translate-y-1'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 w-full">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-theme-900 text-base">Gaya iPhone / iOS</span>
+                          <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-theme-100 text-theme-800">
+                            Floating Glass Dock
+                          </span>
+                        </div>
+                        <p className="text-xs font-medium text-theme-600-text mt-1 leading-relaxed">
+                          Dock kapsul frosted glass melayang dengan Home Indicator, ikon squircle iOS, dan sidebar kaca mengambang.
+                        </p>
+                      </div>
+                      {isSelected && <CheckCircle2 className="w-5 h-5 text-theme-500 shrink-0" />}
+                    </div>
+
+                    {/* Visual Mini-Mockup iPhone / iOS */}
+                    <div className="w-full h-24 rounded-2xl bg-gradient-to-br from-theme-100/70 via-white/50 to-theme-200/60 border border-theme-200 p-1.5 flex gap-1.5 shadow-inner relative">
+                      <div className="w-11 h-full rounded-xl bg-white/85 backdrop-blur-md border border-white shadow-sm p-1.5 flex flex-col gap-1.5">
+                        <div className="w-4 h-4 rounded-[5px] bg-theme-500 mx-auto" />
+                        <div className="h-2.5 w-full rounded-full bg-theme-500" />
+                        <div className="h-2.5 w-full rounded-full bg-neutral-200/80" />
+                        <div className="h-2.5 w-full rounded-full bg-neutral-200/80" />
+                      </div>
+                      <div className="flex-1 flex flex-col justify-between gap-1.5">
+                        <div className="h-4 rounded-lg bg-white/85 border border-white shadow-2xs px-2 flex items-center justify-between">
+                          <span className="w-7 h-1.5 rounded-full bg-theme-400" />
+                          <span className="w-3 h-1.5 rounded-full bg-neutral-300" />
+                        </div>
+                        <div className="flex-1 flex items-end justify-center pb-0.5">
+                          {/* Mini iPhone Floating Pill Dock */}
+                          <div className="w-36 px-2 py-1 rounded-full bg-white/90 backdrop-blur-md border border-white shadow-md flex flex-col items-center gap-0.5">
+                            <div className="flex items-center justify-around w-full">
+                              <span className="w-4 h-2.5 rounded-full bg-theme-500" />
+                              <span className="w-2.5 h-2.5 rounded-md bg-neutral-300" />
+                              <span className="w-2.5 h-2.5 rounded-md bg-neutral-300" />
+                              <span className="w-2.5 h-2.5 rounded-md bg-neutral-300" />
+                            </div>
+                            <span className="w-8 h-0.5 rounded-full bg-neutral-400/70" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })()}
+
+              {/* Windows 11 Option */}
+              {(() => {
+                const isSelected = settings.navbarStyle === 'windows11';
+                return (
+                  <button
+                    key="nav-style-windows11"
+                    type="button"
+                    onClick={() => handleNavbarStyleChange('windows11')}
+                    className={`text-left p-5 rounded-[1.5rem] border-2 transition-all duration-300 flex flex-col justify-between gap-4 ${
+                      isSelected
+                        ? 'border-theme-500 bg-theme-50 shadow-md'
+                        : 'border-theme-100 hover:border-theme-300 bg-white hover:-translate-y-1'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 w-full">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-theme-900 text-base">Gaya Windows 11</span>
+                          <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-sky-100 text-sky-800">
+                            Fluent Mica Taskbar
+                          </span>
+                        </div>
+                        <p className="text-xs font-medium text-theme-600-text mt-1 leading-relaxed">
+                          Panel Mica halus dengan garis tepi tipis, indikator pil Fluent di item aktif, dan taskbar terpusat khas Windows 11.
+                        </p>
+                      </div>
+                      {isSelected && <CheckCircle2 className="w-5 h-5 text-theme-500 shrink-0" />}
+                    </div>
+
+                    {/* Visual Mini-Mockup Windows 11 */}
+                    <div className="w-full h-24 rounded-2xl bg-gradient-to-br from-[#EAF2FA] via-[#F4F7FB] to-[#DFEAF6] border border-sky-200/80 p-1.5 flex gap-1.5 shadow-inner relative">
+                      <div className="w-12 h-full rounded-xl bg-white/80 backdrop-blur-md border border-neutral-200/80 shadow-xs p-1.5 flex flex-col gap-1.5">
+                        <div className="w-4 h-4 rounded-md bg-[#0078D4] mx-auto grid grid-cols-2 gap-[1px] p-[2px]">
+                          <span className="bg-white/95 rounded-[0.5px]" />
+                          <span className="bg-white/95 rounded-[0.5px]" />
+                          <span className="bg-white/95 rounded-[0.5px]" />
+                          <span className="bg-white/95 rounded-[0.5px]" />
+                        </div>
+                        <div className="h-2.5 w-full rounded bg-white shadow-2xs border border-neutral-200/80 flex items-center pl-0.5">
+                          <span className="w-[2px] h-1.5 rounded-full bg-[#0067C0]" />
+                        </div>
+                        <div className="h-2 w-full rounded bg-neutral-200/70" />
+                        <div className="h-2 w-full rounded bg-neutral-200/70" />
+                      </div>
+                      <div className="flex-1 flex flex-col justify-between gap-1.5">
+                        <div className="h-4 rounded-lg bg-white/85 border border-neutral-200/70 shadow-2xs px-2 flex items-center justify-between">
+                          <span className="w-8 h-1.5 rounded bg-[#0078D4]/70" />
+                          <span className="w-3 h-1.5 rounded bg-neutral-300" />
+                        </div>
+                        <div className="flex-1 flex items-end justify-center pb-0.5">
+                          {/* Mini Windows 11 Centered Taskbar */}
+                          <div className="w-40 px-2.5 py-1 rounded-xl bg-white/90 backdrop-blur-md border border-neutral-200/90 shadow-md flex items-center justify-center gap-2">
+                            <div className="flex flex-col items-center gap-0.5 bg-sky-50 px-1.5 py-0.5 rounded">
+                              <span className="w-2.5 h-2.5 rounded-xs bg-[#0078D4]" />
+                              <span className="w-2 h-[2px] rounded-full bg-[#0067C0]" />
+                            </div>
+                            <span className="w-2.5 h-2.5 rounded-xs bg-neutral-300" />
+                            <span className="w-2.5 h-2.5 rounded-xs bg-neutral-300" />
+                            <span className="w-2.5 h-2.5 rounded-xs bg-neutral-300" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })()}
+
+              {/* Ubuntu Option */}
+              {(() => {
+                const isSelected = settings.navbarStyle === 'ubuntu';
+                return (
+                  <button
+                    key="nav-style-ubuntu"
+                    type="button"
+                    onClick={() => handleNavbarStyleChange('ubuntu')}
+                    className={`text-left p-5 rounded-[1.5rem] border-2 transition-all duration-300 flex flex-col justify-between gap-4 ${
+                      isSelected
+                        ? 'border-theme-500 bg-theme-50 shadow-md'
+                        : 'border-theme-100 hover:border-theme-300 bg-white hover:-translate-y-1'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 w-full">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-theme-900 text-base">Gaya Ubuntu</span>
+                          <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-orange-100 text-orange-800">
+                            Yaru GNOME Dock
+                          </span>
+                        </div>
+                        <p className="text-xs font-medium text-theme-600-text mt-1 leading-relaxed">
+                          Sidebar Aubergine gelap autentik dengan aksen oranye Ubuntu (#E95420), headerbar GNOME bersih, dan dock bawah gelap.
+                        </p>
+                      </div>
+                      {isSelected && <CheckCircle2 className="w-5 h-5 text-theme-500 shrink-0" />}
+                    </div>
+
+                    {/* Visual Mini-Mockup Ubuntu */}
+                    <div className="w-full h-24 rounded-2xl bg-[#FAF7F5] border border-[#E0CEC4] overflow-hidden flex shadow-inner relative">
+                      <div className="w-12 h-full bg-gradient-to-b from-[#300A24] via-[#261023] to-[#1D1B1E] p-1.5 flex flex-col gap-1.5">
+                        <div className="w-4 h-4 rounded-lg bg-[#E95420] mx-auto" />
+                        <div className="h-2.5 w-full rounded bg-white/20 flex items-center pl-0.5">
+                          <span className="w-[2px] h-1.5 rounded-full bg-[#E95420]" />
+                        </div>
+                        <div className="h-2 w-full rounded bg-white/10" />
+                        <div className="h-2 w-full rounded bg-white/10" />
+                      </div>
+                      <div className="flex-1 flex flex-col justify-between p-1.5 gap-1.5">
+                        <div className="h-4 rounded-md bg-white border border-[#E8D9D0] px-2 flex items-center justify-between">
+                          <span className="w-7 h-1.5 rounded bg-[#2C001E]/75" />
+                          <span className="w-2 h-2 rounded-full bg-[#E95420]" />
+                        </div>
+                        <div className="flex-1 flex items-end justify-center pb-0.5">
+                          {/* Mini Ubuntu Floating Dark Dock */}
+                          <div className="w-36 px-2.5 py-1 rounded-xl bg-[#241623] border border-white/15 shadow-md flex items-center justify-around">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="w-3 h-3 rounded-md bg-[#E95420]" />
+                              <span className="w-1 h-1 rounded-full bg-[#E95420]" />
+                            </div>
+                            <span className="w-2.5 h-2.5 rounded-md bg-white/25" />
+                            <span className="w-2.5 h-2.5 rounded-md bg-white/25" />
+                            <span className="w-2.5 h-2.5 rounded-md bg-white/25" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Navigation Settings */}
+          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-8">
+            <div className="flex items-start gap-3.5 sm:gap-4 mb-5 lg:mb-7">
+              <div className="p-3 lg:p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
+                <LayoutPanelLeft className="w-6 h-6 lg:w-7 lg:h-7 text-theme-500" />
+              </div>
+              <div>
+                <h3 className="text-lg lg:text-xl font-bold text-theme-900">Posisi Menu Navigasi</h3>
+                <p className="text-xs sm:text-sm text-theme-600-text mt-1 lg:mt-1.5 font-medium leading-relaxed">
                   Sesuaikan letak menu utama pada layar agar lebih mudah dijangkau.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {[
                 { id: 'bottom', title: 'Bawah', desc: 'Sangat nyaman untuk HP' },
                 { id: 'left', title: 'Kiri', desc: 'Cocok untuk tablet/desktop' },
@@ -1559,13 +1839,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                   <div
                     key={nav.id}
                     onClick={() => handleNavPositionChange(nav.id as NavbarPosition)}
-                    className={`p-5 rounded-[1.5rem] border-2 cursor-pointer transition-all duration-300 ${
+                    className={`p-4 lg:p-5 rounded-[1.5rem] border-2 cursor-pointer transition-all duration-300 ${
+                      nav.id === 'right' ? 'sm:col-span-2 lg:col-span-1' : ''
+                    } ${
                       isSelected
                         ? 'border-theme-500 bg-theme-50 shadow-md'
                         : 'border-theme-100 hover:border-theme-300 bg-white hover:-translate-y-1'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-1.5 lg:mb-2">
                       <span className="font-bold text-theme-900 text-base">{nav.title}</span>
                       {isSelected && <CheckCircle2 className="w-5 h-5 text-theme-500" />}
                     </div>
@@ -1580,22 +1862,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
 
       {/* TAB 3: DATABASE & CLOUD */}
       {activeSubTab === 'database' && (
-        <div className="flex flex-col gap-6 animate-in fade-in duration-200">
+        <div className="flex flex-col gap-4 lg:gap-6 animate-in fade-in duration-200">
           {/* DATABASE PROVIDER SELECTION */}
-          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8 relative">
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <div className="flex items-start gap-4">
-                <div className="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm shrink-0">
-                  <Database className="w-7 h-7 text-emerald-600" />
+          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-8 relative">
+            <div className="flex items-start justify-between gap-4 mb-5 lg:mb-6">
+              <div className="flex items-start gap-3.5 sm:gap-4">
+                <div className="p-3 lg:p-3.5 bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm shrink-0">
+                  <Database className="w-6 h-6 lg:w-7 lg:h-7 text-emerald-600" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-xl font-bold text-theme-900">Sumber Database</h3>
+                    <h3 className="text-lg lg:text-xl font-bold text-theme-900">Sumber Database</h3>
                     <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800">
                       {activeProvider === 'supabase' ? 'Supabase Aktif' : activeProvider === 'firebase' ? 'Firebase Aktif' : 'Offline Aktif'}
                     </span>
                   </div>
-                  <p className="text-sm text-theme-600-text mt-1.5 font-medium leading-relaxed">
+                  <p className="text-xs sm:text-sm text-theme-600-text mt-1 lg:mt-1.5 font-medium leading-relaxed">
                     Pilih database yang digunakan untuk menyimpan produk, supplier, dan laporan harian Anda. (Dilindungi PIN)
                   </p>
                 </div>
@@ -1612,7 +1894,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 mb-4">
               {/* Supabase Option */}
               <div
                 onClick={() => handleProviderChange('supabase')}
@@ -1666,7 +1948,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
               {/* Local Offline Option */}
               <div
                 onClick={() => handleProviderChange('local')}
-                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between sm:col-span-2 lg:col-span-1 ${
                   activeProvider === 'local'
                     ? 'border-amber-500 bg-amber-50/50 shadow-md ring-2 ring-amber-500/20'
                     : 'border-theme-100 hover:border-amber-300 hover:bg-neutral-50 bg-white'
@@ -1748,15 +2030,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
           </div>
 
           {/* PEMERIKSAAN & PEMBUATAN TABEL DATABASE OTOMATIS */}
-          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8">
+          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-8">
             <div className="flex items-start justify-between gap-4 mb-5">
-              <div className="flex items-start gap-4">
-                <div className="p-3.5 bg-theme-50 rounded-2xl border border-theme-100 text-theme-600 shadow-sm shrink-0">
+              <div className="flex items-start gap-3.5 sm:gap-4">
+                <div className="p-3 lg:p-3.5 bg-theme-50 rounded-2xl border border-theme-100 text-theme-600 shadow-sm shrink-0">
                   <Layers className="w-6 h-6" />
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg md:text-xl font-bold text-theme-900">Pemeriksaan & Pembuatan Tabel Otomatis</h3>
+                    <h3 className="text-lg lg:text-xl font-bold text-theme-900">Pemeriksaan & Pembuatan Tabel Otomatis</h3>
                     <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-theme-100 text-theme-800">
                       {dbProvider === 'firebase' ? 'Google Firestore' : dbProvider === 'supabase' ? 'Supabase Cloud' : 'IndexedDB Lokal'}
                     </span>
@@ -1814,9 +2096,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                     className="p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80 hover:bg-neutral-50 transition-colors flex flex-col justify-between"
                   >
                     <div>
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <span className="font-bold text-neutral-900 text-sm">{t.label}</span>
-                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <span className="font-bold text-neutral-900 text-sm leading-snug">{t.label}</span>
+                        <span className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 ${
                           !isStatusLoaded
                             ? 'bg-neutral-100 text-neutral-600'
                             : isReady
@@ -1878,19 +2160,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
           </div>
 
           {/* SUPABASE INTEGRATION & AUTO-SETUP PANEL */}
-          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-8">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="p-3.5 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 shadow-sm shrink-0">
-                <Server className="w-7 h-7 text-emerald-600" />
+          <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-8">
+            <div className="flex items-start gap-3.5 sm:gap-4 mb-5 lg:mb-6">
+              <div className="p-3 lg:p-3.5 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 shadow-sm shrink-0">
+                <Server className="w-6 h-6 lg:w-7 lg:h-7 text-emerald-600" />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-xl font-bold text-theme-900">Integrasi & Setup Otomatis Supabase</h3>
-                  <span className="text-xs font-bold px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full">
+                  <h3 className="text-lg lg:text-xl font-bold text-theme-900">Integrasi & Setup Otomatis Supabase</h3>
+                  <span className="text-xs font-bold px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full whitespace-nowrap">
                     Project: Daily
                   </span>
                 </div>
-                <p className="text-sm text-theme-600-text mt-1 font-medium leading-relaxed">
+                <p className="text-xs sm:text-sm text-theme-600-text mt-1 font-medium leading-relaxed">
                   Konfigurasi tabel otomatis dan kredensial koneksi untuk project Supabase Anda.
                 </p>
               </div>
@@ -1992,18 +2274,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
             )}
 
             {/* STEP 2: VERIFY TABLES STATUS */}
-            <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-5 mb-6">
-              <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 sm:p-5 mb-5 lg:mb-6">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-xs">
+                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-xs shrink-0">
                     2
                   </div>
-                  <h4 className="text-base font-bold text-neutral-900">Verifikasi Status Tabel Supabase</h4>
+                  <h4 className="text-sm sm:text-base font-bold text-neutral-900">Verifikasi Status Tabel Supabase</h4>
                 </div>
                 <button
                   onClick={handleCheckTables}
                   disabled={isCheckingTables}
-                  className="px-3 py-1.5 bg-white hover:bg-neutral-100 border border-neutral-300 text-neutral-700 font-bold rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50"
+                  className="px-3 py-1.5 bg-white hover:bg-neutral-100 border border-neutral-300 text-neutral-700 font-bold rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 whitespace-nowrap"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isCheckingTables ? 'animate-spin' : ''}`} />
                   {isCheckingTables ? 'Memeriksa...' : 'Cek Status Tabel'}
@@ -2018,7 +2300,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
               )}
 
               {tableStatus ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mt-3">
                   {[
                     { key: 'suppliers', name: 'suppliers' },
                     { key: 'products', name: 'products' },
@@ -2041,19 +2323,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                             : 'bg-amber-50 border-amber-200 text-amber-900'
                         }`}
                       >
-                        <span className="font-mono text-xs font-bold">{tbl.name}</span>
+                        <span className="font-mono text-xs font-bold break-all">{tbl.name}</span>
                         {isComplete ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Lengkap
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Lengkap
                           </span>
                         ) : tblExists && missingCols.length > 0 ? (
                           <span className="inline-flex flex-col items-center text-[10px] font-bold text-amber-800 leading-tight">
                             <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3 h-3 shrink-0" /> Kurang kolom:</span>
-                            <span className="font-mono">{missingCols.join(', ')}</span>
+                            <span className="font-mono break-all">{missingCols.join(', ')}</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700">
-                            <AlertTriangle className="w-3.5 h-3.5" /> Belum dibuat
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Belum dibuat
                           </span>
                         )}
                       </div>
@@ -2068,9 +2350,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
             </div>
 
             {/* SUPABASE CONNECTION CREDENTIALS */}
-            <div className="border-t border-neutral-200 pt-6">
+            <div className="border-t border-neutral-200 pt-5 lg:pt-6">
               <h4 className="text-sm font-bold text-neutral-900 mb-3">Detail Kredensial Supabase (Dapat Diedit)</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-xs font-bold text-neutral-700 mb-1">Project URL</label>
                   <input
@@ -2113,9 +2395,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
 
       {/* TAB 4: DATA & SISTEM */}
       {activeSubTab === 'data' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-200">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 animate-in fade-in duration-200">
           {/* Left: Auto-Delete & Data Retention */}
-          <div className="lg:col-span-7 bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6 md:p-7 flex flex-col justify-between">
+          <div className="lg:col-span-7 bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-7 flex flex-col justify-between">
             <div>
               <div className="flex items-start gap-3.5 mb-5">
                 <div className="p-3 bg-theme-50 rounded-2xl border border-theme-100 text-theme-600 shadow-sm shrink-0">
@@ -2355,15 +2637,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
           </div>
 
           {/* Right: Backup & Restore + Danger Zone */}
-          <div className="lg:col-span-5 flex flex-col gap-6">
+          <div className="lg:col-span-5 flex flex-col gap-4 lg:gap-6">
             {/* Backup & Restore Settings */}
-            <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-6">
-              <div className="flex items-start gap-4 mb-6">
-                <div className="p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
-                  <Download className="w-6 h-6 text-theme-500" />
+            <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-6">
+              <div className="flex items-start gap-3.5 sm:gap-4 mb-5">
+                <div className="p-3 lg:p-3.5 bg-theme-50 rounded-2xl border border-theme-100 shadow-sm shrink-0">
+                  <Download className="w-5 h-5 lg:w-6 lg:h-6 text-theme-500" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-theme-900">Backup & Restore File JSON</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-theme-900">Backup & Restore File JSON</h3>
                   <p className="text-xs text-theme-600-text mt-1 font-medium leading-relaxed">
                     Cadangkan seluruh data aplikasi Anda menjadi file JSON, atau pulihkan dari file cadangan sebelumnya.
                   </p>
@@ -2373,7 +2655,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
               <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                 <button
                   onClick={() => exportData()}
-                  className="flex-1 px-5 py-2.5 bg-theme-600 hover:bg-theme-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm text-xs"
+                  className="flex-1 px-4 lg:px-5 py-2.5 bg-theme-600 hover:bg-theme-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm text-xs whitespace-nowrap"
                 >
                   <Download className="w-4 h-4" />
                   Download Backup
@@ -2381,7 +2663,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 px-5 py-2.5 bg-white hover:bg-theme-50 text-theme-700 border border-theme-200 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm text-xs"
+                  className="flex-1 px-4 lg:px-5 py-2.5 bg-white hover:bg-theme-50 text-theme-700 border border-theme-200 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm text-xs whitespace-nowrap"
                 >
                   <Upload className="w-4 h-4" />
                   Restore Data
@@ -2397,19 +2679,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
             </div>
 
             {/* Danger Zone */}
-            <div className="bg-rose-50/70 rounded-[2rem] border border-rose-100 overflow-hidden p-6 relative flex-1 flex flex-col justify-between">
+            <div className="bg-rose-50/70 rounded-[2rem] border border-rose-100 overflow-hidden p-4 sm:p-5 lg:p-6 relative flex-1 flex flex-col justify-between">
               <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
                 <ShieldAlert className="w-24 h-24 text-rose-500" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2.5 bg-rose-100 rounded-xl">
+                  <div className="p-2.5 bg-rose-100 rounded-xl shrink-0">
                     <Trash2 className="w-5 h-5 text-rose-600" />
                   </div>
-                  <h3 className="text-lg font-bold text-rose-700">Manajemen Sistem & Zona Berbahaya</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-rose-700">Manajemen Sistem & Zona Berbahaya</h3>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3.5">
                   <div className="bg-white/75 p-4 rounded-xl border border-rose-200/60 flex flex-col justify-between">
                     <div>
                       <h4 className="font-bold text-rose-800 text-sm mb-1">Hapus Cache Aplikasi</h4>
@@ -2461,9 +2743,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
 
       {/* TAB 6: TENTANG APLIKASI */}
       {activeSubTab === 'about' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
+        <div className="space-y-4 lg:space-y-6 animate-in fade-in duration-200">
           {/* Launcher Highlight Banner */}
-          <div className="relative bg-gradient-to-br from-neutral-900 via-theme-950 to-neutral-900 rounded-[2rem] p-5 sm:p-6 text-white shadow-md overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 border border-theme-700/50">
+          <div className="relative bg-gradient-to-br from-neutral-900 via-theme-950 to-neutral-900 rounded-[2rem] p-4 sm:p-5 lg:p-6 text-white shadow-md overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-4 border border-theme-700/50">
             <div className="relative z-10 flex items-start gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shrink-0 shadow-md shadow-emerald-900/30">
                 <Award className="w-6 h-6" />

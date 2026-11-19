@@ -319,6 +319,72 @@ body {
   --threed-shadow: rgba(30, 27, 75, 0.12);
 }
 
+/* ========================================================
+   TEMA WINDOWS 11 (Fluent Mica Acrylic & Azure Blue)
+   ======================================================== */
+[data-theme="windows11"] {
+  --color-theme-50: #F3F6FA;
+  --color-theme-100: #E8EFF7;
+  --color-theme-200: #D5E2F1;
+  --color-theme-300: #B3CBE6;
+  --color-theme-500: #0078D4;
+  --color-theme-600: #0067C0;
+  --color-theme-700: #005A9E;
+
+  --color-theme-600-text: #4B5565;
+  --color-theme-800: #003E73;
+  --color-theme-900: #1A1F2C;
+
+  --threed-bg-from: #F3F6FA;
+  --threed-bg-to: #E6EDF6;
+  --threed-sidebar-from: rgba(243, 246, 250, 0.90);
+  --threed-sidebar-to: rgba(235, 241, 249, 0.94);
+  --threed-card-from: rgba(255, 255, 255, 0.92);
+  --threed-card-to: rgba(248, 250, 253, 0.95);
+  --threed-edge: rgba(0, 0, 0, 0.08);
+  --threed-secondary-edge: rgba(0, 0, 0, 0.10);
+  --threed-btn-from: #1886DF;
+  --threed-btn-mid: #0078D4;
+  --threed-btn-to: #0067C0;
+  --threed-btn-border: #005A9E;
+  --threed-btn-lip: #004578;
+  --threed-btn-glow: rgba(0, 120, 212, 0.28);
+  --threed-shadow: rgba(15, 23, 42, 0.09);
+}
+
+/* ========================================================
+   TEMA UBUNTU (Yaru Orange & Warm Aubergine)
+   ======================================================== */
+[data-theme="ubuntu"] {
+  --color-theme-50: #FAF7F5;
+  --color-theme-100: #F4ECE7;
+  --color-theme-200: #E8D9D0;
+  --color-theme-300: #D8BFB2;
+  --color-theme-500: #E95420;
+  --color-theme-600: #D14313;
+  --color-theme-700: #A9330B;
+
+  --color-theme-600-text: #5E4352;
+  --color-theme-800: #4C1239;
+  --color-theme-900: #2C001E;
+
+  --threed-bg-from: #FAF7F5;
+  --threed-bg-to: #F1E8E3;
+  --threed-sidebar-from: #F6EFEA;
+  --threed-sidebar-to: #EADFD8;
+  --threed-card-from: #FFFFFF;
+  --threed-card-to: #FCF9F7;
+  --threed-edge: #E0CEC4;
+  --threed-secondary-edge: #D6C2B7;
+  --threed-btn-from: #F36B3B;
+  --threed-btn-mid: #E95420;
+  --threed-btn-to: #C74316;
+  --threed-btn-border: #AD3810;
+  --threed-btn-lip: #77216F;
+  --threed-btn-glow: rgba(233, 84, 32, 0.32);
+  --threed-shadow: rgba(44, 0, 30, 0.13);
+}
+
 @media screen {
   /* ========================================================
      EFEK 3D UNIVERSAL UNTUK SEMUA TEMA
@@ -614,6 +680,161 @@ body {
 
   [data-theme="glass"] table thead {
     background: rgba(255, 255, 255, 0.48) !important;
+  }
+
+  /* ---------------- WINDOWS 11 FLUENT MICA THEME OVERRIDES ---------------- */
+  [data-theme="windows11"] body {
+    background:
+      radial-gradient(at 10% 8%, rgba(56, 189, 248, 0.18) 0px, transparent 48%),
+      radial-gradient(at 92% 14%, rgba(0, 120, 212, 0.16) 0px, transparent 45%),
+      radial-gradient(at 78% 90%, rgba(99, 102, 241, 0.12) 0px, transparent 50%),
+      linear-gradient(155deg, #F3F6FA 0%, #E7EEF7 100%);
+    background-attachment: fixed;
+  }
+
+  [data-theme="windows11"] .flex.h-screen.bg-theme-50 {
+    background: transparent !important;
+  }
+
+  [data-theme="windows11"] :is(
+    .bg-white.rounded-2xl,
+    .bg-white.rounded-3xl,
+    .bg-white.rounded-\[2rem\],
+    .bg-white.rounded-\[1\.5rem\]
+  ) {
+    background: rgba(255, 255, 255, 0.86) !important;
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      0 2px 6px rgba(15, 23, 42, 0.05),
+      0 10px 24px -8px rgba(15, 23, 42, 0.10) !important;
+  }
+
+  [data-theme="windows11"] :is(button, a).bg-theme-500,
+  [data-theme="windows11"] :is(button, a).bg-theme-600,
+  [data-theme="windows11"] :is(button, a).bg-theme-700 {
+    background: linear-gradient(180deg, #1682DA 0%, #0067C0 100%) !important;
+    border: 1px solid #005A9E !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      0 2px 6px rgba(0, 103, 192, 0.25) !important;
+  }
+
+  /* ---------------- UBUNTU YARU THEME OVERRIDES ---------------- */
+  [data-theme="ubuntu"] body {
+    background:
+      radial-gradient(at 12% 10%, rgba(233, 84, 32, 0.10) 0px, transparent 48%),
+      radial-gradient(at 88% 85%, rgba(119, 33, 111, 0.10) 0px, transparent 50%),
+      linear-gradient(155deg, #FAF7F5 0%, #F1E9E4 100%);
+  }
+
+  /* ---------------- IPHONE / iOS FLOATING GLASS SIDEBAR & DOCK ---------------- */
+  [data-navbar-style="iphone"] aside.bg-theme-100,
+  [data-theme="glossy"][data-navbar-style="iphone"] aside.bg-theme-100,
+  [data-theme="glass"][data-navbar-style="iphone"] aside.bg-theme-100 {
+    background: rgba(255, 255, 255, 0.78) !important;
+    backdrop-filter: blur(28px) saturate(195%);
+    -webkit-backdrop-filter: blur(28px) saturate(195%);
+    border-color: rgba(255, 255, 255, 0.88) !important;
+    box-shadow:
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.96),
+      0 20px 44px -14px rgba(15, 23, 42, 0.16),
+      0 6px 16px -4px var(--threed-shadow) !important;
+  }
+
+  [data-navbar-style="iphone"] nav[aria-label="Mobile Navigation"],
+  [data-theme="glossy"][data-navbar-style="iphone"] nav[aria-label="Mobile Navigation"],
+  [data-theme="glass"][data-navbar-style="iphone"] nav[aria-label="Mobile Navigation"] {
+    background: rgba(255, 255, 255, 0.84) !important;
+    backdrop-filter: blur(28px) saturate(210%);
+    -webkit-backdrop-filter: blur(28px) saturate(210%);
+    border: 1px solid rgba(255, 255, 255, 0.92) !important;
+    box-shadow:
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
+      0 14px 36px -8px rgba(15, 23, 42, 0.22),
+      0 4px 12px -2px var(--threed-shadow) !important;
+  }
+
+  /* ---------------- WINDOWS 11 FLUENT MICA SIDEBAR & TASKBAR ---------------- */
+  [data-navbar-style="windows11"] aside.bg-theme-100,
+  [data-theme="glossy"][data-navbar-style="windows11"] aside.bg-theme-100,
+  [data-theme="glass"][data-navbar-style="windows11"] aside.bg-theme-100 {
+    background: rgba(243, 246, 250, 0.86) !important;
+    backdrop-filter: blur(30px) saturate(165%);
+    -webkit-backdrop-filter: blur(30px) saturate(165%);
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      0 12px 32px -10px rgba(15, 23, 42, 0.12) !important;
+  }
+
+  [data-navbar-style="windows11"] header,
+  [data-theme="glossy"][data-navbar-style="windows11"] header,
+  [data-theme="glass"][data-navbar-style="windows11"] header {
+    background: rgba(249, 251, 253, 0.84) !important;
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border-color: rgba(0, 0, 0, 0.075) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      0 4px 16px -6px rgba(15, 23, 42, 0.08) !important;
+  }
+
+  [data-navbar-style="windows11"] nav[aria-label="Mobile Navigation"],
+  [data-theme="glossy"][data-navbar-style="windows11"] nav[aria-label="Mobile Navigation"],
+  [data-theme="glass"][data-navbar-style="windows11"] nav[aria-label="Mobile Navigation"] {
+    background: rgba(244, 247, 251, 0.88) !important;
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.88) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.96),
+      0 10px 28px -6px rgba(15, 23, 42, 0.18),
+      0 2px 6px rgba(15, 23, 42, 0.06) !important;
+  }
+
+  /* ---------------- UBUNTU YARU AUBERGINE DOCK & GNOME HEADERBAR ---------------- */
+  [data-navbar-style="ubuntu"] aside.bg-theme-100,
+  [data-theme="glossy"][data-navbar-style="ubuntu"] aside.bg-theme-100,
+  [data-theme="glass"][data-navbar-style="ubuntu"] aside.bg-theme-100 {
+    background: linear-gradient(180deg, #300A24 0%, #261023 52%, #1D1B1E 100%) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.08),
+      8px 0 28px -6px rgba(20, 4, 16, 0.35) !important;
+  }
+
+  [data-navbar-style="ubuntu"] header,
+  [data-theme="glossy"][data-navbar-style="ubuntu"] header,
+  [data-theme="glass"][data-navbar-style="ubuntu"] header {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F7F5F4 100%) !important;
+    border-color: rgba(44, 0, 30, 0.10) !important;
+    box-shadow:
+      inset 0 1px 0 #FFFFFF,
+      0 2px 10px -4px rgba(44, 0, 30, 0.10) !important;
+  }
+
+  [data-navbar-style="ubuntu"] nav[aria-label="Mobile Navigation"],
+  [data-theme="glossy"][data-navbar-style="ubuntu"] nav[aria-label="Mobile Navigation"],
+  [data-theme="glass"][data-navbar-style="ubuntu"] nav[aria-label="Mobile Navigation"] {
+    background: rgba(34, 16, 32, 0.94) !important;
+    backdrop-filter: blur(22px) saturate(170%);
+    -webkit-backdrop-filter: blur(22px) saturate(170%);
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 14px 32px -6px rgba(24, 4, 18, 0.45) !important;
+  }
+}
+
+@media screen {
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
 }
 

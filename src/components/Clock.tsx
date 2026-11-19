@@ -254,15 +254,15 @@ export const Clock: React.FC<ClockProps> = ({ previewStyle, compactPreview = fal
           </div>
         )}
         <div className="flex items-center gap-1 font-mono tabular-nums">
-          <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-b from-rose-400 to-pink-600 text-white text-xs sm:text-sm font-black shadow-[0_3px_0_#be185d]">
+          <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-b from-rose-400 to-pink-600 text-white text-[11px] sm:text-sm font-black shadow-[0_3px_0_#be185d]">
             {hours}
           </div>
           <span className="text-pink-500 font-black text-xs">:</span>
-          <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-b from-violet-400 to-purple-600 text-white text-xs sm:text-sm font-black shadow-[0_3px_0_#6d28d9]">
+          <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-b from-violet-400 to-purple-600 text-white text-[11px] sm:text-sm font-black shadow-[0_3px_0_#6d28d9]">
             {minutes}
           </div>
           <span className={`${colonSecShowClass} text-purple-500 font-black text-xs`}>:</span>
-          <div className={`${secShowClass} items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-b from-cyan-400 to-sky-600 text-white text-xs sm:text-sm font-black shadow-[0_3px_0_#0369a1]`}>
+          <div className={`${secShowClass} items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-b from-cyan-400 to-sky-600 text-white text-[11px] sm:text-sm font-black shadow-[0_3px_0_#0369a1]`}>
             {seconds}
           </div>
         </div>
@@ -274,7 +274,7 @@ export const Clock: React.FC<ClockProps> = ({ previewStyle, compactPreview = fal
   if (activeStyle === 'flip-retro') {
     const renderFlap = (val: string, accent = false) => (
       <div
-        className={`relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg font-mono tabular-nums text-xs sm:text-sm font-black overflow-hidden border shadow-[0_3px_0_#09090b] ${
+        className={`relative flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-lg font-mono tabular-nums text-[11px] sm:text-sm font-black overflow-hidden border shadow-[0_3px_0_#09090b] ${
           accent
             ? 'bg-gradient-to-b from-theme-600 to-theme-700 text-white border-theme-700'
             : 'bg-gradient-to-b from-neutral-800 to-neutral-900 text-neutral-100 border-neutral-950'
@@ -374,15 +374,15 @@ export const Clock: React.FC<ClockProps> = ({ previewStyle, compactPreview = fal
       )}
 
       <div className="flex items-center gap-0.5 font-mono tabular-nums">
-        <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-theme-100 text-theme-900 border border-theme-200 text-xs sm:text-sm font-black rounded-lg sm:rounded-xl shadow-[0_2px_0_var(--color-theme-300)]">
+        <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-theme-100 text-theme-900 border border-theme-200 text-[11px] sm:text-sm font-black rounded-lg sm:rounded-xl shadow-[0_2px_0_var(--color-theme-300)]">
           {hours}
         </div>
         <span className="text-theme-500 font-bold animate-pulse px-0.5 -mt-0.5 text-xs sm:text-sm">:</span>
-        <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-theme-100 text-theme-900 border border-theme-200 text-xs sm:text-sm font-black rounded-lg sm:rounded-xl shadow-[0_2px_0_var(--color-theme-300)]">
+        <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-theme-100 text-theme-900 border border-theme-200 text-[11px] sm:text-sm font-black rounded-lg sm:rounded-xl shadow-[0_2px_0_var(--color-theme-300)]">
           {minutes}
         </div>
         <span className={`${colonSecShowClass} text-theme-500 font-bold animate-pulse px-0.5 -mt-0.5 text-xs sm:text-sm`}>:</span>
-        <div className={`${secShowClass} items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-theme-500 text-white text-xs sm:text-sm font-black rounded-lg sm:rounded-xl shadow-[0_3px_0_var(--color-theme-700)]`}>
+        <div className={`${secShowClass} items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-theme-500 text-white text-[11px] sm:text-sm font-black rounded-lg sm:rounded-xl shadow-[0_3px_0_var(--color-theme-700)]`}>
           {seconds}
         </div>
       </div>

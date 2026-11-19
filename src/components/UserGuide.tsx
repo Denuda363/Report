@@ -397,11 +397,11 @@ export const UserGuide: React.FC<UserGuideProps> = ({ onNavigateTab, isEmbedded 
           onScroll={handleScroll}
           className={cn(
             "flex-1 overflow-y-auto overflow-x-hidden scroll-smooth",
-            isFullscreen ? "p-3.5 sm:p-6 md:p-8 space-y-6 pb-24 sm:pb-8" : "p-4 sm:p-8 space-y-8"
+            isFullscreen ? "p-3.5 sm:p-5 lg:p-8 space-y-5 lg:space-y-6 pb-24 sm:pb-8" : "p-4 sm:p-5 lg:p-8 space-y-5 lg:space-y-8"
           )}
         >
           {/* Top Header Banner with Lively Animation */}
-          <div className="relative bg-gradient-to-br from-theme-800 via-theme-900 to-neutral-900 text-white p-5 sm:p-8 md:p-10 rounded-3xl overflow-hidden shadow-md">
+          <div className="relative bg-gradient-to-br from-theme-800 via-theme-900 to-neutral-900 text-white p-5 sm:p-6 lg:p-10 rounded-3xl overflow-hidden shadow-md">
             {/* Animated Ambient Backlight Orbs */}
             <motion.div 
               animate={{ 
@@ -423,14 +423,14 @@ export const UserGuide: React.FC<UserGuideProps> = ({ onNavigateTab, isEmbedded 
               className="absolute -bottom-20 -left-20 w-80 h-80 bg-emerald-500 rounded-full blur-3xl pointer-events-none"
             />
 
-            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
-              <div className="flex items-start gap-3 sm:gap-5">
+            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 sm:gap-5">
+              <div className="flex items-start gap-3 sm:gap-4 lg:gap-5">
                 <motion.div 
                   animate={{ rotate: [0, 8, -6, 0] }}
                   transition={{ repeat: Infinity, duration: 4.5, ease: "easeInOut" }}
-                  className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shrink-0 shadow-lg"
+                  className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shrink-0 shadow-lg"
                 >
-                  <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-300" />
+                  <BookOpen className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-emerald-300" />
                 </motion.div>
                 <div>
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -441,7 +441,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ onNavigateTab, isEmbedded 
                     <span className="text-white/40">·</span>
                     <span className="text-xs text-white/70 font-medium">ReportPro v2.6</span>
                   </div>
-                  <h2 className="text-xl sm:text-3xl font-black text-white tracking-tight">
+                  <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight">
                     Cara Penggunaan Aplikasi
                   </h2>
                   <p className="text-xs sm:text-sm text-neutral-300 mt-1 max-w-xl font-medium leading-relaxed">
@@ -462,7 +462,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ onNavigateTab, isEmbedded 
 
                 <button
                   onClick={() => setIsFullscreen(!isFullscreen)}
-                  className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-xl transition-all border border-white/10 text-xs font-bold"
+                  className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-xl transition-all border border-white/10 text-xs font-bold whitespace-nowrap"
                   title={isFullscreen ? "Kecilkan Tampilan" : "Perbesar ke Layar Penuh"}
                 >
                   {isFullscreen ? (

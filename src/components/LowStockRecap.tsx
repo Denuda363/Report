@@ -216,35 +216,36 @@ export const LowStockRecap = () => {
   const hasData = Object.keys(lowStockData).length > 0;
 
   return (
-    <div className="h-full flex flex-col w-full max-w-[1600px] mx-auto pb-12">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-theme-900 flex items-center gap-2">
-            <AlertTriangle className="w-6 h-6 text-rose-500" />
-            Rekap Stok Menipis
-          </h1>
-          <p className="text-sm text-theme-600-text mt-1">Daftar produk dengan stok kurang dari batas minimum (Bottom Stock)</p>
+    <div className="h-full flex flex-col w-full max-w-[1600px] mx-auto pb-4">
+      <div className="shrink-0 sticky top-0 sm:static z-20 bg-theme-50/95 sm:bg-transparent backdrop-blur-xs sm:backdrop-blur-none pt-1 pb-3 sm:p-0 -mx-2 px-2 sm:mx-0 mb-3 sm:mb-4 border-b border-theme-200/70 sm:border-b-0">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-theme-900 flex items-center gap-2">
+              <AlertTriangle className="w-6 h-6 text-rose-500" />
+              Rekap Stok Menipis
+            </h1>
+            <p className="text-xs sm:text-sm text-theme-600-text mt-1">Daftar produk dengan stok kurang dari batas minimum (Bottom Stock)</p>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button 
+              onClick={handleExportExcel}
+              disabled={!hasData}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-theme-900 text-white rounded-xl hover:bg-theme-800 transition-colors disabled:opacity-50 text-sm font-bold"
+            >
+              <Download className="w-4 h-4" /> Excel
+            </button>
+            <button 
+              onClick={handleExportTxt}
+              disabled={!hasData}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white text-theme-900 border border-theme-200 rounded-xl hover:bg-theme-50 transition-colors disabled:opacity-50 text-sm font-bold shadow-sm"
+            >
+              <Download className="w-4 h-4" /> Txt
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <button 
-            onClick={handleExportExcel}
-            disabled={!hasData}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-theme-900 text-white rounded-xl hover:bg-theme-800 transition-colors disabled:opacity-50 text-sm font-bold"
-          >
-            <Download className="w-4 h-4" /> Excel
-          </button>
-          <button 
-            onClick={handleExportTxt}
-            disabled={!hasData}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white text-theme-900 border border-theme-200 rounded-xl hover:bg-theme-50 transition-colors disabled:opacity-50 text-sm font-bold shadow-sm"
-          >
-            <Download className="w-4 h-4" /> Txt
-          </button>
-        </div>
-      </div>
 
-      {/* Search Bar with Previous Search Memory */}
-      <div className="mb-4 relative max-w-md" ref={dropdownRef}>
+        {/* Search Bar with Previous Search Memory */}
+        <div className="relative w-full max-w-md" ref={dropdownRef}>
         <div className="flex items-center gap-1.5 bg-white border border-theme-200 rounded-xl px-3 py-2 focus-within:border-theme-500 focus-within:ring-2 focus-within:ring-theme-100 transition-all text-xs sm:text-sm shadow-2xs">
           <Search className="w-4 h-4 text-theme-400 shrink-0" />
           <input
@@ -353,9 +354,10 @@ export const LowStockRecap = () => {
             )}
           </div>
         )}
+        </div>
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto">
         {!hasData ? (
           <div className="flex flex-col items-center justify-center h-64 bg-white rounded-3xl border border-theme-200 shadow-sm p-8 text-center">
             <div className="w-16 h-16 bg-theme-50 rounded-full flex items-center justify-center mb-4">
@@ -370,16 +372,16 @@ export const LowStockRecap = () => {
               const supplierName = suppliers.find(s => s.id === supplierId)?.name || 'Unknown Supplier';
               
               return (
-                <div key={supplierId} className="bg-white rounded-3xl border border-theme-200 shadow-sm overflow-hidden">
-                  <div className="bg-theme-50 border-b border-theme-100 px-6 py-4 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-theme-900">{supplierName}</h2>
-                    <span className="bg-white text-theme-600-text px-3 py-1 rounded-full text-xs font-bold border border-theme-200 shadow-sm">
+                <div key={supplierId} className="bg-white rounded-3xl border border-theme-200 shadow-sm overflow-x-clip">
+                  <div className="sticky top-0 z-10 bg-theme-50 border-b border-theme-100 rounded-t-3xl px-4 py-3.5 sm:px-6 sm:py-4 flex items-center justify-between gap-2">
+                    <h2 className="text-base sm:text-lg font-bold text-theme-900 break-words min-w-0">{supplierName}</h2>
+                    <span className="bg-white text-theme-600-text px-3 py-1 rounded-full text-xs font-bold border border-theme-200 shadow-sm shrink-0">
                       {prods.length} Produk
                     </span>
                   </div>
                   
-                  <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  <div className="p-4 sm:p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
                       {prods.map(p => {
                         const altSuppliers = (p.alternativeSupplierIds || [])
                           .map(altId => suppliers.find(s => s.id === altId)?.name || altId);

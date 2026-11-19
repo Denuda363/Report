@@ -99,8 +99,8 @@ export const DailyReport = () => {
     startTime?: number;
   }>({ current: 0, total: 0 });
 
-  // Form Collapse State
-  const [isFormCollapsed, setIsFormCollapsed] = useState(false);
+  // Form Collapse State (hidden by default on PC when first opened)
+  const [isFormCollapsed, setIsFormCollapsed] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
   
   // Searchable Select State
@@ -118,6 +118,7 @@ export const DailyReport = () => {
   const [supplierFilterQuery, setSupplierFilterQuery] = useState('');
   const [productFilterQuery, setProductFilterQuery] = useState('');
   const [bottomStockFilter, setBottomStockFilter] = useState<'all' | 'has' | 'none' | 'warning'>('all');
+  const [orderedFilter, setOrderedFilter] = useState<'all' | 'ordered' | 'not_ordered'>('all');
   const [arrivedFilter, setArrivedFilter] = useState<'all' | 'arrived' | 'not_arrived'>('all');
   const [checkedFilter, setCheckedFilter] = useState<'all' | 'checked' | 'unchecked'>('all');
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
@@ -259,7 +260,7 @@ export const DailyReport = () => {
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterDate, filterSupplier, productFilterQuery, bottomStockFilter, arrivedFilter, checkedFilter, showDuplicatesOnly, showZeroStockOnly]);
+  }, [filterDate, filterSupplier, productFilterQuery, bottomStockFilter, orderedFilter, arrivedFilter, checkedFilter, showDuplicatesOnly, showZeroStockOnly]);
 
   const selectedProduct = useMemo(() => products.find(p => p.id === productId), [products, productId]);
 
@@ -522,6 +523,7 @@ export const DailyReport = () => {
       setSaveSummary({ isOpen: true, saved, failed });
       setPendingItems([]);
       if (saved.length > 0) {
+        setIsFormCollapsed(true);
         setMobileTab('list');
       }
     } catch (e: any) {
@@ -672,6 +674,7 @@ export const DailyReport = () => {
         checkedAt: existingReport?.checkedAt ?? null
       });
       setEditingReportId(null);
+      setIsFormCollapsed(true);
       setMobileTab('list');
     } else {
       const p = products.find(prod => prod.id === finalProductId);
@@ -685,6 +688,7 @@ export const DailyReport = () => {
         isArrived: hasArrivedOnDate,
         arrivedAt: hasArrivedOnDate ? Date.now() : undefined
       });
+      setIsFormCollapsed(true);
       setMobileTab('list');
     }
 
@@ -724,6 +728,7 @@ export const DailyReport = () => {
 
   const cancelEdit = () => {
     setEditingReportId(null);
+    setIsFormCollapsed(true);
     setMobileTab('list');
     setQuantity('');
     setSearchQuery('');
@@ -1050,6 +1055,13 @@ export const DailyReport = () => {
         matchBottomStock = !!r.isWarningStock;
       }
       
+      let matchOrdered = true;
+      if (orderedFilter === 'ordered') {
+        matchOrdered = !!r.isOrdered;
+      } else if (orderedFilter === 'not_ordered') {
+        matchOrdered = !r.isOrdered;
+      }
+
       if (arrivedFilter === 'arrived') {
         matchArrived = !!r.isArrived;
       } else if (arrivedFilter === 'not_arrived') {
@@ -1063,7 +1075,7 @@ export const DailyReport = () => {
         matchChecked = !r.isChecked;
       }
 
-      return matchDate && matchSupplier && matchProduct && matchBottomStock && matchArrived && matchChecked;
+      return matchDate && matchSupplier && matchProduct && matchBottomStock && matchOrdered && matchArrived && matchChecked;
     });
 
     if (showDuplicatesOnly) {
@@ -1090,7 +1102,7 @@ export const DailyReport = () => {
       if (dA !== dB) return new Date(dB).getTime() - new Date(dA).getTime();
       return (b.createdAt || 0) - (a.createdAt || 0);
     });
-  }, [reports, filterDate, filterSupplier, productFilterQuery, products, bottomStockFilter, arrivedFilter, checkedFilter, showDuplicatesOnly, showZeroStockOnly]);
+  }, [reports, filterDate, filterSupplier, productFilterQuery, products, bottomStockFilter, orderedFilter, arrivedFilter, checkedFilter, showDuplicatesOnly, showZeroStockOnly]);
 
   // Filter reports for display
   const filteredReports = useMemo(() => {
@@ -1184,7 +1196,7 @@ export const DailyReport = () => {
     return 'custom';
   }, [filterDate]);
 
-  const hasActiveFilters = !!(filterDate || filterSupplier || supplierFilterQuery || productFilterQuery || bottomStockFilter !== 'all' || arrivedFilter !== 'all' || checkedFilter !== 'all' || showDuplicatesOnly || showZeroStockOnly);
+  const hasActiveFilters = !!(filterDate || filterSupplier || supplierFilterQuery || productFilterQuery || bottomStockFilter !== 'all' || orderedFilter !== 'all' || arrivedFilter !== 'all' || checkedFilter !== 'all' || showDuplicatesOnly || showZeroStockOnly);
 
   const resetAllFilters = () => {
     setFilterDate('');
@@ -1192,6 +1204,7 @@ export const DailyReport = () => {
     setSupplierFilterQuery('');
     setProductFilterQuery('');
     setBottomStockFilter('all');
+    setOrderedFilter('all');
     setArrivedFilter('all');
     setCheckedFilter('all');
     setShowDuplicatesOnly(false);
@@ -1199,54 +1212,9 @@ export const DailyReport = () => {
   };
 
   return (
-    <div className="flex flex-col gap-4 h-full">
-      {/* Mobile Tab Switcher */}
-      <div className="lg:hidden flex items-center bg-white p-1 rounded-2xl border border-theme-200 shadow-xs">
-        <button
-          type="button"
-          onClick={() => setMobileTab('list')}
-          className={cn(
-            "flex-1 py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2",
-            mobileTab === 'list'
-              ? "bg-theme-500 text-white shadow-xs"
-              : "text-theme-600-text hover:text-theme-900"
-          )}
-        >
-          <FileText className="w-4 h-4" />
-          <span>Daftar Report</span>
-          <span className={cn(
-            "px-1.5 py-0.5 rounded-full text-[10px]",
-            mobileTab === 'list' ? "bg-white/20 text-white" : "bg-theme-100 text-theme-800"
-          )}>
-            {filteredReports.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMobileTab('form')}
-          className={cn(
-            "flex-1 py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2",
-            mobileTab === 'form'
-              ? "bg-theme-500 text-white shadow-xs"
-              : "text-theme-600-text hover:text-theme-900"
-          )}
-        >
-          <Plus className="w-4 h-4" />
-          <span>{editingReportId ? 'Edit Record' : '+ Input Sales'}</span>
-          {pendingItems.length > 0 && (
-            <span className={cn(
-              "px-1.5 py-0.5 rounded-full text-[10px]",
-              mobileTab === 'form' ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800 font-bold"
-            )}>
-              {pendingItems.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-5 h-full items-start">
-        {/* Input Form */}
+    <div className="flex flex-col gap-3 sm:gap-4 sm:h-full">
+      <div className="flex flex-col gap-4 sm:gap-5 sm:h-full items-stretch">
+        {/* Floating Input Sales Form Modal (appears on button click without changing background layout) */}
         <DailyReportForm
           editingReportId={editingReportId}
           date={date}
@@ -1289,38 +1257,61 @@ export const DailyReport = () => {
           setProductSearchHistory={setProductSearchHistory}
         />
 
-      {/* Reports Data Container */}
+      {/* Reports Data Container (Always intact & unchanged) */}
       <div className={isFullScreen 
         ? "fixed inset-0 z-[100] bg-white flex flex-col overflow-hidden" 
-        : cn(
-            "flex-1 bg-white rounded-3xl border border-theme-200 shadow-xs flex flex-col overflow-hidden min-h-[500px] transition-all",
-            mobileTab === 'list' ? "w-full flex" : "hidden lg:flex"
-          )
+        : "w-full flex-1 bg-white rounded-2xl sm:rounded-3xl border border-theme-200 shadow-xs flex flex-col overflow-x-clip sm:overflow-hidden sm:min-h-[520px] min-w-0 transition-all"
       }>
-        {/* Header Ribbon with Title, View Mode Switcher and Fullscreen */}
-        <div className="px-4 py-3 border-b border-theme-200 bg-theme-50/50 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-theme-200/70 flex items-center justify-center text-theme-800">
+        {/* Header Ribbon with Title, Floating Input Trigger, View Mode Switcher and Fullscreen */}
+        <div className={cn(
+          "px-3 py-2.5 sm:px-4 sm:py-3 border-b border-theme-200 flex flex-wrap items-center justify-between gap-2 sm:gap-3 shrink-0",
+          isFullScreen
+            ? "bg-theme-50/50"
+            : "sticky top-0 sm:static z-20 bg-theme-50/95 sm:bg-theme-50/50 backdrop-blur-xs sm:backdrop-blur-none rounded-t-2xl sm:rounded-none"
+        )}>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="hidden sm:flex w-8 h-8 rounded-xl bg-theme-200/70 items-center justify-center text-theme-800 shrink-0">
               <TableIcon className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="font-bold text-theme-900 text-sm sm:text-base leading-tight">
-                Data Laporan Sales
+            <div className="min-w-0">
+              <h3 className="font-bold text-theme-900 text-sm sm:text-base leading-tight truncate">
+                <span className="sm:hidden">Laporan Sales</span>
+                <span className="hidden sm:inline">Data Laporan Sales</span>
               </h3>
-              <p className="text-[11px] text-theme-500 font-medium">
-                {filteredReports.length} transaksi ditemukan
+              <p className="text-[11px] text-theme-500 font-medium tabular-nums">
+                {filteredReports.length} transaksi
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 ml-auto shrink-0">
+            {/* Floating Input Sales Baru Trigger Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsFormCollapsed(false);
+                setMobileTab('form');
+              }}
+              className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-bold bg-theme-600 hover:bg-theme-700 text-white transition-all shadow-sm active:scale-95 whitespace-nowrap"
+              title="Buka Form Input Sales Baru (Melayang)"
+            >
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span className="sm:hidden">{editingReportId ? 'Edit Data' : 'Input Baru'}</span>
+              <span className="hidden sm:inline">{editingReportId ? 'Edit Data Sales' : 'Input Sales Baru'}</span>
+              {pendingItems.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-white/25 text-white text-[10px] font-black">
+                  {pendingItems.length}
+                </span>
+              )}
+            </button>
+
             {/* View Mode Toggle (Auto / Table / Cards) */}
-            <div className="flex items-center bg-white border border-theme-200 p-1 rounded-xl shadow-2xs text-xs">
+            <div className="flex items-center bg-white border border-theme-200 p-0.5 sm:p-1 rounded-xl shadow-2xs text-[11px] sm:text-xs">
               <button
                 type="button"
                 onClick={() => setViewMode('auto')}
                 className={cn(
-                  "px-2.5 py-1 rounded-lg font-semibold transition-all",
+                  "px-2 sm:px-2.5 py-1 rounded-lg font-semibold transition-all",
                   viewMode === 'auto'
                     ? "bg-theme-500 text-white shadow-xs font-bold"
                     : "text-theme-600-text hover:text-theme-900"
@@ -1333,7 +1324,7 @@ export const DailyReport = () => {
                 type="button"
                 onClick={() => setViewMode('table')}
                 className={cn(
-                  "px-2.5 py-1 rounded-lg font-semibold transition-all flex items-center gap-1",
+                  "px-2 sm:px-2.5 py-1 rounded-lg font-semibold transition-all flex items-center gap-1",
                   viewMode === 'table'
                     ? "bg-theme-500 text-white shadow-xs font-bold"
                     : "text-theme-600-text hover:text-theme-900"
@@ -1347,7 +1338,7 @@ export const DailyReport = () => {
                 type="button"
                 onClick={() => setViewMode('cards')}
                 className={cn(
-                  "px-2.5 py-1 rounded-lg font-semibold transition-all flex items-center gap-1",
+                  "px-2 sm:px-2.5 py-1 rounded-lg font-semibold transition-all flex items-center gap-1",
                   viewMode === 'cards'
                     ? "bg-theme-500 text-white shadow-xs font-bold"
                     : "text-theme-600-text hover:text-theme-900"
@@ -1363,7 +1354,7 @@ export const DailyReport = () => {
             <button
               type="button"
               onClick={() => setIsFullScreen(!isFullScreen)}
-              className="p-2 text-theme-600-text hover:text-theme-900 hover:bg-theme-100 rounded-xl transition-colors border border-theme-200 bg-white shadow-2xs"
+              className="p-1.5 sm:p-2 text-theme-600-text hover:text-theme-900 hover:bg-theme-100 rounded-xl transition-colors border border-theme-200 bg-white shadow-2xs"
               title={isFullScreen ? "Keluar Layar Penuh" : "Layar Penuh"}
             >
               {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -1405,6 +1396,8 @@ export const DailyReport = () => {
           products={products}
           bottomStockFilter={bottomStockFilter}
           setBottomStockFilter={setBottomStockFilter}
+          orderedFilter={orderedFilter}
+          setOrderedFilter={setOrderedFilter}
           arrivedFilter={arrivedFilter}
           setArrivedFilter={setArrivedFilter}
           checkedFilter={checkedFilter}
@@ -1438,7 +1431,15 @@ export const DailyReport = () => {
         />
 
         {/* Data View: Cards or Table */}
-        <div className="flex-1 overflow-auto p-3 sm:p-4 min-h-[320px]">
+        <div className={cn(
+          "flex-1 px-2 pb-2 sm:px-4 sm:pb-4 pt-0 min-h-[280px] lg:min-h-[320px] min-w-0",
+          isFullScreen
+            ? "overflow-auto min-h-0"
+            : cn(
+                "sm:overflow-auto sm:min-h-0",
+                viewMode === 'table' && "overflow-auto max-h-[65dvh] sm:max-h-none"
+              )
+        )}>
           {filteredReports.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center text-theme-500">
               <div className="w-14 h-14 bg-theme-50 rounded-2xl flex items-center justify-center mb-3 border border-theme-200 shadow-2xs">
@@ -1462,7 +1463,7 @@ export const DailyReport = () => {
             <>
               {/* Cards layout: shown when cards mode is forced, or on mobile when auto */}
               {(viewMode === 'cards' || viewMode === 'auto') && (
-                <div className={viewMode === 'auto' ? 'block lg:hidden' : 'block'}>
+                <div className={cn("pt-2 sm:pt-3", viewMode === 'auto' ? 'block lg:hidden' : 'block')}>
                   <DailyReportCards
                     reports={paginatedReports}
                     products={products}
@@ -1496,15 +1497,16 @@ export const DailyReport = () => {
         </div>
 
         {/* Footer & Pagination */}
-        <div className="p-3 sm:p-4 border-t border-theme-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <div className="flex flex-wrap items-center gap-3 text-theme-600 font-medium">
-            <span>
-              Menampilkan {filteredReports.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}-
-              {Math.min(currentPage * itemsPerPage, filteredReports.length)} dari {filteredReports.length} baris
+        <div className="p-2.5 sm:p-4 border-t border-theme-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-3 text-xs">
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 text-theme-600 font-medium">
+            <span className="tabular-nums">
+              {filteredReports.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}-
+              {Math.min(currentPage * itemsPerPage, filteredReports.length)} dari {filteredReports.length}
             </span>
-            <span className="hidden sm:inline">•</span>
+            <span className="text-theme-300">·</span>
             <div className="flex items-center gap-1.5">
-              <span>Baris per halaman:</span>
+              <span className="hidden sm:inline">Baris per halaman:</span>
+              <span className="sm:hidden">Baris:</span>
               <select
                 value={itemsPerPage}
                 onChange={(e) => {
