@@ -5,7 +5,7 @@ import {
   generateId, subscribeToSettings, syncSettingsToCloud
 } from '../lib/dbAdapter';
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { Product, ReportEntry, Supplier, UserSettings, AutoDeleteMode, StockOutEntry, DbProvider, NearExpiredEntry, NavbarStyle } from '../types';
+import { Product, ReportEntry, Supplier, UserSettings, AutoDeleteMode, StockOutEntry, DbProvider, NearExpiredEntry, NavbarPosition, NavbarStyle } from '../types';
 import { formatExcelDate } from '../lib/excel';
 import { getCleanupCutoffDate } from '../lib/cleanupUtils';
 import { mergeCrosscheckStatus, saveCrosscheckStatus, saveCrosscheckBatch } from '../lib/crosscheckRegistry';
@@ -268,9 +268,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           hasChanges = true;
         }
 
+        const remoteNavbarPos = (remote.navbarPosition ?? remote.navbarposition) as NavbarPosition | undefined;
+        if (remoteNavbarPos && remoteNavbarPos !== prev.settings.navbarPosition) {
+          updated.navbarPosition = remoteNavbarPos;
+          hasChanges = true;
+        }
+
         const remoteNavbarStyle = (remote.navbarStyle ?? remote.navbarstyle) as NavbarStyle | undefined;
         if (remoteNavbarStyle && remoteNavbarStyle !== prev.settings.navbarStyle) {
           updated.navbarStyle = remoteNavbarStyle;
+          hasChanges = true;
+        }
+
+        if (remote.theme && remote.theme !== prev.settings.theme) {
+          updated.theme = remote.theme;
+          hasChanges = true;
+        }
+
+        const remoteClockStyle = remote.clockStyle ?? remote.clockstyle;
+        if (remoteClockStyle && remoteClockStyle !== prev.settings.clockStyle) {
+          updated.clockStyle = remoteClockStyle;
           hasChanges = true;
         }
 
@@ -324,8 +341,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           updated.autoDeleteDays = remote.autoDeleteDays;
           hasChanges = true;
         }
+        if (remote.navbarPosition && remote.navbarPosition !== prev.settings.navbarPosition) {
+          updated.navbarPosition = remote.navbarPosition;
+          hasChanges = true;
+        }
         if (remote.navbarStyle && remote.navbarStyle !== prev.settings.navbarStyle) {
           updated.navbarStyle = remote.navbarStyle;
+          hasChanges = true;
+        }
+        if (remote.theme && remote.theme !== prev.settings.theme) {
+          updated.theme = remote.theme;
+          hasChanges = true;
+        }
+        if (remote.clockStyle && remote.clockStyle !== prev.settings.clockStyle) {
+          updated.clockStyle = remote.clockStyle;
           hasChanges = true;
         }
         if (remote.dbPinHash && remote.dbPinHash.length === 64 && remote.dbPinHash !== prev.settings.dbPinHash) {
@@ -362,6 +391,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 ...prev.settings,
                 ...(incoming.autoDeleteMode !== undefined ? { autoDeleteMode: incoming.autoDeleteMode } : {}),
                 ...(incoming.autoDeleteDays !== undefined ? { autoDeleteDays: incoming.autoDeleteDays } : {}),
+                ...(incoming.navbarPosition !== undefined ? { navbarPosition: incoming.navbarPosition } : {}),
                 ...(incoming.navbarStyle !== undefined ? { navbarStyle: incoming.navbarStyle } : {}),
                 ...(incoming.theme !== undefined ? { theme: incoming.theme } : {}),
                 ...(incoming.clockStyle !== undefined ? { clockStyle: incoming.clockStyle } : {}),

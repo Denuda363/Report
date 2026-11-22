@@ -2,7 +2,7 @@ import { db, handleFirestoreError, OperationType, isFirebaseQuotaExceeded } from
 import { localDb, generateId } from './localDb';
 import { getSupabaseClient, checkSupabaseTableStatus, SUPABASE_SQL_SCHEMA } from './supabase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, writeBatch, getDoc, getDocs, query, limit } from 'firebase/firestore';
-import { DbProvider, AutoDeleteMode, ClockStyle, NavbarStyle } from '../types';
+import { DbProvider, AutoDeleteMode, ClockStyle, NavbarPosition, NavbarStyle } from '../types';
 
 export const REQUIRED_TABLES = [
   'suppliers', 
@@ -910,6 +910,7 @@ export const checkDatabaseTablesStatus = async (targetProvider?: DbProvider): Pr
 export type SyncableSettingsPayload = {
   autoDeleteMode?: AutoDeleteMode;
   autoDeleteDays?: number;
+  navbarPosition?: NavbarPosition;
   navbarStyle?: NavbarStyle;
   theme?: string;
   clockStyle?: ClockStyle;
@@ -930,6 +931,7 @@ export const subscribeToSettings = (
   const extractSettings = (data: Record<string, any>): SyncableSettingsPayload => ({
     autoDeleteMode: data.autoDeleteMode as AutoDeleteMode,
     autoDeleteDays: data.autoDeleteDays !== undefined ? Number(data.autoDeleteDays) : undefined,
+    navbarPosition: (data.navbarPosition ?? data.navbarposition) as NavbarPosition | undefined,
     navbarStyle: (data.navbarStyle ?? data.navbarstyle) as NavbarStyle | undefined,
     theme: data.theme,
     clockStyle: (data.clockStyle ?? data.clockstyle) as ClockStyle | undefined,
@@ -1027,6 +1029,9 @@ export const syncSettingsToCloud = async (
   }
   if (newSettings.autoDeleteDays !== undefined) {
     payload.autoDeleteDays = Number(newSettings.autoDeleteDays);
+  }
+  if (newSettings.navbarPosition !== undefined) {
+    payload.navbarPosition = newSettings.navbarPosition;
   }
   if (newSettings.navbarStyle !== undefined) {
     payload.navbarStyle = newSettings.navbarStyle;

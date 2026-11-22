@@ -6,7 +6,7 @@ import {
   RefreshCw, AlertTriangle, ChevronDown, ChevronUp, Layers, CheckCircle, Flame,
   BookOpen, Sparkles, Play, Calendar, Clock, Minus, Plus, Info, ShieldCheck,
   Code2, Copyright, Award, Heart, BadgeCheck, Laptop, Cpu,
-  Lock, KeyRound, Eye, EyeOff, X,
+  Lock, Unlock, KeyRound, Eye, EyeOff, X,
   Building2, MapPin, Phone, Mail, ImagePlus, Save, RotateCcw, Smartphone
 } from 'lucide-react';
 import { AutoDeleteMode, NavbarPosition, NavbarStyle, DbProvider, ClockStyle } from '../types';
@@ -30,9 +30,12 @@ export type SettingsSubTab = 'profile' | 'appearance' | 'database' | 'data' | 'g
 export interface SettingsViewProps {
   onNavigateTab?: (tab: 'dashboard' | 'master' | 'report' | 'arrived' | 'stockout' | 'kosong' | 'lowstock' | 'settings') => void;
   defaultSubTab?: 'config' | SettingsSubTab;
+  isVisible?: boolean;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defaultSubTab = 'profile' }) => {
+const isProtectedSettingsSubTab = (tab: SettingsSubTab): boolean => tab === 'database' || tab === 'data';
+
+export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defaultSubTab = 'profile', isVisible = true }) => {
   const { 
     settings, updateSettings, resetAllData, exportData, importData, 
     migrateCurrentDataToSupabase, dbProvider,
@@ -45,7 +48,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
     return validTabs.includes(tab as SettingsSubTab) ? (tab as SettingsSubTab) : 'profile';
   };
 
-  const [activeSubTab, setActiveSubTab] = useState<SettingsSubTab>(() => normalizeSubTab(defaultSubTab));
+  const [activeSubTab, setActiveSubTab] = useState<SettingsSubTab>(() => {
+    const initial = normalizeSubTab(defaultSubTab);
+    return isProtectedSettingsSubTab(initial) ? 'profile' : initial;
+  });
+  const [isProtectedTabsUnlocked, setIsProtectedTabsUnlocked] = useState(false);
+  const [pendingProtectedTab, setPendingProtectedTab] = useState<SettingsSubTab | null>(null);
+
+  useEffect(() => {
+    if (!isVisible) {
+      setIsProtectedTabsUnlocked(false);
+      setPendingProtectedTab(null);
+      setActiveSubTab((prev) => (isProtectedSettingsSubTab(prev) ? 'profile' : prev));
+    }
+  }, [isVisible]);
+
+  const handleSelectSubTab = (tab: SettingsSubTab) => {
+    if (isProtectedSettingsSubTab(tab) && !isProtectedTabsUnlocked) {
+      setPendingProtectedTab(tab);
+      return;
+    }
+    setActiveSubTab(tab);
+  };
+
+  const handleLockProtectedTabs = () => {
+    setIsProtectedTabsUnlocked(false);
+    setPendingProtectedTab(null);
+    if (isProtectedSettingsSubTab(activeSubTab)) {
+      setActiveSubTab('profile');
+    }
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const companyIconInputRef = useRef<HTMLInputElement>(null);
 
@@ -530,7 +563,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
 
   const handleThemeChange = (theme: string) => {
     const matchedClockStyle = getRecommendedClockStyleForTheme(theme);
-    updateSettings({ ...settings, theme, clockStyle: matchedClockStyle });
+    let nextNavbarStyle: NavbarStyle | undefined = settings.navbarStyle;
+    if (theme === 'windows11') {
+      nextNavbarStyle = 'windows11';
+    } else if (theme === 'ubuntu') {
+      nextNavbarStyle = 'ubuntu';
+    } else if (
+      (settings.theme === 'windows11' && settings.navbarStyle === 'windows11') ||
+      (settings.theme === 'ubuntu' && settings.navbarStyle === 'ubuntu')
+    ) {
+      nextNavbarStyle = 'classic';
+    }
+    updateSettings({
+      ...settings,
+      theme,
+      clockStyle: matchedClockStyle,
+      ...(nextNavbarStyle ? { navbarStyle: nextNavbarStyle } : {})
+    });
   };
 
   const handleClockStyleChange = (clockStyle: ClockStyle) => {
@@ -898,17 +947,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => setActiveSubTab('database')}
+              onClick={() => handleSelectSubTab('database')}
               className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap"
-              title="Buka tab Database & Cloud"
+              title={isProtectedTabsUnlocked ? "Buka tab Database & Cloud" : "Buka tab Database & Cloud (Perlu PIN)"}
             >
               <Database className="w-3.5 h-3.5 text-emerald-600" />
               <span>{activeProvider === 'supabase' ? 'Supabase' : activeProvider === 'firebase' ? 'Firebase' : 'Offline'}</span>
+              {!isProtectedTabsUnlocked && <Lock className="w-3 h-3 text-amber-600 shrink-0" />}
             </button>
+
+            {isProtectedTabsUnlocked && (
+              <button
+                type="button"
+                onClick={handleLockProtectedTabs}
+                className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                title="Kunci kembali menu Database dan Data & Sistem"
+              >
+                <Lock className="w-3.5 h-3.5 text-amber-600" />
+                <span>Kunci Akses</span>
+              </button>
+            )}
 
             <button
               type="button"
-              onClick={() => setActiveSubTab('appearance')}
+              onClick={() => handleSelectSubTab('appearance')}
               className="px-3 py-1.5 rounded-xl bg-theme-50 hover:bg-theme-100/80 border border-theme-200 text-theme-800 text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap"
               title="Buka tab Tampilan & Tema"
             >
@@ -918,7 +980,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
 
             <button
               type="button"
-              onClick={() => setActiveSubTab('about')}
+              onClick={() => handleSelectSubTab('about')}
               className="px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-emerald-300 border border-neutral-800 text-xs font-black flex items-center gap-1.5 transition-colors whitespace-nowrap"
               title="Buka tab Tentang Aplikasi"
             >
@@ -940,11 +1002,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                 {settingsTabs.filter((t) => t.group === 'pengaturan').map((tab) => {
                   const Icon = tab.icon;
                   const isActive = activeSubTab === tab.id;
+                  const isLockedTab = isProtectedSettingsSubTab(tab.id);
                   return (
                     <button
                       key={tab.id}
                       type="button"
-                      onClick={() => setActiveSubTab(tab.id)}
+                      onClick={() => handleSelectSubTab(tab.id)}
                       className={`text-left px-3 sm:px-3.5 py-2.5 rounded-2xl border transition-all flex items-center gap-2.5 ${
                         isActive
                           ? 'bg-theme-600 text-white border-theme-700 shadow-sm'
@@ -964,6 +1027,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                               isActive ? 'bg-white/20 text-white' : 'bg-theme-100 text-theme-800'
                             }`}>
                               {tab.badge}
+                            </span>
+                          )}
+                          {isLockedTab && (
+                            <span
+                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-md text-[9px] font-black uppercase ${
+                                isActive
+                                  ? 'bg-white/20 text-white'
+                                  : isProtectedTabsUnlocked
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-amber-100 text-amber-800'
+                              }`}
+                              title={isProtectedTabsUnlocked ? 'Terbuka dengan PIN' : 'Dilindungi PIN Keamanan'}
+                            >
+                              {isProtectedTabsUnlocked ? <Unlock className="w-2.5 h-2.5" /> : <Lock className="w-2.5 h-2.5" />}
+                              <span>PIN</span>
                             </span>
                           )}
                         </div>
@@ -1832,47 +1910,153 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                 <LayoutPanelLeft className="w-6 h-6 lg:w-7 lg:h-7 text-theme-500" />
               </div>
               <div>
-                <h3 className="text-lg lg:text-xl font-bold text-theme-900">Posisi Menu Navigasi</h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg lg:text-xl font-bold text-theme-900">Posisi Menu Navigasi</h3>
+                  <span className="px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-theme-100 text-theme-800">
+                    Semua Mode (HP · Tablet · Desktop)
+                  </span>
+                </div>
                 <p className="text-xs sm:text-sm text-theme-600-text mt-1 lg:mt-1.5 font-medium leading-relaxed">
-                  Sesuaikan letak menu utama pada layar agar lebih mudah dijangkau.
+                  Letak sidebar dan dock navigasi berubah di semua ukuran layar sambil tetap mengikuti gaya yang sedang aktif.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {[
-                { id: 'bottom', title: 'Bawah', desc: 'Sangat nyaman untuk HP' },
-                { id: 'left', title: 'Kiri', desc: 'Cocok untuk tablet/desktop' },
-                { id: 'right', title: 'Kanan', desc: 'Alternatif di layar besar' }
-              ].map((nav) => {
-                const isSelected = (!settings.navbarPosition && nav.id === 'bottom') || settings.navbarPosition === nav.id;
-                return (
-                  <div
-                    key={nav.id}
-                    onClick={() => handleNavPositionChange(nav.id as NavbarPosition)}
-                    className={`p-4 lg:p-5 rounded-[1.5rem] border-2 cursor-pointer transition-all duration-300 ${
-                      nav.id === 'right' ? 'sm:col-span-2 lg:col-span-1' : ''
-                    } ${
-                      isSelected
-                        ? 'border-theme-500 bg-theme-50 shadow-md'
-                        : 'border-theme-100 hover:border-theme-300 bg-white hover:-translate-y-1'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1.5 lg:mb-2">
-                      <span className="font-bold text-theme-900 text-base">{nav.title}</span>
-                      {isSelected && <CheckCircle2 className="w-5 h-5 text-theme-500" />}
-                    </div>
-                    <p className="text-xs font-medium text-theme-600-text">{nav.desc}</p>
-                  </div>
-                );
-              })}
-            </div>
+            {(() => {
+              const activeNavStyle = settings.navbarStyle || 'classic';
+              const navBarSurfaceClass =
+                activeNavStyle === 'ubuntu'
+                  ? 'bg-[#300A24] border-[#4C1239]'
+                  : activeNavStyle === 'windows11'
+                    ? 'bg-white/95 border-sky-300/80'
+                    : activeNavStyle === 'iphone'
+                      ? 'bg-white/90 border-white shadow-sm'
+                      : 'bg-theme-200 border-theme-300';
+              const activeDotClass =
+                activeNavStyle === 'ubuntu' ? 'bg-[#E95420]' : 'bg-theme-500';
+              const inactiveDotClass =
+                activeNavStyle === 'ubuntu' ? 'bg-white/30' : 'bg-neutral-300';
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                  {[
+                    {
+                      id: 'bottom',
+                      title: 'Bawah',
+                      desc: 'Dock / taskbar di bawah layar (HP, tablet & desktop)'
+                    },
+                    {
+                      id: 'left',
+                      title: 'Kiri',
+                      desc: 'Sidebar menempel di sisi kiri (permanen di desktop, slide kiri di HP)'
+                    },
+                    {
+                      id: 'right',
+                      title: 'Kanan',
+                      desc: 'Sidebar menempel di sisi kanan (permanen di desktop, slide kanan di HP)'
+                    }
+                  ].map((nav) => {
+                    const isSelected = (!settings.navbarPosition && nav.id === 'bottom') || settings.navbarPosition === nav.id;
+                    return (
+                      <button
+                        type="button"
+                        key={nav.id}
+                        onClick={() => handleNavPositionChange(nav.id as NavbarPosition)}
+                        className={`text-left p-4 lg:p-5 rounded-[1.5rem] border-2 cursor-pointer transition-all duration-300 flex flex-col justify-between gap-3.5 ${
+                          nav.id === 'right' ? 'sm:col-span-2 lg:col-span-1' : ''
+                        } ${
+                          isSelected
+                            ? 'border-theme-500 bg-theme-50 shadow-md'
+                            : 'border-theme-100 hover:border-theme-300 bg-white hover:-translate-y-1'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="font-bold text-theme-900 text-base">{nav.title}</span>
+                            {isSelected && <CheckCircle2 className="w-5 h-5 text-theme-500 shrink-0" />}
+                          </div>
+                          <p className="text-xs font-medium text-theme-600-text leading-relaxed">{nav.desc}</p>
+                        </div>
+
+                        {/* Live Position Mini-Diagram reflecting active style */}
+                        <div className={`w-full h-16 rounded-xl bg-theme-50/70 border border-theme-200/80 p-1.5 flex overflow-hidden shadow-inner ${
+                          nav.id === 'right' ? 'flex-row-reverse gap-1.5' : nav.id === 'left' ? 'flex-row gap-1.5' : 'flex-col justify-between gap-1'
+                        }`}>
+                          {nav.id === 'bottom' ? (
+                            <>
+                              <div className="flex-1 flex flex-col gap-1 px-1 pt-0.5">
+                                <div className="h-2 w-16 rounded bg-white border border-theme-200/70" />
+                                <div className="flex-1 rounded bg-white/80 border border-theme-200/60" />
+                              </div>
+                              <div className={`h-4 border flex items-center justify-center gap-2 px-3 ${
+                                activeNavStyle === 'classic' ? 'rounded-md' : 'mx-auto w-28 rounded-full'
+                              } ${navBarSurfaceClass}`}>
+                                <span className={`w-2.5 h-1.5 rounded-full ${activeDotClass}`} />
+                                <span className={`w-2 h-1.5 rounded-full ${inactiveDotClass}`} />
+                                <span className={`w-2 h-1.5 rounded-full ${inactiveDotClass}`} />
+                                <span className={`w-2 h-1.5 rounded-full ${inactiveDotClass}`} />
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className={`w-8 h-full border p-1 flex flex-col gap-1 ${
+                                activeNavStyle === 'iphone' || activeNavStyle === 'windows11' ? 'rounded-lg' : 'rounded-md'
+                              } ${navBarSurfaceClass}`}>
+                                <span className={`h-1.5 w-full rounded-full ${activeDotClass}`} />
+                                <span className={`h-1.5 w-full rounded-full ${inactiveDotClass}`} />
+                                <span className={`h-1.5 w-full rounded-full ${inactiveDotClass}`} />
+                              </div>
+                              <div className="flex-1 flex flex-col gap-1">
+                                <div className="h-2.5 w-full rounded bg-white border border-theme-200/70" />
+                                <div className="flex-1 rounded bg-white/80 border border-theme-200/60" />
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* LOCKED GATE GUARD IF PROTECTED TAB SELECTED WITHOUT PIN */}
+      {isProtectedSettingsSubTab(activeSubTab) && !isProtectedTabsUnlocked && (
+        <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm p-6 sm:p-10 text-center max-w-lg mx-auto my-4 animate-in fade-in duration-200">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto mb-4 shadow-xs">
+            <Lock className="w-7 h-7" />
+          </div>
+          <h3 className="text-lg font-extrabold text-theme-900">
+            Area Pengaturan Terkunci PIN
+          </h3>
+          <p className="text-xs sm:text-sm text-theme-600-text font-medium mt-1.5 leading-relaxed">
+            Menu <strong>{activeSubTab === 'database' ? 'Database & Cloud' : 'Data & Sistem'}</strong> dilindungi PIN keamanan untuk menjaga konfigurasi database, backup, dan reset data sistem.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('profile')}
+              className="px-4 py-2.5 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 text-xs sm:text-sm font-semibold transition-colors"
+            >
+              Kembali ke Profil
+            </button>
+            <button
+              type="button"
+              onClick={() => setPendingProtectedTab(activeSubTab)}
+              className="px-5 py-2.5 rounded-xl bg-theme-600 hover:bg-theme-700 text-white text-xs sm:text-sm font-semibold transition-all shadow-sm inline-flex items-center gap-2"
+            >
+              <KeyRound className="w-4 h-4" />
+              <span>Masukkan PIN Keamanan</span>
+            </button>
           </div>
         </div>
       )}
 
       {/* TAB 3: DATABASE & CLOUD */}
-      {activeSubTab === 'database' && (
+      {activeSubTab === 'database' && isProtectedTabsUnlocked && (
         <div className="flex flex-col gap-4 lg:gap-6 animate-in fade-in duration-200">
           {/* DATABASE PROVIDER SELECTION */}
           <div className="bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-8 relative">
@@ -2405,7 +2589,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
       )}
 
       {/* TAB 4: DATA & SISTEM */}
-      {activeSubTab === 'data' && (
+      {activeSubTab === 'data' && isProtectedTabsUnlocked && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 animate-in fade-in duration-200">
           {/* Left: Auto-Delete & Data Retention */}
           <div className="lg:col-span-7 bg-white rounded-[2rem] border border-theme-200 shadow-sm overflow-hidden p-4 sm:p-5 lg:p-7 flex flex-col justify-between">
@@ -2803,6 +2987,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
         </div>
       )}
 
+      {/* Protected Settings Section PIN Verification Modal */}
+      <DbPinModal
+        isOpen={pendingProtectedTab !== null}
+        title="Verifikasi PIN Pengaturan"
+        subtitle="Masukkan PIN keamanan untuk mengakses menu Database & Data Sistem"
+        contextLabel="Menu yang akan dibuka:"
+        targetProviderName={pendingProtectedTab === 'database' ? 'Database & Cloud' : 'Data & Sistem'}
+        submitLabel="Verifikasi & Buka"
+        errorMessage="PIN salah. Akses pengaturan ditolak."
+        storedPinHash={settings.dbPinHash}
+        onSuccess={() => {
+          const target = pendingProtectedTab;
+          setPendingProtectedTab(null);
+          setIsProtectedTabsUnlocked(true);
+          if (target) {
+            setActiveSubTab(target);
+          }
+        }}
+        onCancel={() => setPendingProtectedTab(null)}
+      />
+
       {/* Database Switch PIN Verification Modal */}
       <DbPinModal
         isOpen={pendingProvider !== null}
@@ -2829,10 +3034,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, defau
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm sm:text-base font-bold text-neutral-900 leading-tight truncate">
-                    Ubah PIN Keamanan Database
+                    Ubah PIN Keamanan Pengaturan
                   </h3>
                   <p className="text-xs font-medium text-neutral-500 mt-0.5 truncate">
-                    Perbarui PIN untuk otorisasi perpindahan sumber data
+                    Perbarui PIN untuk akses Database, Data &amp; Sistem, serta pindah server
                   </p>
                 </div>
               </div>

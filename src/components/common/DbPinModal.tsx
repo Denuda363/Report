@@ -8,6 +8,11 @@ interface DbPinModalProps {
   storedPinHash?: string;
   onSuccess: () => void;
   onCancel: () => void;
+  title?: string;
+  subtitle?: string;
+  contextLabel?: string;
+  submitLabel?: string;
+  errorMessage?: string;
 }
 
 export const DbPinModal: React.FC<DbPinModalProps> = ({
@@ -15,7 +20,12 @@ export const DbPinModal: React.FC<DbPinModalProps> = ({
   targetProviderName,
   storedPinHash,
   onSuccess,
-  onCancel
+  onCancel,
+  title = 'Verifikasi PIN Database',
+  subtitle = 'Otorisasi diperlukan sebelum berpindah sumber data',
+  contextLabel = 'Target database baru:',
+  submitLabel = 'Verifikasi & Pindah',
+  errorMessage = 'PIN salah. Perpindahan database dibatalkan.'
 }) => {
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
@@ -52,7 +62,7 @@ export const DbPinModal: React.FC<DbPinModalProps> = ({
       onSuccess();
     } else {
       setAttempts((prev) => prev + 1);
-      setError('PIN salah. Perpindahan database dibatalkan.');
+      setError(errorMessage);
       setPin('');
       inputRef.current?.focus();
     }
@@ -74,10 +84,10 @@ export const DbPinModal: React.FC<DbPinModalProps> = ({
             </div>
             <div className="min-w-0">
               <h3 className="text-sm sm:text-base font-bold text-neutral-900 leading-tight truncate">
-                Verifikasi PIN Database
+                {title}
               </h3>
               <p className="text-xs font-medium text-neutral-500 mt-0.5 truncate">
-                Otorisasi diperlukan sebelum berpindah sumber data
+                {subtitle}
               </p>
             </div>
           </div>
@@ -95,7 +105,7 @@ export const DbPinModal: React.FC<DbPinModalProps> = ({
           <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200 flex items-center gap-3">
             <ArrowRightLeft className="w-4 h-4 text-theme-600 shrink-0" />
             <div className="text-xs text-neutral-700 font-medium leading-relaxed">
-              Target database baru: <strong className="font-semibold text-neutral-900">{targetProviderName}</strong>
+              {contextLabel} <strong className="font-semibold text-neutral-900">{targetProviderName}</strong>
             </div>
           </div>
 
@@ -157,7 +167,7 @@ export const DbPinModal: React.FC<DbPinModalProps> = ({
               type="submit"
               className="px-5 py-2.5 rounded-xl bg-theme-600 hover:bg-theme-700 active:scale-[0.99] text-white text-sm font-semibold transition-all shadow-sm whitespace-nowrap"
             >
-              Verifikasi &amp; Pindah
+              {submitLabel}
             </button>
           </div>
         </form>
