@@ -37,12 +37,21 @@ export const exportReportsToTxt = (
   // Kosong Pabrik items ONLY go into the Kosong Pabrik section and never into any other list/section
   const normalItems = joinedData.filter(item => !item.KosongPabrik && !item.IsArrivedOnly);
   const kosongItems = joinedData.filter(item => item.KosongPabrik && !item.IsArrivedOnly);
-  const reorderItems = joinedData.filter(item => item.IsReorder && !item.KosongPabrik && !item.IsArrivedOnly);
+  const reorderItems = joinedData.filter(item => item.IsReorder && !item.KosongPabrik);
   const arrivedItems = joinedData.filter(item => item.IsArrived && !item.KosongPabrik);
   const warningStockItems = joinedData.filter(item => item.IsWarningStock && !item.KosongPabrik && !item.IsArrivedOnly);
 
-  // Group by supplier for normal order items
-  const groupedBySupplier = normalItems.reduce((acc, curr) => {
+  // Re-insert checked reorder items as active order requests into the main order list
+  const reorderOrderItems = reorderItems.map(item => ({
+    ...item,
+    Quantity: item.ReorderQty && Number(item.ReorderQty) > 0 ? Number(item.ReorderQty) : item.Quantity,
+    IsOrdered: false,
+    IsArrived: false,
+    Notes: item.ReorderReason ? `Order Ulang: ${item.ReorderReason}` : 'Order Ulang'
+  }));
+
+  // Group by supplier for normal order items + reordered items
+  const groupedBySupplier = [...normalItems, ...reorderOrderItems].reduce((acc, curr) => {
     const sup = curr.Supplier;
     if (!acc[sup]) acc[sup] = [];
     acc[sup].push(curr);
@@ -211,28 +220,55 @@ export const exportReportsToExcel = (
       'Alasan Order Ulang': report.isReorder ? report.reorderReason || '' : '',
       'Keterangan': report.notes || '',
       _isKosongPabrik: isKosongPabrik,
-      _isArrivedOnly: !!report.isArrivedOnly
+      _isArrivedOnly: !!report.isArrivedOnly,
+      _isReorder: !!report.isReorder,
+      _reorderQty: report.reorderQty,
+      _reorderReason: report.reorderReason || ''
     };
   });
 
-  // Sheet 1 (Report): Active items ONLY, excluding Kosong Pabrik
+  // Sheet 1 (Report): Active items ONLY, excluding Kosong Pabrik.
+  // If Order Ulang is checked, re-insert as an active order request row as well.
   const normalData = dataToExport
-    .filter(item => !item._isKosongPabrik && !item._isArrivedOnly)
-    .map(item => ({
-      'Tanggal': item.Date,
-      'Supplier': item.Supplier,
-      'Produk': item.Product,
-      'Satuan': item.Unit,
-      'Qty': item.Quantity,
-      'Butom Stok': item.BottomStock,
-      'Sudah Order': item['Sudah Order'],
-      'Sudah Datang': item['Sudah Datang'],
-      'Sudah Dicek': item['Sudah Dicek'],
-      'Order Ulang': item['Order Ulang'],
-      'Qty Order Ulang': item['Qty Order Ulang'],
-      'Alasan Order Ulang': item['Alasan Order Ulang'],
-      'Keterangan': item.Keterangan
-    }));
+    .filter(item => !item._isKosongPabrik)
+    .flatMap(item => {
+      const rows: Record<string, any>[] = [];
+      if (!item._isArrivedOnly) {
+        rows.push({
+          'Tanggal': item.Date,
+          'Supplier': item.Supplier,
+          'Produk': item.Product,
+          'Satuan': item.Unit,
+          'Qty': item.Quantity,
+          'Butom Stok': item.BottomStock,
+          'Sudah Order': item['Sudah Order'],
+          'Sudah Datang': item['Sudah Datang'],
+          'Sudah Dicek': item['Sudah Dicek'],
+          'Order Ulang': item['Order Ulang'],
+          'Qty Order Ulang': item['Qty Order Ulang'],
+          'Alasan Order Ulang': item['Alasan Order Ulang'],
+          'Keterangan': item.Keterangan
+        });
+      }
+      if (item._isReorder) {
+        rows.push({
+          'Tanggal': item.Date,
+          'Supplier': item.Supplier,
+          'Produk': item.Product,
+          'Satuan': item.Unit,
+          'Qty': item._reorderQty && Number(item._reorderQty) > 0 ? Number(item._reorderQty) : item.Quantity,
+          'Butom Stok': item.BottomStock,
+          'Sudah Order': '-',
+          'Sudah Datang': '-',
+          'Sudah Dicek': '-',
+          'Order Ulang': '✓',
+          'Qty Order Ulang': item['Qty Order Ulang'],
+          'Alasan Order Ulang': item['Alasan Order Ulang'],
+          'Keterangan': item._reorderReason ? `Order Ulang: ${item._reorderReason}` : 'Order Ulang'
+        });
+      }
+      return rows;
+    });
 
   // Sheet 2 (Kosong Pabrik): Rekapan list Kosong Pabrik
   const kosongData = dataToExport

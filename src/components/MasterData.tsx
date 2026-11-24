@@ -10,7 +10,7 @@ import { FloatingFormModal } from './common/FloatingFormModal';
 import { cn } from '../lib/utils';
 
 export const MasterData = () => {
-  const { suppliers, products, addSupplier, updateSupplier, deleteSupplier, addProduct, updateProduct, deleteProduct, importMasterData, resetAllProductStocks } = useAppContext();
+  const { suppliers, products, addSupplier, updateSupplier, deleteSupplier, addProduct, updateProduct, updateProductsBatch, deleteProduct, importMasterData, resetAllProductStocks } = useAppContext();
   
   const [activeTab, setActiveTab] = useState<'suppliers' | 'products'>(() => {
     try {
@@ -82,6 +82,34 @@ export const MasterData = () => {
 
   // Product Edit & Search State
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [inlineEditProductId, setInlineEditProductId] = useState<string | null>(null);
+  const [inlineDraft, setInlineDraft] = useState<{
+    name: string;
+    unit: string;
+    supplierId: string;
+    alternativeSupplierIds: string[];
+    bottomStock: string;
+    stock: string;
+    location: string;
+    category: string;
+  }>({
+    name: '',
+    unit: 'pcs',
+    supplierId: '',
+    alternativeSupplierIds: [],
+    bottomStock: '',
+    stock: '',
+    location: '',
+    category: ''
+  });
+  const [isSavingInlineId, setIsSavingInlineId] = useState<string | null>(null);
+
+  // Bulk Bottom Stock Modal State
+  const [isBulkBottomStockModalOpen, setIsBulkBottomStockModalOpen] = useState(false);
+  const [bulkBottomStockScope, setBulkBottomStockScope] = useState<'none' | 'filtered' | 'all'>('none');
+  const [bulkBottomStockValue, setBulkBottomStockValue] = useState<string>('5');
+  const [isSavingBulkBottomStock, setIsSavingBulkBottomStock] = useState(false);
+
   const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
   const [isTypingNewSupplier, setIsTypingNewSupplier] = useState(false);
   const [highlightedSupplierIndex, setHighlightedSupplierIndex] = useState(0);
@@ -623,6 +651,128 @@ export const MasterData = () => {
     }, 80);
   };
 
+  const handleStartInlineEdit = (product: Product) => {
+    setInlineEditProductId(product.id);
+    setInlineDraft({
+      name: product.name || '',
+      unit: product.unit || 'pcs',
+      supplierId: product.supplierId || '',
+      alternativeSupplierIds: product.alternativeSupplierIds || [],
+      bottomStock: product.bottomStock !== undefined && product.bottomStock !== null ? String(product.bottomStock) : '',
+      stock: product.stock !== undefined && product.stock !== null ? String(product.stock) : '0',
+      location: product.location || '',
+      category: product.category || ''
+    });
+  };
+
+  const handleCancelInlineEdit = () => {
+    setInlineEditProductId(null);
+  };
+
+  const handleSaveInlineEdit = async (product: Product) => {
+    if (!inlineDraft.name.trim()) {
+      showToast('error', 'Nama produk wajib diisi.');
+      return;
+    }
+    if (!inlineDraft.supplierId) {
+      showToast('error', 'Supplier utama wajib dipilih.');
+      return;
+    }
+    if (!inlineDraft.unit.trim()) {
+      showToast('error', 'Satuan produk wajib diisi.');
+      return;
+    }
+
+    setIsSavingInlineId(product.id);
+    try {
+      const parsedBottom = inlineDraft.bottomStock.trim() === ''
+        ? (null as any)
+        : Math.max(0, Number(inlineDraft.bottomStock));
+      const parsedStock = inlineDraft.stock.trim() === ''
+        ? 0
+        : Math.max(0, Number(inlineDraft.stock));
+
+      await updateProduct({
+        ...product,
+        name: inlineDraft.name.trim(),
+        unit: inlineDraft.unit.trim(),
+        supplierId: inlineDraft.supplierId,
+        alternativeSupplierIds: (inlineDraft.alternativeSupplierIds || []).filter(id => id !== inlineDraft.supplierId),
+        bottomStock: isNaN(parsedBottom) ? (null as any) : parsedBottom,
+        stock: isNaN(parsedStock) ? 0 : parsedStock,
+        location: inlineDraft.location.trim() ? inlineDraft.location.trim() : (null as any),
+        category: inlineDraft.category.trim() ? inlineDraft.category.trim() : (null as any)
+      });
+      setInlineEditProductId(null);
+      showToast('success', `Produk "${inlineDraft.name.trim()}" berhasil diperbarui.`);
+    } catch (err: any) {
+      console.error('Gagal menyimpan perubahan produk:', err);
+      showToast('error', `Gagal menyimpan: ${err?.message || 'Terjadi kesalahan'}`);
+    } finally {
+      setIsSavingInlineId(null);
+    }
+  };
+
+  const handleInlineQuickBottomStock = async (product: Product, rawValue: string) => {
+    const trimmed = rawValue.trim();
+    const parsedVal = trimmed === '' ? null : Math.max(0, Number(trimmed));
+    if (parsedVal !== null && isNaN(parsedVal)) return;
+
+    const currentVal = product.bottomStock === undefined ? null : product.bottomStock;
+    if (parsedVal === currentVal) return;
+
+    try {
+      await updateProduct({
+        ...product,
+        bottomStock: parsedVal === null ? (null as any) : parsedVal
+      });
+      showToast('success', `Butom stok "${product.name}" disimpan (${parsedVal === null ? 'kosong' : parsedVal}).`);
+    } catch (err: any) {
+      console.error('Gagal update butom stok:', err);
+      showToast('error', `Gagal menyimpan butom stok: ${err?.message || 'Terjadi kesalahan'}`);
+    }
+  };
+
+  const handleApplyBulkBottomStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = bulkBottomStockValue.trim();
+    const numVal = trimmed === '' ? null : Math.max(0, Number(trimmed));
+    if (trimmed !== '' && (numVal === null || isNaN(numVal))) {
+      showToast('error', 'Masukkan angka butom stok yang valid.');
+      return;
+    }
+
+    let targets: Product[] = [];
+    if (bulkBottomStockScope === 'none') {
+      targets = products.filter(p => p.bottomStock === undefined || p.bottomStock === null || p.bottomStock === 0);
+    } else if (bulkBottomStockScope === 'filtered') {
+      targets = filteredProductsList;
+    } else {
+      targets = products;
+    }
+
+    if (targets.length === 0) {
+      showToast('error', 'Tidak ada produk pada target yang dipilih.');
+      return;
+    }
+
+    setIsSavingBulkBottomStock(true);
+    try {
+      const updated = targets.map(p => ({
+        ...p,
+        bottomStock: numVal === null ? (null as any) : numVal
+      }));
+      await updateProductsBatch(updated);
+      setIsBulkBottomStockModalOpen(false);
+      showToast('success', `Butom stok (${numVal === null ? 'dikosongkan' : numVal}) berhasil diterapkan ke ${targets.length} produk.`);
+    } catch (err: any) {
+      console.error('Gagal menerapkan butom stok massal:', err);
+      showToast('error', `Gagal menyimpan: ${err?.message || 'Terjadi kesalahan'}`);
+    } finally {
+      setIsSavingBulkBottomStock(false);
+    }
+  };
+
   const handleResetProductFields = () => {
     setProductName('');
     setProductSupplierId('');
@@ -1024,7 +1174,7 @@ export const MasterData = () => {
                       min="0"
                       inputMode="numeric"
                       value={productStock}
-                      onChange={(e) => setProductStock(e.target.value ? Number(e.target.value) : '')}
+                      onChange={(e) => setProductStock(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
                       className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-semibold text-neutral-900 tabular-nums focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:font-normal placeholder:text-neutral-400"
                       placeholder="0"
                     />
@@ -1032,16 +1182,16 @@ export const MasterData = () => {
 
                   <div>
                     <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                      Stok Minimum (Batas)
+                      Butom Stok (Batas Min)
                     </label>
                     <input
                       type="number"
                       min="0"
                       inputMode="numeric"
                       value={productBottomStock}
-                      onChange={(e) => setProductBottomStock(e.target.value ? Number(e.target.value) : '')}
-                      className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-semibold text-neutral-900 tabular-nums focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:font-normal placeholder:text-neutral-400"
-                      placeholder="Opsional"
+                      onChange={(e) => setProductBottomStock(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
+                      className="w-full px-3.5 py-2.5 bg-amber-50/50 border border-amber-300 rounded-xl text-sm font-semibold text-amber-950 tabular-nums focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none transition-all placeholder:font-normal placeholder:text-amber-500/70"
+                      placeholder="Isi batas minimum..."
                     />
                   </div>
 
@@ -1358,6 +1508,7 @@ export const MasterData = () => {
                       setSupplierName('');
                     } else {
                       setEditingProductId(null);
+                      handleResetProductFields();
                       setTimeout(() => productNameInputRef.current?.focus(), 80);
                     }
                     setIsFormModalOpen(true);
@@ -1376,6 +1527,21 @@ export const MasterData = () => {
                       title={isListFullscreen ? "Perkecil (Minimize)" : "Layar Penuh (Maximize)"}
                     >
                       {isListFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const hasNoBottomCount = products.filter(p => p.bottomStock === undefined || p.bottomStock === null || p.bottomStock === 0).length;
+                        setBulkBottomStockScope(hasNoBottomCount > 0 ? 'none' : 'filtered');
+                        setIsBulkBottomStockModalOpen(true);
+                      }}
+                      disabled={products.length === 0}
+                      className="px-2.5 py-1.5 text-theme-700 hover:bg-theme-50 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95 bg-white border border-theme-200 shadow-sm flex items-center gap-1.5 text-xs font-bold whitespace-nowrap"
+                      title="Setting Butom Stok Massal"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+                      <span className="hidden sm:inline">Set Butom Stok</span>
+                      <span className="sm:hidden">Butom</span>
                     </button>
                     <button
                       onClick={handleExportProductsTxt}
@@ -1808,6 +1974,26 @@ export const MasterData = () => {
               </>
             ) : (
               <>
+                <datalist id="master-inline-units">
+                  <option value="pcs" />
+                  <option value="box" />
+                  <option value="strip" />
+                  <option value="botol" />
+                  <option value="fls" />
+                  <option value="tube" />
+                  <option value="sachet" />
+                  <option value="pack" />
+                  <option value="dus" />
+                  <option value="kg" />
+                  <option value="liter" />
+                </datalist>
+                <datalist id="master-inline-categories">
+                  {categories.map(cat => <option key={cat} value={cat} />)}
+                </datalist>
+                <datalist id="master-inline-locations">
+                  {locations.map(loc => <option key={loc} value={loc} />)}
+                </datalist>
+
                 {/* Mobile & Tablet Cards for Products */}
                 <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2">
                   {filteredProductsList.length === 0 ? (
@@ -1820,15 +2006,204 @@ export const MasterData = () => {
                     paginatedProductsList.map(p => {
                       const supplier = suppliers.find(s => s.id === p.supplierId);
                       const isLow = p.bottomStock !== undefined && p.bottomStock !== null && (p.stock || 0) <= p.bottomStock;
+                      const isInlineEditing = inlineEditProductId === p.id;
+                      const isSavingRow = isSavingInlineId === p.id;
                       
+                      if (isInlineEditing) {
+                        const availableAltSuppliers = suppliers.filter(
+                          s => s.id !== inlineDraft.supplierId && !inlineDraft.alternativeSupplierIds.includes(s.id)
+                        );
+                        return (
+                          <div
+                            key={p.id}
+                            className="bg-amber-50/50 rounded-2xl border-2 border-amber-400 p-4 shadow-sm flex flex-col gap-3"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') handleCancelInlineEdit();
+                            }}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-800">
+                                Edit Langsung Produk
+                              </span>
+                              <button
+                                type="button"
+                                onClick={handleCancelInlineEdit}
+                                className="p-1 text-neutral-500 hover:text-neutral-800 rounded-lg hover:bg-white/70"
+                                title="Batal"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            <div className="space-y-2.5">
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase text-neutral-600 mb-1">Nama Produk *</label>
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  value={inlineDraft.name}
+                                  onChange={(e) => setInlineDraft(prev => ({ ...prev, name: e.target.value }))}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                  className="w-full px-2.5 py-2 text-xs font-bold bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-theme-500 outline-none"
+                                  placeholder="Nama produk"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="block text-[10px] font-bold uppercase text-neutral-600 mb-1">Satuan *</label>
+                                  <input
+                                    type="text"
+                                    list="master-inline-units"
+                                    value={inlineDraft.unit}
+                                    onChange={(e) => setInlineDraft(prev => ({ ...prev, unit: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                    className="w-full px-2.5 py-2 text-xs font-semibold bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-theme-500 outline-none"
+                                    placeholder="pcs / box"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold uppercase text-neutral-600 mb-1">Kategori</label>
+                                  <input
+                                    type="text"
+                                    list="master-inline-categories"
+                                    value={inlineDraft.category}
+                                    onChange={(e) => setInlineDraft(prev => ({ ...prev, category: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                    className="w-full px-2.5 py-2 text-xs font-medium bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-theme-500 outline-none"
+                                    placeholder="Kategori"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="block text-[10px] font-bold uppercase text-neutral-600 mb-1">Sisa Stok</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={inlineDraft.stock}
+                                    onChange={(e) => setInlineDraft(prev => ({ ...prev, stock: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                    className="w-full px-2.5 py-2 text-xs font-bold bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-theme-500 outline-none tabular-nums"
+                                    placeholder="0"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold uppercase text-neutral-600 mb-1">Butom Stok</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={inlineDraft.bottomStock}
+                                    onChange={(e) => setInlineDraft(prev => ({ ...prev, bottomStock: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                    className="w-full px-2.5 py-2 text-xs font-bold bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-theme-500 outline-none tabular-nums"
+                                    placeholder="Kosong"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase text-neutral-600 mb-1">Lokasi Rak</label>
+                                <input
+                                  type="text"
+                                  list="master-inline-locations"
+                                  value={inlineDraft.location}
+                                  onChange={(e) => setInlineDraft(prev => ({ ...prev, location: e.target.value }))}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                  className="w-full px-2.5 py-2 text-xs font-medium bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-theme-500 outline-none"
+                                  placeholder="Contoh: Rak A1"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase text-neutral-600 mb-1">Supplier Utama *</label>
+                                <select
+                                  value={inlineDraft.supplierId}
+                                  onChange={(e) => setInlineDraft(prev => ({
+                                    ...prev,
+                                    supplierId: e.target.value,
+                                    alternativeSupplierIds: prev.alternativeSupplierIds.filter(id => id !== e.target.value)
+                                  }))}
+                                  className="w-full px-2.5 py-2 text-xs font-semibold bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-theme-500 outline-none"
+                                >
+                                  <option value="">-- Pilih Supplier --</option>
+                                  {suppliers.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase text-neutral-600 mb-1">Supplier Alternatif</label>
+                                {inlineDraft.alternativeSupplierIds.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mb-1.5">
+                                    {inlineDraft.alternativeSupplierIds.map(altId => (
+                                      <span key={altId} className="inline-flex items-center gap-1 bg-white border border-amber-300 text-neutral-800 px-2 py-0.5 rounded-lg text-[10px] font-semibold">
+                                        {suppliers.find(s => s.id === altId)?.name || altId}
+                                        <button
+                                          type="button"
+                                          onClick={() => setInlineDraft(prev => ({
+                                            ...prev,
+                                            alternativeSupplierIds: prev.alternativeSupplierIds.filter(x => x !== altId)
+                                          }))}
+                                          className="text-neutral-400 hover:text-rose-600"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {availableAltSuppliers.length > 0 && (
+                                  <select
+                                    value=""
+                                    onChange={(e) => {
+                                      if (!e.target.value) return;
+                                      setInlineDraft(prev => ({
+                                        ...prev,
+                                        alternativeSupplierIds: [...prev.alternativeSupplierIds, e.target.value]
+                                      }));
+                                    }}
+                                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-amber-200 rounded-xl outline-none text-neutral-600"
+                                  >
+                                    <option value="">+ Tambah supplier alternatif...</option>
+                                    {availableAltSuppliers.map(s => (
+                                      <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-2 border-t border-amber-200">
+                              <button
+                                type="button"
+                                onClick={() => handleSaveInlineEdit(p)}
+                                disabled={isSavingRow}
+                                className="flex-1 min-h-[40px] flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl py-2 px-3 transition-colors disabled:opacity-60"
+                              >
+                                {isSavingRow ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                <span>{isSavingRow ? 'Menyimpan...' : 'Simpan'}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleCancelInlineEdit}
+                                disabled={isSavingRow}
+                                className="min-h-[40px] flex items-center justify-center gap-1 bg-white hover:bg-neutral-100 text-neutral-700 font-bold text-xs rounded-xl py-2 px-3 border border-neutral-300 transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                <span>Batal</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div 
                           key={p.id}
-                          className={`bg-white rounded-2xl border p-4 shadow-sm transition-all flex flex-col justify-between ${
-                            editingProductId === p.id 
-                              ? 'border-amber-400 ring-2 ring-amber-300 bg-amber-50/40' 
-                              : 'border-theme-200 hover:border-theme-300'
-                          }`}
+                          className="bg-white rounded-2xl border border-theme-200 hover:border-theme-300 p-4 shadow-sm transition-all flex flex-col justify-between"
                         >
                           <div>
                             {/* Card Top: Title & Unit */}
@@ -1892,18 +2267,31 @@ export const MasterData = () => {
                               
                               <div className="flex flex-col border-l border-theme-200/60 pl-3">
                                 <span className="text-[10px] uppercase font-bold text-theme-500 tracking-wider">Butom Stok</span>
-                                <span className="text-sm font-bold text-theme-700 mt-0.5">
-                                  {p.bottomStock !== undefined && p.bottomStock !== null ? `${p.bottomStock} ${p.unit || 'pcs'}` : '-'}
-                                </span>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <input
+                                    key={`${p.id}-card-bs-${p.bottomStock ?? 'empty'}`}
+                                    type="number"
+                                    min="0"
+                                    defaultValue={p.bottomStock ?? ''}
+                                    onBlur={(e) => handleInlineQuickBottomStock(p, e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }}
+                                    className="w-16 px-1.5 py-0.5 text-xs border border-theme-300 rounded-lg bg-white focus:ring-2 focus:ring-theme-500 outline-none text-center font-bold text-theme-900 tabular-nums"
+                                    placeholder="-"
+                                    title="Isi langsung Butom Stok lalu tekan Enter"
+                                  />
+                                  <span className="text-theme-500 text-[11px] truncate">{p.unit || 'pcs'}</span>
+                                </div>
                               </div>
                             </div>
 
                             {/* Card Action Buttons */}
                             <div className="flex items-center gap-2 pt-2 border-t border-theme-100">
                               <button
-                                onClick={() => {
-                                  handleEditProduct(p);
-                                }}
+                                onClick={() => handleStartInlineEdit(p)}
                                 className="flex-1 min-h-[40px] flex items-center justify-center gap-1.5 bg-theme-100 hover:bg-theme-200 text-theme-800 font-bold text-xs rounded-xl py-2 px-2.5 transition-colors active:scale-[0.98] whitespace-nowrap"
                               >
                                 <Edit2 className="w-3.5 h-3.5 shrink-0" />
@@ -1930,7 +2318,7 @@ export const MasterData = () => {
 
                 {/* Desktop Table for Products */}
                 <div className="hidden lg:block">
-                  <table className="w-full min-w-[780px] text-left border-collapse">
+                  <table className="w-full min-w-[820px] text-left border-collapse">
                     <thead className="sticky top-0 z-20 bg-theme-100 shadow-xs">
                       <tr className="border-b border-theme-200">
                         <th className="sticky top-0 z-20 py-3.5 px-3 text-xs font-bold text-theme-500 uppercase tracking-wider bg-theme-100 rounded-tl-xl">Nama Produk</th>
@@ -1949,6 +2337,168 @@ export const MasterData = () => {
                       ) : (
                         paginatedProductsList.map(p => {
                           const isLow = p.bottomStock !== undefined && p.bottomStock !== null && (p.stock || 0) <= p.bottomStock;
+                          const isInlineEditing = inlineEditProductId === p.id;
+                          const isSavingRow = isSavingInlineId === p.id;
+
+                          if (isInlineEditing) {
+                            const availableAltSuppliers = suppliers.filter(
+                              s => s.id !== inlineDraft.supplierId && !inlineDraft.alternativeSupplierIds.includes(s.id)
+                            );
+                            return (
+                              <tr
+                                key={p.id}
+                                className="bg-amber-50/70 ring-1 ring-inset ring-amber-300"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Escape') handleCancelInlineEdit();
+                                }}
+                              >
+                                <td className="py-2.5 px-2.5 align-top">
+                                  <input
+                                    type="text"
+                                    autoFocus
+                                    value={inlineDraft.name}
+                                    onChange={(e) => setInlineDraft(prev => ({ ...prev, name: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                    className="w-full min-w-[150px] px-2.5 py-1.5 text-xs font-bold bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-theme-500 outline-none"
+                                    placeholder="Nama produk *"
+                                  />
+                                </td>
+                                <td className="py-2.5 px-2 align-top">
+                                  <input
+                                    type="text"
+                                    list="master-inline-units"
+                                    value={inlineDraft.unit}
+                                    onChange={(e) => setInlineDraft(prev => ({ ...prev, unit: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                    className="w-20 px-2 py-1.5 text-xs font-semibold bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-theme-500 outline-none"
+                                    placeholder="Satuan *"
+                                  />
+                                </td>
+                                <td className="py-2.5 px-2 align-top">
+                                  <div className="space-y-1 min-w-[150px]">
+                                    <select
+                                      value={inlineDraft.supplierId}
+                                      onChange={(e) => setInlineDraft(prev => ({
+                                        ...prev,
+                                        supplierId: e.target.value,
+                                        alternativeSupplierIds: prev.alternativeSupplierIds.filter(id => id !== e.target.value)
+                                      }))}
+                                      className="w-full px-2 py-1.5 text-xs font-semibold bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-theme-500 outline-none"
+                                    >
+                                      <option value="">-- Supplier --</option>
+                                      {suppliers.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                      ))}
+                                    </select>
+                                    {inlineDraft.alternativeSupplierIds.length > 0 && (
+                                      <div className="flex flex-wrap gap-1">
+                                        {inlineDraft.alternativeSupplierIds.map(altId => (
+                                          <span key={altId} className="inline-flex items-center gap-0.5 bg-white border border-amber-300 text-neutral-700 px-1.5 py-0.5 rounded text-[10px]">
+                                            {suppliers.find(s => s.id === altId)?.name || altId}
+                                            <button
+                                              type="button"
+                                              onClick={() => setInlineDraft(prev => ({
+                                                ...prev,
+                                                alternativeSupplierIds: prev.alternativeSupplierIds.filter(x => x !== altId)
+                                              }))}
+                                              className="text-neutral-400 hover:text-rose-600"
+                                            >
+                                              <X className="w-2.5 h-2.5" />
+                                            </button>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {availableAltSuppliers.length > 0 && (
+                                      <select
+                                        value=""
+                                        onChange={(e) => {
+                                          if (!e.target.value) return;
+                                          setInlineDraft(prev => ({
+                                            ...prev,
+                                            alternativeSupplierIds: [...prev.alternativeSupplierIds, e.target.value]
+                                          }));
+                                        }}
+                                        className="w-full px-1.5 py-1 text-[11px] bg-white/90 border border-amber-200 rounded-lg outline-none text-neutral-600"
+                                      >
+                                        <option value="">+ Alt supplier...</option>
+                                        {availableAltSuppliers.map(s => (
+                                          <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                      </select>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-2 text-center align-top">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={inlineDraft.bottomStock}
+                                    onChange={(e) => setInlineDraft(prev => ({ ...prev, bottomStock: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                    className="w-16 px-2 py-1.5 text-xs font-bold text-center bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-theme-500 outline-none tabular-nums"
+                                    placeholder="-"
+                                  />
+                                </td>
+                                <td className="py-2.5 px-2 align-top">
+                                  <input
+                                    type="text"
+                                    list="master-inline-categories"
+                                    value={inlineDraft.category}
+                                    onChange={(e) => setInlineDraft(prev => ({ ...prev, category: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                    className="w-24 px-2 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-theme-500 outline-none"
+                                    placeholder="Kategori"
+                                  />
+                                </td>
+                                <td className="py-2.5 px-2 text-center align-top">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={inlineDraft.stock}
+                                    onChange={(e) => setInlineDraft(prev => ({ ...prev, stock: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                    className="w-16 px-2 py-1.5 text-xs font-bold text-center bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-theme-500 outline-none tabular-nums"
+                                    placeholder="0"
+                                  />
+                                </td>
+                                <td className="py-2.5 px-2 align-top">
+                                  <input
+                                    type="text"
+                                    list="master-inline-locations"
+                                    value={inlineDraft.location}
+                                    onChange={(e) => setInlineDraft(prev => ({ ...prev, location: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineEdit(p); }}
+                                    className="w-24 px-2 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-theme-500 outline-none"
+                                    placeholder="Lokasi"
+                                  />
+                                </td>
+                                <td className="py-2.5 px-2.5 text-right align-top">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveInlineEdit(p)}
+                                      disabled={isSavingRow}
+                                      className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-xs disabled:opacity-60"
+                                      title="Simpan Perubahan (Enter)"
+                                    >
+                                      {isSavingRow ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelInlineEdit}
+                                      disabled={isSavingRow}
+                                      className="p-1.5 bg-white hover:bg-neutral-100 text-neutral-600 border border-neutral-300 rounded-lg transition-colors"
+                                      title="Batal (Esc)"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+
                           return (
                             <tr key={p.id} className="hover:bg-theme-50 transition-colors">
                               <td className="py-3 px-3 text-sm font-bold text-theme-900">{p.name}</td>
@@ -1965,8 +2515,22 @@ export const MasterData = () => {
                                   </div>
                                 )}
                               </td>
-                              <td className="py-3 px-3 text-sm text-theme-600-text font-mono text-center">
-                                {p.bottomStock !== undefined && p.bottomStock !== null ? p.bottomStock : '-'}
+                              <td className="py-2.5 px-3 text-sm text-center">
+                                <input
+                                  key={`${p.id}-bs-${p.bottomStock ?? 'empty'}`}
+                                  type="number"
+                                  min="0"
+                                  defaultValue={p.bottomStock ?? ''}
+                                  onBlur={(e) => handleInlineQuickBottomStock(p, e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      (e.target as HTMLInputElement).blur();
+                                    }
+                                  }}
+                                  className="w-16 px-2 py-1 text-xs border border-theme-200 hover:border-theme-300 rounded-lg bg-white focus:ring-2 focus:ring-theme-500 outline-none text-center font-bold text-theme-900 tabular-nums transition-colors"
+                                  placeholder="-"
+                                  title="Isi langsung Butom Stok lalu tekan Enter"
+                                />
                               </td>
                               <td className="py-3 px-3 text-sm text-theme-900">{p.category || '-'}</td>
                               <td className="py-3 px-3 text-sm text-center">
@@ -1980,7 +2544,7 @@ export const MasterData = () => {
                               <td className="py-3 px-3 text-sm text-theme-900">{p.location || '-'}</td>
                               <td className="py-3 px-3 text-right">
                                 <div className="flex items-center justify-end gap-1">
-                                  <button onClick={() => handleEditProduct(p)} className="p-1.5 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors" title="Edit">
+                                  <button onClick={() => handleStartInlineEdit(p)} className="p-1.5 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors" title="Edit langsung di baris">
                                     <Edit2 className="w-4 h-4" />
                                   </button>
                                   <button 
@@ -2106,6 +2670,123 @@ export const MasterData = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Set Bottom Stock Modal */}
+      {isBulkBottomStockModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-theme-200 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-theme-100 text-theme-700 flex items-center justify-center">
+                  <SlidersHorizontal className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-theme-950">Setting Butom Stok</h3>
+                  <p className="text-xs text-theme-500">Atur batas minimum stok produk sekaligus</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBulkBottomStockModalOpen(false)}
+                className="p-1.5 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100 rounded-xl transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleApplyBulkBottomStock} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-2">Pilih Target Produk</label>
+                <div className="space-y-2">
+                  {[
+                    {
+                      id: 'none' as const,
+                      label: 'Produk yang belum punya Butom Stok',
+                      count: products.filter(p => p.bottomStock === undefined || p.bottomStock === null || p.bottomStock === 0).length
+                    },
+                    {
+                      id: 'filtered' as const,
+                      label: 'Produk sesuai filter / pencarian saat ini',
+                      count: filteredProductsList.length
+                    },
+                    {
+                      id: 'all' as const,
+                      label: 'Semua produk di Master Data',
+                      count: products.length
+                    }
+                  ].map(opt => (
+                    <label
+                      key={opt.id}
+                      className={cn(
+                        'flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all text-xs',
+                        bulkBottomStockScope === opt.id
+                          ? 'border-theme-500 bg-theme-50 text-theme-900 font-bold'
+                          : 'border-neutral-200 hover:border-neutral-300 text-neutral-700 font-medium'
+                      )}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="radio"
+                          name="bulkBottomStockScope"
+                          checked={bulkBottomStockScope === opt.id}
+                          onChange={() => setBulkBottomStockScope(opt.id)}
+                          className="accent-theme-600"
+                        />
+                        <span>{opt.label}</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-white border border-neutral-200 text-[11px] font-bold tabular-nums">
+                        {opt.count}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1.5">
+                  Nilai Butom Stok (Kosongkan untuk menghapus batas)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  autoFocus
+                  value={bulkBottomStockValue}
+                  onChange={(e) => setBulkBottomStockValue(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm font-bold text-neutral-900 tabular-nums focus:bg-white focus:ring-2 focus:ring-theme-500 focus:border-theme-500 outline-none"
+                  placeholder="Contoh: 5"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-neutral-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBulkBottomStockModalOpen(false)}
+                  className="px-4 py-2 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 rounded-xl font-semibold text-xs transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingBulkBottomStock}
+                  className="px-4 py-2 bg-theme-600 hover:bg-theme-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-60"
+                >
+                  {isSavingBulkBottomStock ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menerapkan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Terapkan Butom Stok</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

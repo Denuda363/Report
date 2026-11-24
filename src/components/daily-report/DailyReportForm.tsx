@@ -247,13 +247,12 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
     setSearchQuery(prod.name);
     setUnit(prod.unit || 'pcs');
 
-    if (prod.bottomStock === undefined || prod.bottomStock === null || prod.bottomStock === 0) {
-      setShowBottomStockInput(true);
-      setBottomStock('');
-    } else {
-      setShowBottomStockInput(false);
-      setBottomStock(prod.bottomStock);
-    }
+    setShowBottomStockInput(true);
+    setBottomStock(
+      prod.bottomStock !== undefined && prod.bottomStock !== null
+        ? prod.bottomStock
+        : ''
+    );
 
     setIsDropdownOpen(false);
     setIsTypingNew(false);
@@ -806,26 +805,64 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
             </div>
           </div>
 
-          {/* Bottom Stock Setup (inline, clean) */}
-          {(showBottomStockInput || (selectedProduct && (selectedProduct.bottomStock === undefined || selectedProduct.bottomStock === null))) && (
-            <div className="px-3.5 py-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-amber-900">
-                  Stok Minimum (Bottom Stock)
-                </label>
-                <span className="text-[11px] font-medium text-amber-700">Disarankan isi sekali</span>
-              </div>
+          {/* Bottom Stock Setup (always visible so user can view & set bottom stock directly) */}
+          <div className={cn(
+            "px-3.5 py-3 border rounded-xl space-y-1.5 transition-colors",
+            selectedProduct && (selectedProduct.bottomStock === undefined || selectedProduct.bottomStock === null || selectedProduct.bottomStock === 0)
+              ? "bg-amber-50/70 border-amber-200"
+              : "bg-neutral-50/80 border-neutral-200"
+          )}>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-semibold text-neutral-800">
+                Stok Minimum (Bottom Stock)
+              </label>
+              <span className={cn(
+                "text-[11px] font-medium",
+                selectedProduct && (selectedProduct.bottomStock === undefined || selectedProduct.bottomStock === null || selectedProduct.bottomStock === 0)
+                  ? "text-amber-700"
+                  : "text-neutral-500"
+              )}>
+                {selectedProduct
+                  ? (selectedProduct.bottomStock !== undefined && selectedProduct.bottomStock !== null && selectedProduct.bottomStock > 0
+                      ? `Master saat ini: ${selectedProduct.bottomStock} ${selectedProduct.unit || unit || 'pcs'}`
+                      : 'Belum diatur (disarankan diisi)')
+                  : 'Otomatis tersimpan ke Master Data'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
               <input
                 type="number"
                 min="0"
                 value={bottomStock}
-                onChange={(e) => setBottomStock(e.target.value ? Number(e.target.value) : '')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBottomStock(val === '' ? '' : Math.max(0, Number(val)));
+                  setShowBottomStockInput(true);
+                }}
                 onKeyDown={handleQuantityKeyDown}
-                className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all text-sm font-medium text-amber-950 tabular-nums placeholder:text-amber-400"
-                placeholder="Batas minimum stok produk..."
+                className={cn(
+                  "w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 outline-none transition-all text-sm font-semibold tabular-nums",
+                  selectedProduct && (selectedProduct.bottomStock === undefined || selectedProduct.bottomStock === null || selectedProduct.bottomStock === 0)
+                    ? "border-amber-300 focus:ring-amber-500 text-amber-950 placeholder:text-amber-400 placeholder:font-normal"
+                    : "border-neutral-300 focus:ring-theme-500 text-neutral-900 placeholder:text-neutral-400 placeholder:font-normal"
+                )}
+                placeholder="Isi batas minimum stok (opsional)..."
               />
+              {bottomStock !== '' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBottomStock('');
+                    setShowBottomStockInput(true);
+                  }}
+                  className="p-2 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+                  title="Kosongkan Bottom Stock"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* SECTION 3: KETERANGAN & PRIORITAS */}
@@ -968,6 +1005,12 @@ export const DailyReportForm: React.FC<DailyReportFormProps> = ({
                     <span className="font-semibold text-theme-700">
                       {item.quantity} {item.unit}
                     </span>
+                    {item.bottomStock !== '' && (
+                      <>
+                        <span>·</span>
+                        <span className="text-amber-700 font-medium">Min: {item.bottomStock}</span>
+                      </>
+                    )}
                     {item.notes && (
                       <>
                         <span>·</span>

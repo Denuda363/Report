@@ -298,13 +298,12 @@ export const DailyReport = () => {
     setSearchQuery(name);
     const prod = products.find(p => p.id === id);
     setUnit(prod?.unit || 'pcs');
-    if (prod && (prod.bottomStock === undefined || prod.bottomStock === null || prod.bottomStock === 0)) {
-      setShowBottomStockInput(true);
-      setBottomStock('');
-    } else {
-      setShowBottomStockInput(false);
-      setBottomStock('');
-    }
+    setShowBottomStockInput(true);
+    setBottomStock(
+      prod && prod.bottomStock !== undefined && prod.bottomStock !== null
+        ? prod.bottomStock
+        : ''
+    );
     setIsDropdownOpen(false);
     setErrorMsg(null);
   };
@@ -394,7 +393,7 @@ export const DailyReport = () => {
             name: item.productName.trim(),
             supplierId: defaultSupplierId,
             unit: item.unit || 'pcs',
-            ...(item.showBottomStockInput && item.bottomStock !== '' ? { bottomStock: Number(item.bottomStock) } : {})
+            ...(item.bottomStock !== '' ? { bottomStock: Number(item.bottomStock) } : {})
           });
           newProductMap.set(lowerName, newId);
         }
@@ -413,12 +412,11 @@ export const DailyReport = () => {
               updatedProd.unit = item.unit;
               hasChanges = true;
             }
-            if (item.showBottomStockInput && item.bottomStock !== '') {
-              const bStock = Number(item.bottomStock);
-              if (selectedProd.bottomStock !== bStock) {
-                updatedProd.bottomStock = bStock;
-                hasChanges = true;
-              }
+            const currentBStock = selectedProd.bottomStock === undefined ? null : selectedProd.bottomStock;
+            const nextBStock = item.bottomStock === '' ? null : Number(item.bottomStock);
+            if (currentBStock !== nextBStock && (nextBStock === null || !isNaN(nextBStock))) {
+              updatedProd.bottomStock = nextBStock === null ? (null as any) : nextBStock;
+              hasChanges = true;
             }
             if (hasChanges && !productsToUpdate.some(p => p.id === updatedProd.id)) {
               productsToUpdate.push(updatedProd);
@@ -553,7 +551,7 @@ export const DailyReport = () => {
         name: searchQuery.trim(),
         supplierId,
         unit: unit || 'pcs',
-        ...(showBottomStockInput && bottomStock !== '' ? { bottomStock: Number(bottomStock) } : {})
+        ...(bottomStock !== '' ? { bottomStock: Number(bottomStock) } : {})
       });
     } else if (finalProductId) {
       // Update existing product unit or bottom stock if changed
@@ -567,8 +565,10 @@ export const DailyReport = () => {
           hasChanges = true;
         }
 
-        if (showBottomStockInput && bottomStock !== '') {
-          updatedProd.bottomStock = Number(bottomStock);
+        const currentBStock = selectedProd.bottomStock === undefined ? null : selectedProd.bottomStock;
+        const nextBStock = bottomStock === '' ? null : Number(bottomStock);
+        if (currentBStock !== nextBStock && (nextBStock === null || !isNaN(nextBStock))) {
+          updatedProd.bottomStock = nextBStock === null ? (null as any) : nextBStock;
           hasChanges = true;
         }
 
@@ -713,13 +713,12 @@ export const DailyReport = () => {
     setSearchQuery(prod ? prod.name : '');
     setUnit(prod?.unit || 'pcs');
 
-    if (prod && (prod.bottomStock === undefined || prod.bottomStock === null || prod.bottomStock === 0)) {
-      setShowBottomStockInput(true);
-      setBottomStock('');
-    } else {
-      setShowBottomStockInput(false);
-      setBottomStock('');
-    }
+    setShowBottomStockInput(true);
+    setBottomStock(
+      prod && prod.bottomStock !== undefined && prod.bottomStock !== null
+        ? prod.bottomStock
+        : ''
+    );
 
     setQuantity(r.quantity.toString());
     setNotes(r.notes || '');
@@ -1022,8 +1021,8 @@ export const DailyReport = () => {
       const key = `${d}_${r.productId}`;
 
       // If this report is an arrived placeholder with qty 0 or isArrivedOnly, but a real sales report exists for this product on this date,
-      // hide the placeholder to avoid cluttering with a duplicate 0 qty row!
-      if ((r.quantity === 0 || r.isArrivedOnly) && hasSalesMap.has(key)) {
+      // hide the placeholder to avoid cluttering with a duplicate 0 qty row (unless marked for reorder).
+      if ((r.quantity === 0 || r.isArrivedOnly) && !r.isReorder && hasSalesMap.has(key)) {
         return false;
       }
 
