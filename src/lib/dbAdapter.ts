@@ -85,8 +85,8 @@ export const getDbProvider = (): DbProvider => {
   const p = localStorage.getItem('dbProvider') as DbProvider;
   if (p === 'firebase' || p === 'local' || p === 'supabase') return p;
   if (localStorage.getItem('useLocalDb') === 'true') return 'local';
-  // Default to Firebase Firestore
-  return 'firebase';
+  // Default to Supabase
+  return 'supabase';
 };
 
 export const setDbProviderSetting = (provider: DbProvider) => {
@@ -99,7 +99,7 @@ export const isSupabaseDb = () => getDbProvider() === 'supabase';
 export const isFirebaseDb = () => getDbProvider() === 'firebase';
 
 export const setLocalDbSetting = (value: boolean) => {
-  setDbProviderSetting(value ? 'local' : 'firebase');
+  setDbProviderSetting(value ? 'local' : 'supabase');
 };
 
 const notifyLocalChange = (storeName: string) => {
@@ -944,23 +944,25 @@ export const subscribeToSettings = (
     companyIcon: data.companyIcon ?? data.companyicon
   });
 
-  // 1. Direct Firestore realtime listener on 'settings/public'
-  try {
-    const settingsDocRef = doc(db, 'settings', 'public');
-    const unsubFirestore = onSnapshot(settingsDocRef, (docSnap) => {
-      const exists = typeof docSnap.exists === 'function' ? docSnap.exists() : Boolean(docSnap.exists);
-      if (exists) {
-        const data = docSnap.data();
-        if (data) {
-          callback(extractSettings(data));
+  // 1. Direct Firestore realtime listener on 'settings/public' (only when Firebase is active)
+  if (isFirebaseDb()) {
+    try {
+      const settingsDocRef = doc(db, 'settings', 'public');
+      const unsubFirestore = onSnapshot(settingsDocRef, (docSnap) => {
+        const exists = typeof docSnap.exists === 'function' ? docSnap.exists() : Boolean(docSnap.exists);
+        if (exists) {
+          const data = docSnap.data();
+          if (data) {
+            callback(extractSettings(data));
+          }
         }
-      }
-    }, (err) => {
-      console.warn('[Firestore Settings Listener] Notice:', err?.message || err);
-    });
-    unsubscribers.push(unsubFirestore);
-  } catch (e) {
-    console.warn('[Firestore Settings Setup] Notice:', e);
+      }, (err) => {
+        console.warn('[Firestore Settings Listener] Notice:', err?.message || err);
+      });
+      unsubscribers.push(unsubFirestore);
+    } catch (e) {
+      console.warn('[Firestore Settings Setup] Notice:', e);
+    }
   }
 
   // 2. Supabase realtime listener (if active)
@@ -1073,12 +1075,14 @@ export const syncSettingsToCloud = async (
     }
   } catch {}
 
-  // 2. Selalu simpan ke Google Cloud Firestore (basis database cloud utama)
-  try {
-    const clean = sanitizeForFirestore(payload);
-    await setDoc(doc(db, 'settings', 'public'), clean, { merge: true });
-  } catch (err: any) {
-    console.warn('[Cloud Sync Firestore] Notice:', err?.message || err);
+  // 2. Simpan ke Google Cloud Firestore jika provider Firebase aktif
+  if (isFirebaseDb()) {
+    try {
+      const clean = sanitizeForFirestore(payload);
+      await setDoc(doc(db, 'settings', 'public'), clean, { merge: true });
+    } catch (err: any) {
+      console.warn('[Cloud Sync Firestore] Notice:', err?.message || err);
+    }
   }
 
   // 3. Simpan juga ke Supabase jika instance Supabase aktif
